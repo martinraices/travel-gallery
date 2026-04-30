@@ -13,73 +13,27 @@ import {
 import {
   ref, uploadBytes, getDownloadURL, deleteObject,
 } from 'firebase/storage';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 
-const pinIcon = L.divIcon({
-  className: '',
-  html: '<div class="map-pin"></div>',
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
-  popupAnchor: [0, -14],
-});
-
-const COUNTRY_COORDS = {
-  'Argentina': [-34.61, -58.38],
-  'Australia': [-25.27, 133.77],
-  'Austria': [47.52, 14.55],
-  'Belgium': [50.50, 4.47],
-  'Bolivia': [-16.29, -63.59],
-  'Brazil': [-14.24, -51.93],
-  'Canada': [56.13, -106.35],
-  'Chile': [-35.68, -71.54],
-  'China': [35.86, 104.19],
-  'Colombia': [4.57, -74.30],
-  'Costa Rica': [9.75, -83.75],
-  'Croatia': [45.10, 15.20],
-  'Cuba': [21.52, -77.78],
-  'Czech Republic': [49.82, 15.47],
-  'Denmark': [56.26, 9.50],
-  'Ecuador': [-1.83, -78.18],
-  'Egypt': [26.82, 30.80],
-  'Finland': [61.92, 25.75],
-  'France': [46.23, 2.21],
-  'Germany': [51.17, 10.45],
-  'Greece': [39.07, 21.82],
-  'Hungary': [47.16, 19.50],
-  'Iceland': [64.96, -19.02],
-  'India': [20.59, 78.96],
-  'Indonesia': [-0.79, 113.92],
-  'Ireland': [53.41, -8.24],
-  'Israel': [31.05, 34.85],
-  'Italy': [41.87, 12.57],
-  'Japan': [36.20, 138.25],
-  'Jordan': [30.59, 36.24],
-  'Kenya': [-0.02, 37.91],
-  'Mexico': [23.63, -102.55],
-  'Morocco': [31.79, -7.09],
-  'Netherlands': [52.13, 5.29],
-  'New Zealand': [-40.90, 174.89],
-  'Norway': [60.47, 8.47],
-  'Panama': [8.54, -80.78],
-  'Peru': [-9.19, -75.02],
-  'Poland': [51.92, 19.15],
-  'Portugal': [39.40, -8.22],
-  'Romania': [45.94, 24.97],
-  'Scotland': [56.82, -4.18],
-  'South Africa': [-30.56, 22.94],
-  'Spain': [40.46, -3.75],
-  'Sweden': [60.13, 18.64],
-  'Switzerland': [46.82, 8.23],
-  'Thailand': [15.87, 100.99],
-  'Turkey': [38.96, 35.24],
-  'United Kingdom': [55.38, -3.44],
-  'United States': [37.09, -95.71],
-  'Uruguay': [-32.52, -55.77],
-  'Vietnam': [14.06, 108.28],
+// ─── Country name → ISO 3166-1 numeric (for choropleth map) ───
+const COUNTRY_ISO = {
+  'Argentina': 32, 'Australia': 36, 'Austria': 40, 'Belgium': 56, 'Bolivia': 68,
+  'Brazil': 76, 'Canada': 124, 'Chile': 152, 'China': 156, 'Colombia': 170,
+  'Costa Rica': 188, 'Croatia': 191, 'Cuba': 192, 'Czech Republic': 203,
+  'Denmark': 208, 'Ecuador': 218, 'Egypt': 818, 'Finland': 246, 'France': 250,
+  'Germany': 276, 'Greece': 300, 'Hungary': 348, 'Iceland': 352, 'India': 356,
+  'Indonesia': 360, 'Ireland': 372, 'Israel': 376, 'Italy': 380, 'Japan': 392,
+  'Jordan': 400, 'Kenya': 404, 'Mexico': 484, 'Morocco': 504, 'Netherlands': 528,
+  'New Zealand': 554, 'Norway': 578, 'Panama': 591, 'Peru': 604, 'Poland': 616,
+  'Portugal': 620, 'Romania': 642, 'Scotland': 826, 'South Africa': 710,
+  'Spain': 724, 'Sweden': 752, 'Switzerland': 756, 'Thailand': 764, 'Turkey': 792,
+  'United Kingdom': 826, 'United States': 840, 'Uruguay': 858, 'Vietnam': 704,
 };
 
+const COUNTRY_NAMES = Object.keys(COUNTRY_ISO);
+const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+
+// ─── Image compression ───
 function compressImage(file, maxDim = 2000, quality = 0.82) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -91,8 +45,7 @@ function compressImage(file, maxDim = 2000, quality = 0.82) {
         height = Math.round(height * ratio);
       }
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
       canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
     };
@@ -126,6 +79,18 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef();
 
+  // ─── Dark mode ───
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
+
+  // ─── Photo reorder ───
+  const draggingIdx = useRef(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+
+  // ─── Map ───
+  const [mapTooltip, setMapTooltip] = useState('');
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [wishlist, setWishlist] = useState(new Set());
+
   // ─── Edit trip ───
   const [editTrip, setEditTrip] = useState(null);
   const [editName, setEditName] = useState('');
@@ -137,11 +102,17 @@ export default function App() {
   const [shareModal, setShareModal] = useState(null);
   const [shareGenerating, setShareGenerating] = useState(null);
 
-  // ─── Public share view (for ?share=TOKEN URLs) ───
+  // ─── Public share (for ?share=TOKEN URLs) ───
   const [publicShareData, setPublicShareData] = useState(null);
   const [publicShareLoading, setPublicShareLoading] = useState(false);
   const [publicLightbox, setPublicLightbox] = useState(null);
   const [publicLbIdx, setPublicLbIdx] = useState(-1);
+
+  // ─── Dark mode effect ───
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    localStorage.setItem('darkMode', darkMode);
+  }, [darkMode]);
 
   // ─── Auth listener ───
   useEffect(() => {
@@ -162,19 +133,18 @@ export default function App() {
       .finally(() => setPublicShareLoading(false));
   }, []);
 
-  // ─── Load trips when authenticated ───
+  useEffect(() => { if (!user) return; loadTrips(); }, [user]);
+  useEffect(() => { if (!activeTrip || !user) { setPhotos([]); return; } loadPhotos(activeTrip); }, [activeTrip, user]);
+
+  // ─── Load wishlist from Firestore ───
   useEffect(() => {
-    if (!user) return;
-    loadTrips();
+    if (!user) { setWishlist(new Set()); return; }
+    getDoc(doc(db, 'users', user.uid, 'profile', 'map'))
+      .then(snap => { if (snap.exists()) setWishlist(new Set(snap.data().wishlist || [])); })
+      .catch(() => {});
   }, [user]);
 
-  // ─── Load photos when trip selected ───
-  useEffect(() => {
-    if (!activeTrip || !user) { setPhotos([]); return; }
-    loadPhotos(activeTrip);
-  }, [activeTrip, user]);
-
-  // ─── Keyboard nav for lightboxes ───
+  // ─── Keyboard nav ───
   useEffect(() => {
     const handler = (e) => {
       if (lightbox) {
@@ -184,15 +154,10 @@ export default function App() {
       }
       if (publicLightbox && publicShareData?.photos) {
         if (e.key === 'Escape') setPublicLightbox(null);
-        if (e.key === 'ArrowLeft' && publicLbIdx > 0) {
-          const n = publicLbIdx - 1;
-          setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]);
-        }
-        if (e.key === 'ArrowRight' && publicLbIdx < publicShareData.photos.length - 1) {
-          const n = publicLbIdx + 1;
-          setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]);
-        }
+        if (e.key === 'ArrowLeft' && publicLbIdx > 0) { const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]); }
+        if (e.key === 'ArrowRight' && publicLbIdx < publicShareData.photos.length - 1) { const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]); }
       }
+      if (!lightbox && !publicLightbox && mapFullscreen && e.key === 'Escape') setMapFullscreen(false);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -207,9 +172,7 @@ export default function App() {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (err) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setLoginError('Sign-in failed — please try again');
-      }
+      if (err.code !== 'auth/popup-closed-by-user') setLoginError('Sign-in failed — please try again');
     }
     setLoggingIn(false);
   };
@@ -230,16 +193,11 @@ export default function App() {
 
   const addTrip = async () => {
     if (!newTripName.trim()) return;
-    const coords = COUNTRY_COORDS[newTripCountry.trim()] || null;
     const tripData = {
       name: newTripName.trim(),
       date: newTripDate || null,
       country: newTripCountry.trim() || null,
-      lat: coords ? coords[0] : null,
-      lng: coords ? coords[1] : null,
-      cover: null,
-      photoCount: 0,
-      createdAt: serverTimestamp(),
+      cover: null, photoCount: 0, createdAt: serverTimestamp(),
     };
     const docRef = await addDoc(tripsCol(), tripData);
     setTrips(prev => [{ id: docRef.id, ...tripData }, ...prev]);
@@ -248,15 +206,11 @@ export default function App() {
 
   const deleteTrip = async (tripId) => {
     const trip = trips.find(t => t.id === tripId);
-    if (trip?.shareToken) {
-      try { await deleteDoc(doc(db, 'sharedLinks', trip.shareToken)); } catch {}
-    }
+    if (trip?.shareToken) { try { await deleteDoc(doc(db, 'sharedLinks', trip.shareToken)); } catch {} }
     const photosSnap = await getDocs(collection(db, 'users', user.uid, 'trips', tripId, 'photos'));
     for (const photoDoc of photosSnap.docs) {
       const data = photoDoc.data();
-      if (data.storagePath) {
-        try { await deleteObject(ref(storage, data.storagePath)); } catch {}
-      }
+      if (data.storagePath) { try { await deleteObject(ref(storage, data.storagePath)); } catch {} }
       await deleteDoc(photoDoc.ref);
     }
     await deleteDoc(doc(db, 'users', user.uid, 'trips', tripId));
@@ -274,7 +228,14 @@ export default function App() {
     setLoadingPhotos(true);
     try {
       const snap = await getDocs(query(photosCol(tripId), orderBy('createdAt', 'asc')));
-      setPhotos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      let loaded = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Sort by saved order if it exists
+      const trip = trips.find(t => t.id === tripId);
+      if (trip?.photoOrder?.length) {
+        const orderMap = new Map(trip.photoOrder.map((id, i) => [id, i]));
+        loaded.sort((a, b) => (orderMap.has(a.id) ? orderMap.get(a.id) : 9999) - (orderMap.has(b.id) ? orderMap.get(b.id) : 9999));
+      }
+      setPhotos(loaded);
     } catch (err) { console.error('Load photos error:', err); }
     setLoadingPhotos(false);
   };
@@ -283,10 +244,8 @@ export default function App() {
     if (!activeTrip || !files.length) return;
     const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
     if (!imageFiles.length) return;
-
     setUploading(true);
     setUploadCount({ done: 0, total: imageFiles.length });
-
     const newPhotos = [];
     for (let i = 0; i < imageFiles.length; i++) {
       const file = imageFiles[i];
@@ -303,7 +262,6 @@ export default function App() {
       } catch (err) { console.error('Upload error:', err); }
       setUploadCount(prev => ({ ...prev, done: i + 1 }));
     }
-
     setPhotos(prev => [...prev, ...newPhotos]);
     const trip = trips.find(t => t.id === activeTrip);
     if (trip) {
@@ -316,9 +274,7 @@ export default function App() {
   }, [activeTrip, user, trips]);
 
   const deletePhoto = async (photo) => {
-    if (photo.storagePath) {
-      try { await deleteObject(ref(storage, photo.storagePath)); } catch {}
-    }
+    if (photo.storagePath) { try { await deleteObject(ref(storage, photo.storagePath)); } catch {} }
     await deleteDoc(doc(db, 'users', user.uid, 'trips', activeTrip, 'photos', photo.id));
     setPhotos(prev => prev.filter(p => p.id !== photo.id));
     const trip = trips.find(t => t.id === activeTrip);
@@ -330,37 +286,43 @@ export default function App() {
     setLightbox(null);
   };
 
+  // ─── Photo reorder ───
+  const reorderPhotos = async (dropIdx) => {
+    const dragIdx = draggingIdx.current;
+    if (dragIdx === null || dragIdx === dropIdx) return;
+    draggingIdx.current = null;
+    const newPhotos = [...photos];
+    const [moved] = newPhotos.splice(dragIdx, 1);
+    newPhotos.splice(dropIdx, 0, moved);
+    setPhotos(newPhotos);
+    const newOrder = newPhotos.map(p => p.id);
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'trips', activeTrip), { photoOrder: newOrder });
+      setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, photoOrder: newOrder } : t));
+    } catch (err) { console.error('Reorder error:', err); }
+  };
+
   const lbIndex = lightbox ? photos.findIndex(p => p.id === lightbox.id) : -1;
-  const navLightbox = (dir) => {
-    const next = lbIndex + dir;
-    if (next >= 0 && next < photos.length) setLightbox(photos[next]);
-  };
+  const navLightbox = (dir) => { const next = lbIndex + dir; if (next >= 0 && next < photos.length) setLightbox(photos[next]); };
 
-  const onDragOver = (e) => { e.preventDefault(); setDragging(true); };
+  // ─── File drag & drop (grid background) ───
+  const onDragOver = (e) => { e.preventDefault(); if (draggingIdx.current === null) setDragging(true); };
   const onDragLeave = () => setDragging(false);
-  const onDrop = (e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files); };
+  const onDrop = (e) => {
+    e.preventDefault(); setDragging(false);
+    if (draggingIdx.current !== null) return; // photo reorder drop — handled by photo thumb
+    handleFiles(e.dataTransfer.files);
+  };
 
   // ═══════════════════════════════════════
-  // EDIT TRIP METADATA
+  // EDIT TRIP
   // ═══════════════════════════════════════
-  const openEditTrip = (trip) => {
-    setEditTrip(trip);
-    setEditName(trip.name);
-    setEditDate(trip.date || '');
-    setEditCountry(trip.country || '');
-  };
+  const openEditTrip = (trip) => { setEditTrip(trip); setEditName(trip.name); setEditDate(trip.date || ''); setEditCountry(trip.country || ''); };
 
   const saveEditTrip = async () => {
     if (!editName.trim() || !editTrip) return;
     setEditSaving(true);
-    const coords = COUNTRY_COORDS[editCountry.trim()] || null;
-    const updates = {
-      name: editName.trim(),
-      date: editDate || null,
-      country: editCountry.trim() || null,
-      lat: coords ? coords[0] : null,
-      lng: coords ? coords[1] : null,
-    };
+    const updates = { name: editName.trim(), date: editDate || null, country: editCountry.trim() || null };
     try {
       await updateDoc(doc(db, 'users', user.uid, 'trips', editTrip.id), updates);
       setTrips(prev => prev.map(t => t.id === editTrip.id ? { ...t, ...updates } : t));
@@ -370,24 +332,16 @@ export default function App() {
   };
 
   // ═══════════════════════════════════════
-  // SHARE A TRIP
+  // SHARE
   // ═══════════════════════════════════════
   const generateShareLink = async (trip) => {
-    if (trip.shareToken) {
-      setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${trip.shareToken}` });
-      return;
-    }
+    if (trip.shareToken) { setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${trip.shareToken}` }); return; }
     setShareGenerating(trip.id);
     try {
       const snap = await getDocs(query(photosCol(trip.id), orderBy('createdAt', 'asc')));
       const photosData = snap.docs.map(d => ({ url: d.data().url, name: d.data().name }));
       const token = crypto.randomUUID();
-      await setDoc(doc(db, 'sharedLinks', token), {
-        tripName: trip.name,
-        tripDate: trip.date || null,
-        photos: photosData,
-        createdAt: serverTimestamp(),
-      });
+      await setDoc(doc(db, 'sharedLinks', token), { tripName: trip.name, tripDate: trip.date || null, photos: photosData, createdAt: serverTimestamp() });
       await updateDoc(doc(db, 'users', user.uid, 'trips', trip.id), { shareToken: token });
       setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, shareToken: token } : t));
       setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${token}` });
@@ -405,32 +359,43 @@ export default function App() {
   };
 
   // ═══════════════════════════════════════
+  // WISHLIST
+  // ═══════════════════════════════════════
+  const toggleWishlist = async (iso) => {
+    const next = new Set(wishlist);
+    if (next.has(iso)) next.delete(iso); else next.add(iso);
+    setWishlist(next);
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'profile', 'map'), { wishlist: [...next] }, { merge: true });
+    } catch (err) { console.error('Wishlist error:', err); }
+  };
+
+  // ═══════════════════════════════════════
   // STATS
   // ═══════════════════════════════════════
   const totalPhotos = trips.reduce((s, t) => s + (t.photoCount || 0), 0);
   const countriesVisited = new Set(trips.map(t => t.country).filter(Boolean)).size;
-  const topTrip = trips.reduce((best, t) =>
-    (!best || (t.photoCount || 0) > (best.photoCount || 0)) ? t : best, null);
+  const topTrip = trips.reduce((best, t) => (!best || (t.photoCount || 0) > (best.photoCount || 0)) ? t : best, null);
+
+  // ─── Map: visited ISO set + lookup ───
+  const visitedIsos = new Set(trips.map(t => COUNTRY_ISO[t.country]).filter(Boolean));
+  const tripByIso = {};
+  trips.forEach(t => { const iso = COUNTRY_ISO[t.country]; if (iso && !tripByIso[iso]) tripByIso[iso] = t; });
+  const hasMapData = trips.some(t => COUNTRY_ISO[t.country]);
 
   // ═══════════════════════════════════════
   // PUBLIC SHARE VIEW
   // ═══════════════════════════════════════
-  if (publicShareLoading) {
-    return <div className="login-page"><span className="spinner" style={{ width: 28, height: 28 }} /></div>;
-  }
+  if (publicShareLoading) return <div className="login-page"><span className="spinner" style={{ width: 28, height: 28 }} /></div>;
 
   if (publicShareData) {
-    if (publicShareData.error) {
-      return (
-        <div className="login-page">
-          <div className="login-card">
-            <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
-            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>This shared link is no longer valid.</p>
-          </div>
-        </div>
-      );
-    }
-    const photos = publicShareData.photos || [];
+    if (publicShareData.error) return (
+      <div className="login-page"><div className="login-card">
+        <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>This shared link is no longer valid.</p>
+      </div></div>
+    );
+    const pubPhotos = publicShareData.photos || [];
     return (
       <div>
         <header className="header">
@@ -446,10 +411,10 @@ export default function App() {
               <span className="gallery-title heading">{publicShareData.tripName}</span>
               {publicShareData.tripDate && <span className="gallery-date">{publicShareData.tripDate}</span>}
             </div>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{photos.length} photos</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{pubPhotos.length} photos</span>
           </div>
           <div className="photo-grid">
-            {photos.map((p, i) => (
+            {pubPhotos.map((p, i) => (
               <div key={i} className="photo-thumb fade-in" style={{ animationDelay: `${i * 20}ms` }}
                 onClick={() => { setPublicLightbox(p); setPublicLbIdx(i); }}>
                 <img src={p.url} alt={p.name} loading="lazy" />
@@ -459,31 +424,18 @@ export default function App() {
         </div>
         {publicLightbox && (
           <div className="lightbox fade-scale" onClick={() => setPublicLightbox(null)}>
-            <img src={publicLightbox.url} alt={publicLightbox.name} className="lightbox-img"
-              onClick={e => e.stopPropagation()} />
+            <img src={publicLightbox.url} alt={publicLightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
             <button className="lb-close" onClick={() => setPublicLightbox(null)}>✕</button>
-            {publicLbIdx > 0 && (
-              <button className="lb-arrow lb-arrow-left" onClick={e => {
-                e.stopPropagation();
-                const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(photos[n]);
-              }}>‹</button>
-            )}
-            {publicLbIdx < photos.length - 1 && (
-              <button className="lb-arrow lb-arrow-right" onClick={e => {
-                e.stopPropagation();
-                const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(photos[n]);
-              }}>›</button>
-            )}
-            <div className="lb-counter">{publicLbIdx + 1} / {photos.length}</div>
+            {publicLbIdx > 0 && <button className="lb-arrow lb-arrow-left" onClick={e => { e.stopPropagation(); const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>‹</button>}
+            {publicLbIdx < pubPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>›</button>}
+            <div className="lb-counter">{publicLbIdx + 1} / {pubPhotos.length}</div>
           </div>
         )}
       </div>
     );
   }
 
-  if (authLoading) {
-    return <div className="login-page"><div className="spinner" style={{ width: 28, height: 28 }} /></div>;
-  }
+  if (authLoading) return <div className="login-page"><div className="spinner" style={{ width: 28, height: 28 }} /></div>;
 
   // ═══════════════════════════════════════
   // LOGIN SCREEN
@@ -497,16 +449,7 @@ export default function App() {
           <button onClick={handleGoogleLogin} className="btn-google" disabled={loggingIn}>
             {loggingIn
               ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Signing in…</>
-              : <>
-                  <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                    <path fill="none" d="M0 0h48v48H0z"/>
-                  </svg>
-                  Continue with Google
-                </>
+              : <><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Continue with Google</>
             }
           </button>
           {loginError && <p className="login-error">{loginError}</p>}
@@ -519,31 +462,40 @@ export default function App() {
   // MAIN APP
   // ═══════════════════════════════════════
   const activeTripData = trips.find(t => t.id === activeTrip);
-  const mappableTrips = trips.filter(t => t.lat != null && t.lng != null);
 
   return (
     <div>
       {/* ─── Header ─── */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {activeTrip && (
-            <button className="btn btn-sm" onClick={() => setActiveTrip(null)}>← Trips</button>
-          )}
+          {activeTrip && <button className="btn btn-sm" onClick={() => setActiveTrip(null)}>← Trips</button>}
           <div className="header-logo-wrap" onClick={() => setActiveTrip(null)}>
             <img src="/logo.png" alt="Pepini per il mondo" className="header-logo-img" />
             <span className="header-logo heading">Pepini per il mondo</span>
           </div>
         </div>
         <div className="header-actions">
-          {!activeTrip && (
-            <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>+ New Trip</button>
-          )}
+          {!activeTrip && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>+ New Trip</button>}
           {activeTrip && (
             <button className="btn btn-accent" onClick={() => fileRef.current?.click()} disabled={uploading}>
               {uploading ? `Uploading ${uploadCount.done}/${uploadCount.total}…` : '+ Add Photos'}
             </button>
           )}
-          <button className="btn btn-sm" onClick={() => signOut(auth)} title="Sign out">↪ Out</button>
+          {/* Dark mode toggle */}
+          <button className="btn-icon" onClick={() => setDarkMode(d => !d)} title={darkMode ? 'Light mode' : 'Dark mode'}>
+            {darkMode
+              ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            }
+          </button>
+          {/* Sign out */}
+          <button className="btn-icon" onClick={() => signOut(auth)} title="Sign out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
         </div>
         <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
           onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
@@ -570,40 +522,21 @@ export default function App() {
                 </div>
                 <div className="form-group" style={{ flex: '0 0 190px' }}>
                   <label>Country (optional)</label>
-                  <input
-                    list="countries-list"
-                    value={newTripCountry}
-                    onChange={e => setNewTripCountry(e.target.value)}
-                    placeholder="e.g. Italy"
-                    className="input"
-                  />
-                  <datalist id="countries-list">
-                    {Object.keys(COUNTRY_COORDS).map(c => <option key={c} value={c} />)}
-                  </datalist>
+                  <input list="countries-list" value={newTripCountry} onChange={e => setNewTripCountry(e.target.value)} placeholder="e.g. Italy" className="input" />
+                  <datalist id="countries-list">{COUNTRY_NAMES.map(c => <option key={c} value={c} />)}</datalist>
                 </div>
                 <button onClick={addTrip} className="btn btn-accent">Create</button>
-                <button onClick={() => { setShowNewTrip(false); setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); }}
-                  className="btn btn-sm">Cancel</button>
+                <button onClick={() => { setShowNewTrip(false); setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); }} className="btn btn-sm">Cancel</button>
               </div>
             )}
 
             {/* ─ Stats ─ */}
             {trips.length > 0 && (
               <div className="stats-bar fade-in">
-                <div className="stat-card">
-                  <div className="stat-value">{trips.length}</div>
-                  <div className="stat-label">Trips</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{totalPhotos}</div>
-                  <div className="stat-label">Photos</div>
-                </div>
-                {countriesVisited > 0 && (
-                  <div className="stat-card">
-                    <div className="stat-value">{countriesVisited}</div>
-                    <div className="stat-label">Countries</div>
-                  </div>
-                )}
+                <div className="stat-card"><div className="stat-value">{trips.length}</div><div className="stat-label">Trips</div></div>
+                <div className="stat-card"><div className="stat-value">{totalPhotos}</div><div className="stat-label">Photos</div></div>
+                {countriesVisited > 0 && <div className="stat-card"><div className="stat-value">{countriesVisited}</div><div className="stat-label">Countries</div></div>}
+                {wishlist.size > 0 && <div className="stat-card"><div className="stat-value">{wishlist.size}</div><div className="stat-label">Wishlist</div></div>}
                 {topTrip && topTrip.photoCount > 0 && (
                   <div className="stat-card stat-card-wide">
                     <div className="stat-value stat-value-sm">{topTrip.name}</div>
@@ -613,21 +546,17 @@ export default function App() {
               </div>
             )}
 
-            {/* ─ View toggle (grid / map) ─ */}
+            {/* ─ View toggle ─ */}
             {trips.length > 0 && (
               <div className="trips-view-header">
                 <div className="view-toggle">
                   <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')}>Grid</button>
-                  {mappableTrips.length > 0 && (
-                    <button className={`view-btn ${tripsView === 'map' ? 'active' : ''}`} onClick={() => setTripsView('map')}>Map</button>
-                  )}
+                  {hasMapData && <button className={`view-btn ${tripsView === 'map' ? 'active' : ''}`} onClick={() => setTripsView('map')}>Map</button>}
                 </div>
               </div>
             )}
 
-            {loadingTrips && (
-              <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>
-            )}
+            {loadingTrips && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
 
             {!loadingTrips && trips.length === 0 && !showNewTrip && (
               <div className="empty">
@@ -638,32 +567,49 @@ export default function App() {
               </div>
             )}
 
-            {/* ─ Map view ─ */}
-            {tripsView === 'map' && mappableTrips.length > 0 && (
-              <div className="map-wrap fade-in">
-                <MapContainer center={[20, 0]} zoom={2} scrollWheelZoom
-                  style={{ height: 480, width: '100%', borderRadius: 'var(--radius-lg)' }}>
-                  <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  />
-                  {mappableTrips.map(trip => (
-                    <Marker key={trip.id} position={[trip.lat, trip.lng]} icon={pinIcon}>
-                      <Popup>
-                        <div className="map-popup">
-                          {trip.cover && <img src={trip.cover} alt={trip.name} className="map-popup-img" />}
-                          <div className="map-popup-name">{trip.name}</div>
-                          {trip.date && <div className="map-popup-meta">{trip.date}</div>}
-                          <div className="map-popup-meta">{trip.photoCount || 0} photos</div>
-                          <button className="btn btn-accent btn-sm" style={{ marginTop: 8, width: '100%', justifyContent: 'center' }}
-                            onClick={() => { setActiveTrip(trip.id); setTripsView('grid'); }}>
-                            Open trip →
-                          </button>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  ))}
-                </MapContainer>
+            {/* ─ Choropleth map ─ */}
+            {tripsView === 'map' && hasMapData && (
+              <div className={`map-wrap fade-in${mapFullscreen ? ' fullscreen' : ''}`}>
+                <div className="map-toolbar">
+                  <button className="btn-map-fs" onClick={() => setMapFullscreen(f => !f)} title={mapFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
+                    {mapFullscreen
+                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                    }
+                  </button>
+                </div>
+                <ComposableMap
+                  projectionConfig={{ rotate: [-10, 0, 0], scale: 153, center: [0, 10] }}
+                  width={800}
+                  height={380}
+                >
+                  <Geographies geography={GEO_URL}>
+                    {({ geographies }) => geographies.map(geo => {
+                      const iso = Number(geo.id);
+                      const isVisited = visitedIsos.has(iso);
+                      const isWished = !isVisited && wishlist.has(iso);
+                      const trip = tripByIso[iso];
+                      return (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          onMouseEnter={() => setMapTooltip(isVisited ? `${geo.properties.name} — ${trip.name}` : isWished ? `${geo.properties.name} — ★ Wishlist` : geo.properties.name)}
+                          onMouseLeave={() => setMapTooltip('')}
+                          onClick={() => {
+                            if (isVisited && trip) { setActiveTrip(trip.id); setTripsView('grid'); setMapFullscreen(false); }
+                            else toggleWishlist(iso);
+                          }}
+                          style={{
+                            default: { fill: isVisited ? 'var(--accent)' : isWished ? '#e05252' : 'var(--map-land)', stroke: 'var(--map-border)', strokeWidth: 0.4, outline: 'none' },
+                            hover:   { fill: isVisited ? 'var(--accent-hover)' : isWished ? '#c94040' : 'var(--map-hover)', stroke: 'var(--map-border)', strokeWidth: 0.4, outline: 'none', cursor: 'pointer' },
+                            pressed: { fill: isVisited ? 'var(--accent-hover)' : isWished ? '#c94040' : 'var(--map-hover)', outline: 'none' },
+                          }}
+                        />
+                      );
+                    })}
+                  </Geographies>
+                </ComposableMap>
+                <div className="map-tooltip-bar">{mapTooltip || ' '}</div>
               </div>
             )}
 
@@ -671,16 +617,12 @@ export default function App() {
             {tripsView === 'grid' && (
               <div className="trips-grid">
                 {trips.map((trip, i) => (
-                  <div key={trip.id} className="trip-card fade-in"
-                    style={{ animationDelay: `${i * 60}ms` }}
-                    onClick={() => setActiveTrip(trip.id)}>
+                  <div key={trip.id} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }} onClick={() => setActiveTrip(trip.id)}>
                     <div className={`trip-cover ${trip.cover ? '' : 'trip-cover-empty'}`}
                       style={trip.cover ? { backgroundImage: `url(${trip.cover})` } : {}}>
                       {!trip.cover && <span>🗺</span>}
-                      <button className="trip-delete"
-                        onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>
-                      <button
-                        className={`trip-share ${trip.shareToken ? 'trip-share-active' : ''}`}
+                      <button className="trip-delete" onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>
+                      <button className={`trip-share ${trip.shareToken ? 'trip-share-active' : ''}`}
                         title={trip.shareToken ? 'Shared — click to see link' : 'Share this trip'}
                         disabled={shareGenerating === trip.id}
                         onClick={e => { e.stopPropagation(); generateShareLink(trip); }}>
@@ -690,8 +632,7 @@ export default function App() {
                     <div className="trip-info">
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                         <div className="trip-name">{trip.name}</div>
-                        <button className="trip-edit-btn" title="Edit trip"
-                          onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>
+                        <button className="trip-edit-btn" title="Edit trip" onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>
                       </div>
                       <div className="trip-meta">
                         {trip.country ? `${trip.country}${trip.date || trip.photoCount ? ' · ' : ''}` : ''}
@@ -715,10 +656,8 @@ export default function App() {
                 {activeTripData.date && <span className="gallery-date">{activeTripData.date}</span>}
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button
-                  className={`btn btn-sm ${activeTripData.shareToken ? 'btn-accent' : ''}`}
-                  onClick={() => generateShareLink(activeTripData)}
-                  disabled={shareGenerating === activeTrip}>
+                <button className={`btn btn-sm ${activeTripData.shareToken ? 'btn-accent' : ''}`}
+                  onClick={() => generateShareLink(activeTripData)} disabled={shareGenerating === activeTrip}>
                   {shareGenerating === activeTrip ? 'Generating…' : activeTripData.shareToken ? '↗ Shared' : '↗ Share'}
                 </button>
                 <div className="view-toggle">
@@ -728,46 +667,47 @@ export default function App() {
               </div>
             </div>
 
-            {uploading && (
-              <div className="upload-progress">
-                <span className="spinner" />
-                Uploading {uploadCount.done} of {uploadCount.total} photos…
-              </div>
-            )}
-            {loadingPhotos && (
-              <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>
-            )}
+            {uploading && <div className="upload-progress"><span className="spinner" />Uploading {uploadCount.done} of {uploadCount.total} photos…</div>}
+            {loadingPhotos && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
             {!loadingPhotos && photos.length === 0 && !uploading && (
-              <div className={`drop-zone ${dragging ? 'dragging' : ''}`}
-                onClick={() => fileRef.current?.click()}
+              <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()}
                 onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
                 <div className="drop-zone-icon">📷</div>
                 <p style={{ fontSize: 15, marginBottom: 4 }}>Drag & drop photos here</p>
                 <p style={{ fontSize: 12 }}>or click to browse</p>
               </div>
             )}
+
+            {/* Grid with drag-to-reorder */}
             {photos.length > 0 && view === 'grid' && (
               <div className="photo-grid" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
                 {photos.map((p, i) => (
-                  <div key={p.id} className="photo-thumb fade-in" style={{ animationDelay: `${i * 30}ms` }}
+                  <div key={p.id}
+                    className={`photo-thumb fade-in${dragOverIdx === i ? ' drag-over' : ''}`}
+                    style={{ animationDelay: `${i * 30}ms` }}
+                    draggable
+                    onDragStart={() => { draggingIdx.current = i; }}
+                    onDragEnd={() => { draggingIdx.current = null; setDragOverIdx(null); }}
+                    onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverIdx(i); }}
+                    onDragLeave={() => setDragOverIdx(null)}
+                    onDrop={e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(i); setDragOverIdx(null); }}
                     onClick={() => setLightbox(p)}>
                     <img src={p.url} alt={p.name} loading="lazy" />
+                    <div className="photo-drag-handle">⠿</div>
                   </div>
                 ))}
                 <div className="add-tile" onClick={() => fileRef.current?.click()}>+</div>
               </div>
             )}
+
             {photos.length > 0 && view === 'list' && (
               <div className="photo-list" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
                 {photos.map((p, i) => (
-                  <div key={p.id} className="photo-list-item fade-in" style={{ animationDelay: `${i * 25}ms` }}
-                    onClick={() => setLightbox(p)}>
+                  <div key={p.id} className="photo-list-item fade-in" style={{ animationDelay: `${i * 25}ms` }} onClick={() => setLightbox(p)}>
                     <img src={p.url} alt={p.name} loading="lazy" />
                     <div>
                       <div className="photo-list-name">{p.name}</div>
-                      {p.createdAt?.seconds && (
-                        <div className="photo-list-date">{new Date(p.createdAt.seconds * 1000).toLocaleDateString()}</div>
-                      )}
+                      {p.createdAt?.seconds && <div className="photo-list-date">{new Date(p.createdAt.seconds * 1000).toLocaleDateString()}</div>}
                     </div>
                   </div>
                 ))}
@@ -780,40 +720,20 @@ export default function App() {
       {/* ═══ LIGHTBOX ═══ */}
       {lightbox && (
         <div className="lightbox fade-scale" onClick={() => setLightbox(null)}>
-          <img src={lightbox.url} alt={lightbox.name} className="lightbox-img"
-            onClick={e => e.stopPropagation()} />
-
-          {/* Close */}
-          <button className="lb-close" onClick={() => setLightbox(null)} title="Close">✕</button>
-
-          {/* Left arrow */}
-          {lbIndex > 0 && (
-            <button className="lb-arrow lb-arrow-left" onClick={e => { e.stopPropagation(); navLightbox(-1); }}>
-              ‹
-            </button>
-          )}
-
-          {/* Right arrow */}
-          {lbIndex < photos.length - 1 && (
-            <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); navLightbox(1); }}>
-              ›
-            </button>
-          )}
-
-          {/* Counter */}
+          <img src={lightbox.url} alt={lightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
+          <button className="lb-close" onClick={() => setLightbox(null)}>✕</button>
+          {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" onClick={e => { e.stopPropagation(); navLightbox(-1); }}>‹</button>}
+          {lbIndex < photos.length - 1 && <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); navLightbox(1); }}>›</button>}
           <div className="lb-counter">{lbIndex + 1} / {photos.length}</div>
-
-          {/* Delete */}
           <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title="Delete photo">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
           </button>
         </div>
       )}
 
-      {/* ═══ DELETE TRIP CONFIRM ═══ */}
+      {/* ═══ DELETE TRIP ═══ */}
       {confirmDelete && (
         <div className="modal-overlay fade-scale" onClick={() => setConfirmDelete(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -827,7 +747,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ═══ EDIT TRIP MODAL ═══ */}
+      {/* ═══ EDIT TRIP ═══ */}
       {editTrip && (
         <div className="modal-overlay fade-scale" onClick={() => setEditTrip(null)}>
           <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
@@ -835,9 +755,7 @@ export default function App() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
               <div className="form-group">
                 <label>Trip Name</label>
-                <input value={editName} onChange={e => setEditName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && saveEditTrip()}
-                  className="input" autoFocus />
+                <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveEditTrip()} className="input" autoFocus />
               </div>
               <div className="form-group">
                 <label>Date (optional)</label>
@@ -845,20 +763,13 @@ export default function App() {
               </div>
               <div className="form-group">
                 <label>Country (optional)</label>
-                <input list="countries-list-edit" value={editCountry}
-                  onChange={e => setEditCountry(e.target.value)}
-                  placeholder="e.g. Italy" className="input" />
-                <datalist id="countries-list-edit">
-                  {Object.keys(COUNTRY_COORDS).map(c => <option key={c} value={c} />)}
-                </datalist>
+                <input list="countries-list-edit" value={editCountry} onChange={e => setEditCountry(e.target.value)} placeholder="e.g. Italy" className="input" />
+                <datalist id="countries-list-edit">{COUNTRY_NAMES.map(c => <option key={c} value={c} />)}</datalist>
               </div>
             </div>
             <div className="modal-actions" style={{ marginTop: 20 }}>
               <button className="btn btn-sm" onClick={() => setEditTrip(null)}>Cancel</button>
-              <button className="btn btn-accent" onClick={saveEditTrip}
-                disabled={editSaving || !editName.trim()}>
-                {editSaving ? 'Saving…' : 'Save'}
-              </button>
+              <button className="btn btn-accent" onClick={saveEditTrip} disabled={editSaving || !editName.trim()}>{editSaving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
         </div>
@@ -872,19 +783,10 @@ export default function App() {
             <p className="modal-sub">Anyone with this link can view the photos — no login required.</p>
             <div className="share-url-box">
               <span className="share-url-text">{shareModal.url}</span>
-              <button className="btn btn-sm btn-accent"
-                onClick={() => navigator.clipboard.writeText(shareModal.url)}>
-                Copy
-              </button>
+              <button className="btn btn-sm btn-accent" onClick={() => navigator.clipboard.writeText(shareModal.url)}>Copy</button>
             </div>
             <div className="modal-actions" style={{ marginTop: 20 }}>
-              <button className="btn btn-sm btn-danger"
-                onClick={() => {
-                  const trip = trips.find(t => t.id === shareModal.tripId);
-                  if (trip?.shareToken) revokeShareLink(trip.id, trip.shareToken);
-                }}>
-                Revoke link
-              </button>
+              <button className="btn btn-sm btn-danger" onClick={() => { const trip = trips.find(t => t.id === shareModal.tripId); if (trip?.shareToken) revokeShareLink(trip.id, trip.shareToken); }}>Revoke link</button>
               <button className="btn btn-sm" onClick={() => setShareModal(null)}>Close</button>
             </div>
           </div>
