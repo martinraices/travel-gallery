@@ -14,9 +14,9 @@ service cloud.firestore {
         request.resource.data.ownerId == request.auth.uid;
       allow update: if request.auth != null && (
         resource.data.ownerId == request.auth.uid ||
-        // Any authenticated user can patch only the cover field on shared trips
+        // Any authenticated user can patch cover or ownerEmail on shared trips
         (resource.data.visibility == 'shared' &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cover']))
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cover', 'ownerEmail']))
       );
       allow delete: if request.auth != null &&
         resource.data.ownerId == request.auth.uid;

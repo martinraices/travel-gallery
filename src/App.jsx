@@ -8,10 +8,10 @@ import {
 } from 'firebase/auth';
 import {
   collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
-  query, where, orderBy, serverTimestamp, getDoc, setDoc,
+  query, where, orderBy, limit, serverTimestamp, getDoc, setDoc,
 } from 'firebase/firestore';
 import {
-  ref, uploadBytes, getDownloadURL, deleteObject,
+  ref, uploadBytes, getDownloadURL, deleteObject, listAll,
 } from 'firebase/storage';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 
@@ -300,20 +300,21 @@ export default function App() {
   useEffect(() => { if (!user) return; loadTrips(); }, [user]);
   useEffect(() => { if (!activeTrip || !user) { setPhotos([]); return; } loadPhotos(activeTrip); setSelectedPhotos(new Set()); setActiveCity(null); }, [activeTrip, user]);
 
-  // Auto-fix: trips with photos but no cover — fetch first photo and set as cover
+  // Auto-fix: trips with a broken/missing cover — list Storage files directly and get a real URL
   useEffect(() => {
     if (!user || trips.length === 0) return;
-    const uncovered = trips.filter(t => !t.cover && (t.photoCount || 0) > 0);
-    if (uncovered.length === 0) return;
-    uncovered.forEach(async (trip) => {
+    // Run for trips with no cover OR whose current cover returns 404 (we re-run on every load to heal broken covers)
+    const needsFix = trips.filter(t => (t.photoCount || 0) > 0 && t.ownerId);
+    needsFix.forEach(async (trip) => {
       try {
-        const snap = await getDocs(query(photosCol(trip.id), orderBy('createdAt', 'asc')));
-        const first = snap.docs[0];
-        if (!first) { console.warn('[Cover fix] no photos found for', trip.name); return; }
-        const cover = first.data().url;
+        const folder = ref(storage, `users/${trip.ownerId}/trips/${trip.id}`);
+        const listed = await listAll(folder);
+        if (listed.items.length === 0) return;
+        const cover = await getDownloadURL(listed.items[0]);
+        if (cover === trip.cover) return; // already correct
         await updateDoc(doc(db, 'trips', trip.id), { cover });
         setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cover } : t));
-      } catch (err) { console.warn('[Cover fix] failed for', trip.name, err.code, err.message); }
+      } catch {}
     });
   }, [trips.length, user]);
 
@@ -1333,9 +1334,24 @@ export default function App() {
                         {trip.date ? `${trip.date} · ` : ''}
                         {trip.photoCount || 0} photo{(trip.photoCount || 0) !== 1 ? 's' : ''}
                       </div>
-                      {creatorUsername && (
-                        <div className="trip-creator">Created by {creatorUsername}</div>
-                      )}
+                      {creatorUsername
+                        ? <div className="trip-creator">Created by {creatorUsername}</div>
+                        : !isOwner && (
+                          <div className="trip-creator trip-creator-unknown"
+                            onClick={async e => {
+                              e.stopPropagation();
+                              const name = window.prompt('Who created this album? (enter their Gmail username or email)');
+                              if (!name?.trim()) return;
+                              const email = name.includes('@') ? name.trim() : `${name.trim()}@gmail.com`;
+                              try {
+                                await updateDoc(doc(db, 'trips', trip.id), { ownerEmail: email });
+                                setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, ownerEmail: email } : t));
+                              } catch (err) { alert('Could not save: ' + err.message); }
+                            }}>
+                            + Set creator
+                          </div>
+                        )
+                      }
                     </div>
                   </div>
                   );
