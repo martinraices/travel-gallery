@@ -8,12 +8,12 @@ import {
 } from 'firebase/auth';
 import {
   collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
-  query, orderBy, serverTimestamp, getDoc, setDoc,
+  query, where, orderBy, serverTimestamp, getDoc, setDoc,
 } from 'firebase/firestore';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject,
 } from 'firebase/storage';
-import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
+import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 
 // ─── Country name → ISO 3166-1 numeric (for choropleth map) ───
 const COUNTRY_ISO = {
@@ -32,6 +32,59 @@ const COUNTRY_ISO = {
 
 const COUNTRY_NAMES = Object.keys(COUNTRY_ISO);
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+
+// ─── All world countries (for datalist autocomplete) ───
+const WORLD_COUNTRIES = [
+  'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina',
+  'Armenia','Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados',
+  'Belarus','Belgium','Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana',
+  'Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon',
+  'Canada','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo',
+  'Costa Rica','Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica',
+  'Dominican Republic','DR Congo','Ecuador','Egypt','El Salvador','Equatorial Guinea',
+  'Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia',
+  'Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau',
+  'Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq',
+  'Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati',
+  'Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Liechtenstein',
+  'Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta',
+  'Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco',
+  'Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal',
+  'Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia',
+  'Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea','Paraguay',
+  'Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda',
+  'Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa',
+  'San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles',
+  'Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia',
+  'South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname',
+  'Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste',
+  'Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu',
+  'Uganda','Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay',
+  'Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe',
+];
+
+// ─── ISO → country name reverse lookup ───
+const ISO_COUNTRY = Object.fromEntries(Object.entries(COUNTRY_ISO).map(([n, i]) => [i, n]));
+
+// ─── Country → continent mapping ───
+const COUNTRY_CONTINENT = {
+  'Canada': 'North America', 'United States': 'North America', 'Mexico': 'North America',
+  'Cuba': 'North America', 'Costa Rica': 'North America', 'Panama': 'North America',
+  'Argentina': 'South America', 'Bolivia': 'South America', 'Brazil': 'South America',
+  'Chile': 'South America', 'Colombia': 'South America', 'Ecuador': 'South America',
+  'Peru': 'South America', 'Uruguay': 'South America',
+  'Austria': 'Europe', 'Belgium': 'Europe', 'Croatia': 'Europe', 'Czech Republic': 'Europe',
+  'Denmark': 'Europe', 'Finland': 'Europe', 'France': 'Europe', 'Germany': 'Europe',
+  'Greece': 'Europe', 'Hungary': 'Europe', 'Iceland': 'Europe', 'Ireland': 'Europe',
+  'Italy': 'Europe', 'Netherlands': 'Europe', 'Norway': 'Europe', 'Poland': 'Europe',
+  'Portugal': 'Europe', 'Romania': 'Europe', 'Scotland': 'Europe', 'Spain': 'Europe',
+  'Sweden': 'Europe', 'Switzerland': 'Europe', 'United Kingdom': 'Europe',
+  'Egypt': 'Africa', 'Kenya': 'Africa', 'Morocco': 'Africa', 'South Africa': 'Africa',
+  'China': 'Asia', 'India': 'Asia', 'Indonesia': 'Asia', 'Israel': 'Asia',
+  'Japan': 'Asia', 'Jordan': 'Asia', 'Thailand': 'Asia', 'Turkey': 'Asia', 'Vietnam': 'Asia',
+  'Australia': 'Oceania', 'New Zealand': 'Oceania',
+};
+const CONTINENT_ORDER = ['Europe', 'North America', 'South America', 'Asia', 'Africa', 'Oceania', 'Other'];
 
 // ─── Image compression ───
 function compressImage(file, maxDim = 2000, quality = 0.82) {
@@ -72,6 +125,8 @@ export default function App() {
   const [newTripName, setNewTripName] = useState('');
   const [newTripDate, setNewTripDate] = useState('');
   const [newTripCountry, setNewTripCountry] = useState('');
+  const [newTripMiro, setNewTripMiro] = useState('');
+  const [newTripVisibility, setNewTripVisibility] = useState('shared');
   const [lightbox, setLightbox] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [view, setView] = useState('grid');
@@ -88,14 +143,21 @@ export default function App() {
 
   // ─── Map ───
   const [mapTooltip, setMapTooltip] = useState('');
-  const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [mapZoom, setMapZoom] = useState(1);
+  const [mapCenter, setMapCenter] = useState([0, 10]);
   const [wishlist, setWishlist] = useState(new Set());
+
+  // ─── Stat panels ───
+  const [statPanel, setStatPanel] = useState(null);
+  const [expandedContinents, setExpandedContinents] = useState(new Set());
 
   // ─── Edit trip ───
   const [editTrip, setEditTrip] = useState(null);
   const [editName, setEditName] = useState('');
   const [editDate, setEditDate] = useState('');
   const [editCountry, setEditCountry] = useState('');
+  const [editMiro, setEditMiro] = useState('');
+  const [editVisibility, setEditVisibility] = useState('shared');
   const [editSaving, setEditSaving] = useState(false);
 
   // ─── Share ───
@@ -107,6 +169,14 @@ export default function App() {
   const [publicShareLoading, setPublicShareLoading] = useState(false);
   const [publicLightbox, setPublicLightbox] = useState(null);
   const [publicLbIdx, setPublicLbIdx] = useState(-1);
+
+  // ─── Lightbox description ───
+  const [lbDesc, setLbDesc] = useState('');
+
+  // ─── Migration ───
+  const [migration, setMigration] = useState(null); // null | 'needed' | 'running' | 'done' | 'error'
+  const [migrationCount, setMigrationCount] = useState(0);
+  const [migrationError, setMigrationError] = useState('');
 
   // ─── Dark mode effect ───
   useEffect(() => {
@@ -144,6 +214,17 @@ export default function App() {
       .catch(() => {});
   }, [user]);
 
+  // ─── Check for data in old user-scoped path ───
+  useEffect(() => {
+    if (!user) return;
+    getDocs(collection(db, 'users', user.uid, 'trips'))
+      .then(snap => { if (!snap.empty) { setMigration('needed'); setMigrationCount(snap.size); } })
+      .catch(() => {});
+  }, [user]);
+
+  // ─── Sync lightbox description ───
+  useEffect(() => { setLbDesc(lightbox?.description || ''); }, [lightbox?.id]);
+
   // ─── Keyboard nav ───
   useEffect(() => {
     const handler = (e) => {
@@ -157,7 +238,6 @@ export default function App() {
         if (e.key === 'ArrowLeft' && publicLbIdx > 0) { const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]); }
         if (e.key === 'ArrowRight' && publicLbIdx < publicShareData.photos.length - 1) { const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]); }
       }
-      if (!lightbox && !publicLightbox && mapFullscreen && e.key === 'Escape') setMapFullscreen(false);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -180,13 +260,24 @@ export default function App() {
   // ═══════════════════════════════════════
   // TRIPS
   // ═══════════════════════════════════════
-  const tripsCol = () => collection(db, 'users', user.uid, 'trips');
+  const tripsCol = () => collection(db, 'trips');
 
   const loadTrips = async () => {
     setLoadingTrips(true);
     try {
-      const snap = await getDocs(query(tripsCol(), orderBy('createdAt', 'desc')));
-      setTrips(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const [mySnap, sharedSnap] = await Promise.all([
+        getDocs(query(tripsCol(), where('ownerId', '==', user.uid))),
+        getDocs(query(tripsCol(), where('visibility', '==', 'shared'))),
+      ]);
+      const seen = new Set();
+      const merged = [];
+      for (const snap of [mySnap, sharedSnap]) {
+        for (const d of snap.docs) {
+          if (!seen.has(d.id)) { seen.add(d.id); merged.push({ id: d.id, ...d.data() }); }
+        }
+      }
+      merged.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setTrips(merged);
     } catch (err) { console.error('Load trips error:', err); }
     setLoadingTrips(false);
   };
@@ -197,23 +288,26 @@ export default function App() {
       name: newTripName.trim(),
       date: newTripDate || null,
       country: newTripCountry.trim() || null,
+      miroUrl: newTripMiro.trim() || null,
+      ownerId: user.uid,
+      visibility: newTripVisibility,
       cover: null, photoCount: 0, createdAt: serverTimestamp(),
     };
     const docRef = await addDoc(tripsCol(), tripData);
     setTrips(prev => [{ id: docRef.id, ...tripData }, ...prev]);
-    setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); setShowNewTrip(false);
+    setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); setNewTripMiro(''); setNewTripVisibility('shared'); setShowNewTrip(false);
   };
 
   const deleteTrip = async (tripId) => {
     const trip = trips.find(t => t.id === tripId);
     if (trip?.shareToken) { try { await deleteDoc(doc(db, 'sharedLinks', trip.shareToken)); } catch {} }
-    const photosSnap = await getDocs(collection(db, 'users', user.uid, 'trips', tripId, 'photos'));
+    const photosSnap = await getDocs(photosCol(tripId));
     for (const photoDoc of photosSnap.docs) {
       const data = photoDoc.data();
       if (data.storagePath) { try { await deleteObject(ref(storage, data.storagePath)); } catch {} }
       await deleteDoc(photoDoc.ref);
     }
-    await deleteDoc(doc(db, 'users', user.uid, 'trips', tripId));
+    await deleteDoc(doc(db, 'trips', tripId));
     setTrips(prev => prev.filter(t => t.id !== tripId));
     if (activeTrip === tripId) { setActiveTrip(null); setPhotos([]); }
     setConfirmDelete(null);
@@ -222,14 +316,13 @@ export default function App() {
   // ═══════════════════════════════════════
   // PHOTOS
   // ═══════════════════════════════════════
-  const photosCol = (tripId) => collection(db, 'users', user.uid, 'trips', tripId, 'photos');
+  const photosCol = (tripId) => collection(db, 'trips', tripId, 'photos');
 
   const loadPhotos = async (tripId) => {
     setLoadingPhotos(true);
     try {
       const snap = await getDocs(query(photosCol(tripId), orderBy('createdAt', 'asc')));
       let loaded = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Sort by saved order if it exists
       const trip = trips.find(t => t.id === tripId);
       if (trip?.photoOrder?.length) {
         const orderMap = new Map(trip.photoOrder.map((id, i) => [id, i]));
@@ -267,7 +360,7 @@ export default function App() {
     if (trip) {
       const updates = { photoCount: (trip.photoCount || 0) + newPhotos.length };
       if (!trip.cover && newPhotos.length) updates.cover = newPhotos[0].url;
-      await updateDoc(doc(db, 'users', user.uid, 'trips', activeTrip), updates);
+      await updateDoc(doc(db, 'trips', activeTrip), updates);
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, ...updates } : t));
     }
     setUploading(false);
@@ -275,15 +368,24 @@ export default function App() {
 
   const deletePhoto = async (photo) => {
     if (photo.storagePath) { try { await deleteObject(ref(storage, photo.storagePath)); } catch {} }
-    await deleteDoc(doc(db, 'users', user.uid, 'trips', activeTrip, 'photos', photo.id));
+    await deleteDoc(doc(db, 'trips', activeTrip, 'photos', photo.id));
     setPhotos(prev => prev.filter(p => p.id !== photo.id));
     const trip = trips.find(t => t.id === activeTrip);
     if (trip) {
       const newCount = Math.max(0, (trip.photoCount || 1) - 1);
-      await updateDoc(doc(db, 'users', user.uid, 'trips', activeTrip), { photoCount: newCount });
+      await updateDoc(doc(db, 'trips', activeTrip), { photoCount: newCount });
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, photoCount: newCount } : t));
     }
     setLightbox(null);
+  };
+
+  const savePhotoDesc = async (photoId, desc) => {
+    const photo = photos.find(p => p.id === photoId);
+    if (!photo || desc === (photo.description || '')) return;
+    try {
+      await updateDoc(doc(db, 'trips', activeTrip, 'photos', photoId), { description: desc });
+      setPhotos(ps => ps.map(p => p.id === photoId ? { ...p, description: desc } : p));
+    } catch (err) { console.error('Save desc error:', err); }
   };
 
   // ─── Photo reorder ───
@@ -297,7 +399,7 @@ export default function App() {
     setPhotos(newPhotos);
     const newOrder = newPhotos.map(p => p.id);
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'trips', activeTrip), { photoOrder: newOrder });
+      await updateDoc(doc(db, 'trips', activeTrip), { photoOrder: newOrder });
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, photoOrder: newOrder } : t));
     } catch (err) { console.error('Reorder error:', err); }
   };
@@ -310,21 +412,34 @@ export default function App() {
   const onDragLeave = () => setDragging(false);
   const onDrop = (e) => {
     e.preventDefault(); setDragging(false);
-    if (draggingIdx.current !== null) return; // photo reorder drop — handled by photo thumb
+    if (draggingIdx.current !== null) return;
     handleFiles(e.dataTransfer.files);
   };
 
   // ═══════════════════════════════════════
   // EDIT TRIP
   // ═══════════════════════════════════════
-  const openEditTrip = (trip) => { setEditTrip(trip); setEditName(trip.name); setEditDate(trip.date || ''); setEditCountry(trip.country || ''); };
+  const openEditTrip = (trip) => {
+    setEditTrip(trip);
+    setEditName(trip.name);
+    setEditDate(trip.date || '');
+    setEditCountry(trip.country || '');
+    setEditMiro(trip.miroUrl || '');
+    setEditVisibility(trip.visibility || 'shared');
+  };
 
   const saveEditTrip = async () => {
     if (!editName.trim() || !editTrip) return;
     setEditSaving(true);
-    const updates = { name: editName.trim(), date: editDate || null, country: editCountry.trim() || null };
+    const updates = {
+      name: editName.trim(),
+      date: editDate || null,
+      country: editCountry.trim() || null,
+      miroUrl: editMiro.trim() || null,
+      visibility: editVisibility,
+    };
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'trips', editTrip.id), updates);
+      await updateDoc(doc(db, 'trips', editTrip.id), updates);
       setTrips(prev => prev.map(t => t.id === editTrip.id ? { ...t, ...updates } : t));
       setEditTrip(null);
     } catch (err) { console.error('Edit trip error:', err); }
@@ -342,7 +457,7 @@ export default function App() {
       const photosData = snap.docs.map(d => ({ url: d.data().url, name: d.data().name }));
       const token = crypto.randomUUID();
       await setDoc(doc(db, 'sharedLinks', token), { tripName: trip.name, tripDate: trip.date || null, photos: photosData, createdAt: serverTimestamp() });
-      await updateDoc(doc(db, 'users', user.uid, 'trips', trip.id), { shareToken: token });
+      await updateDoc(doc(db, 'trips', trip.id), { shareToken: token });
       setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, shareToken: token } : t));
       setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${token}` });
     } catch (err) { console.error('Share error:', err); }
@@ -352,7 +467,7 @@ export default function App() {
   const revokeShareLink = async (tripId, shareToken) => {
     try {
       await deleteDoc(doc(db, 'sharedLinks', shareToken));
-      await updateDoc(doc(db, 'users', user.uid, 'trips', tripId), { shareToken: null });
+      await updateDoc(doc(db, 'trips', tripId), { shareToken: null });
       setTrips(prev => prev.map(t => t.id === tripId ? { ...t, shareToken: null } : t));
       setShareModal(null);
     } catch (err) { console.error('Revoke error:', err); }
@@ -371,6 +486,33 @@ export default function App() {
   };
 
   // ═══════════════════════════════════════
+  // MIGRATION
+  // ═══════════════════════════════════════
+  const runMigration = async () => {
+    setMigration('running');
+    setMigrationError('');
+    try {
+      const oldTripsSnap = await getDocs(collection(db, 'users', user.uid, 'trips'));
+      for (const oldTripDoc of oldTripsSnap.docs) {
+        const tripId = oldTripDoc.id;
+        await setDoc(doc(db, 'trips', tripId), { ...oldTripDoc.data(), ownerId: user.uid, visibility: 'shared' });
+        const oldPhotosSnap = await getDocs(collection(db, 'users', user.uid, 'trips', tripId, 'photos'));
+        for (const oldPhotoDoc of oldPhotosSnap.docs) {
+          await setDoc(doc(db, 'trips', tripId, 'photos', oldPhotoDoc.id), oldPhotoDoc.data());
+        }
+        for (const oldPhotoDoc of oldPhotosSnap.docs) await deleteDoc(oldPhotoDoc.ref);
+        await deleteDoc(oldTripDoc.ref);
+      }
+      setMigration('done');
+      loadTrips();
+    } catch (err) {
+      console.error('Migration error:', err);
+      setMigrationError(err.message || String(err));
+      setMigration('error');
+    }
+  };
+
+  // ═══════════════════════════════════════
   // STATS
   // ═══════════════════════════════════════
   const totalPhotos = trips.reduce((s, t) => s + (t.photoCount || 0), 0);
@@ -382,6 +524,63 @@ export default function App() {
   const tripByIso = {};
   trips.forEach(t => { const iso = COUNTRY_ISO[t.country]; if (iso && !tripByIso[iso]) tripByIso[iso] = t; });
   const hasMapData = trips.some(t => COUNTRY_ISO[t.country]);
+
+  // ─── Stat panel helpers ───
+  const toggleContinent = (continent) => setExpandedContinents(prev => {
+    const n = new Set(prev);
+    n.has(continent) ? n.delete(continent) : n.add(continent);
+    return n;
+  });
+
+  const renderStatPanel = () => {
+    if (!statPanel) return null;
+    if (statPanel === 'trips') {
+      return (
+        <div className="stat-panel fade-in">
+          <div className="stat-panel-header">
+            <span>All Trips</span>
+            <button className="stat-panel-close" onClick={() => setStatPanel(null)}>✕</button>
+          </div>
+          {trips.map(trip => (
+            <div key={trip.id} className="stat-panel-row" onClick={() => { setActiveTrip(trip.id); setStatPanel(null); }}>
+              <span className="stat-panel-name">{trip.name}</span>
+              {trip.date && <span className="stat-panel-meta">{trip.date}</span>}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    const countryNames = statPanel === 'countries'
+      ? [...new Set(trips.map(t => t.country).filter(Boolean))]
+      : [...wishlist].map(iso => ISO_COUNTRY[iso]).filter(Boolean);
+    const byContinent = {};
+    countryNames.forEach(name => {
+      const c = COUNTRY_CONTINENT[name] || 'Other';
+      (byContinent[c] = byContinent[c] || []).push(name);
+    });
+    return (
+      <div className="stat-panel fade-in">
+        <div className="stat-panel-header">
+          <span>{statPanel === 'countries' ? 'Countries Visited' : 'Wishlist'}</span>
+          <button className="stat-panel-close" onClick={() => setStatPanel(null)}>✕</button>
+        </div>
+        {CONTINENT_ORDER.filter(c => byContinent[c]).map(continent => {
+          const isExpanded = expandedContinents.has(continent);
+          return (
+            <div key={continent} className="continent-group">
+              <div className="continent-header" onClick={() => toggleContinent(continent)}>
+                <span>{continent} <span className="continent-count">({byContinent[continent].length})</span></span>
+                <span className="continent-toggle">{isExpanded ? '−' : '+'}</span>
+              </div>
+              {isExpanded && byContinent[continent].sort().map(name => (
+                <div key={name} className="stat-panel-country">{name}</div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   // ═══════════════════════════════════════
   // PUBLIC SHARE VIEW
@@ -481,14 +680,12 @@ export default function App() {
               {uploading ? `Uploading ${uploadCount.done}/${uploadCount.total}…` : '+ Add Photos'}
             </button>
           )}
-          {/* Dark mode toggle */}
           <button className="btn-icon" onClick={() => setDarkMode(d => !d)} title={darkMode ? 'Light mode' : 'Dark mode'}>
             {darkMode
               ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
               : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             }
           </button>
-          {/* Sign out */}
           <button className="btn-icon" onClick={() => signOut(auth)} title="Sign out">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -502,6 +699,29 @@ export default function App() {
       </header>
 
       <div className="content">
+
+        {/* ═══ MIGRATION BANNER ═══ */}
+        {(migration === 'needed' || migration === 'running' || migration === 'done' || migration === 'error') && !activeTrip && (
+          <div className={`migration-banner fade-in ${migration}`}>
+            {migration === 'needed' && (
+              <>
+                <span>
+                  <strong>{migrationCount} album{migrationCount !== 1 ? 's' : ''}</strong> found in your old private library. Migrate them to the shared gallery so everyone can see them.
+                </span>
+                <button className="btn btn-accent btn-sm" onClick={runMigration}>Migrate now</button>
+              </>
+            )}
+            {migration === 'running' && (
+              <><span className="spinner" style={{ width: 16, height: 16 }} /><span>Migrating albums… do not close this tab.</span></>
+            )}
+            {migration === 'done' && (
+              <><span>✓ Migration complete — all albums are now in the shared gallery.</span><button className="migration-dismiss" onClick={() => setMigration(null)}>✕</button></>
+            )}
+            {migration === 'error' && (
+              <><span>Migration failed: {migrationError || 'unknown error'}</span><button className="btn btn-sm" onClick={runMigration}>Retry</button><button className="migration-dismiss" onClick={() => setMigration(null)}>✕</button></>
+            )}
+          </div>
+        )}
 
         {/* ═══ TRIP LIST ═══ */}
         {!activeTrip && (
@@ -520,30 +740,56 @@ export default function App() {
                   <label>Date (optional)</label>
                   <input type="date" value={newTripDate} onChange={e => setNewTripDate(e.target.value)} className="input" />
                 </div>
-                <div className="form-group" style={{ flex: '0 0 190px' }}>
+                <div className="form-group" style={{ flex: '0 0 180px' }}>
                   <label>Country (optional)</label>
                   <input list="countries-list" value={newTripCountry} onChange={e => setNewTripCountry(e.target.value)} placeholder="e.g. Italy" className="input" />
-                  <datalist id="countries-list">{COUNTRY_NAMES.map(c => <option key={c} value={c} />)}</datalist>
+                  <datalist id="countries-list">{WORLD_COUNTRIES.map(c => <option key={c} value={c} />)}</datalist>
+                </div>
+                <div className="form-group" style={{ flex: '0 0 440px' }}>
+                  <label>Miro link (optional)</label>
+                  <input value={newTripMiro} onChange={e => setNewTripMiro(e.target.value)} placeholder="https://miro.com/…" className="input" />
+                </div>
+                <div className="form-group" style={{ flex: '0 0 auto' }}>
+                  <label>Visibility</label>
+                  <div className="vis-toggle">
+                    <button className={`vis-btn${newTripVisibility === 'shared' ? ' active' : ''}`} onClick={() => setNewTripVisibility('shared')}>🌍 Shared</button>
+                    <button className={`vis-btn${newTripVisibility === 'private' ? ' active' : ''}`} onClick={() => setNewTripVisibility('private')}>🔒 Private</button>
+                  </div>
                 </div>
                 <button onClick={addTrip} className="btn btn-accent">Create</button>
-                <button onClick={() => { setShowNewTrip(false); setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); }} className="btn btn-sm">Cancel</button>
+                <button onClick={() => { setShowNewTrip(false); setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); setNewTripMiro(''); setNewTripVisibility('shared'); }} className="btn btn-sm">Cancel</button>
               </div>
             )}
 
             {/* ─ Stats ─ */}
             {trips.length > 0 && (
-              <div className="stats-bar fade-in">
-                <div className="stat-card"><div className="stat-value">{trips.length}</div><div className="stat-label">Trips</div></div>
-                <div className="stat-card"><div className="stat-value">{totalPhotos}</div><div className="stat-label">Photos</div></div>
-                {countriesVisited > 0 && <div className="stat-card"><div className="stat-value">{countriesVisited}</div><div className="stat-label">Countries</div></div>}
-                {wishlist.size > 0 && <div className="stat-card"><div className="stat-value">{wishlist.size}</div><div className="stat-label">Wishlist</div></div>}
-                {topTrip && topTrip.photoCount > 0 && (
-                  <div className="stat-card stat-card-wide">
-                    <div className="stat-value stat-value-sm">{topTrip.name}</div>
-                    <div className="stat-label">Most photos ({topTrip.photoCount})</div>
+              <>
+                <div className="stats-bar fade-in">
+                  <div className={`stat-card stat-card-btn${statPanel === 'trips' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'trips' ? null : 'trips')}>
+                    <div className="stat-value">{trips.length}</div><div className="stat-label">Trips</div>
                   </div>
-                )}
-              </div>
+                  <div className="stat-card">
+                    <div className="stat-value">{totalPhotos}</div><div className="stat-label">Photos</div>
+                  </div>
+                  {countriesVisited > 0 && (
+                    <div className={`stat-card stat-card-btn${statPanel === 'countries' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'countries' ? null : 'countries')}>
+                      <div className="stat-value">{countriesVisited}</div><div className="stat-label">Countries</div>
+                    </div>
+                  )}
+                  {wishlist.size > 0 && (
+                    <div className={`stat-card stat-card-btn${statPanel === 'wishlist' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'wishlist' ? null : 'wishlist')}>
+                      <div className="stat-value">{wishlist.size}</div><div className="stat-label">Wishlist</div>
+                    </div>
+                  )}
+                  {topTrip && topTrip.photoCount > 0 && (
+                    <div className="stat-card stat-card-wide">
+                      <div className="stat-value stat-value-sm">{topTrip.name}</div>
+                      <div className="stat-label">Most photos ({topTrip.photoCount})</div>
+                    </div>
+                  )}
+                </div>
+                {renderStatPanel()}
+              </>
             )}
 
             {/* ─ View toggle ─ */}
@@ -569,70 +815,79 @@ export default function App() {
 
             {/* ─ Choropleth map ─ */}
             {tripsView === 'map' && hasMapData && (
-              <div className={`map-wrap fade-in${mapFullscreen ? ' fullscreen' : ''}`}>
+              <div className="map-wrap fade-in">
                 <div className="map-toolbar">
-                  <button className="btn-map-fs" onClick={() => setMapFullscreen(f => !f)} title={mapFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
-                    {mapFullscreen
-                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
-                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                    }
-                  </button>
+                  <div className="map-zoom-btns">
+                    <button className="btn-map-zoom" onClick={() => setMapZoom(z => Math.min(z * 1.6, 8))} title="Zoom in">+</button>
+                    <button className="btn-map-zoom" onClick={() => setMapZoom(z => Math.max(z / 1.6, 1))} title="Zoom out">−</button>
+                  </div>
                 </div>
                 <ComposableMap
-                  projectionConfig={{ rotate: [-10, 0, 0], scale: 153, center: [0, 10] }}
+                  projectionConfig={{ rotate: [-10, 0, 0], scale: 153 }}
                   width={800}
                   height={380}
                 >
-                  <Geographies geography={GEO_URL}>
-                    {({ geographies }) => geographies.map(geo => {
-                      const iso = Number(geo.id);
-                      const isVisited = visitedIsos.has(iso);
-                      const isWished = !isVisited && wishlist.has(iso);
-                      const trip = tripByIso[iso];
-                      return (
-                        <Geography
-                          key={geo.rsmKey}
-                          geography={geo}
-                          onMouseEnter={() => setMapTooltip(isVisited ? `${geo.properties.name} — ${trip.name}` : isWished ? `${geo.properties.name} — ★ Wishlist` : geo.properties.name)}
-                          onMouseLeave={() => setMapTooltip('')}
-                          onClick={() => {
-                            if (isVisited && trip) { setActiveTrip(trip.id); setTripsView('grid'); setMapFullscreen(false); }
-                            else toggleWishlist(iso);
-                          }}
-                          style={{
-                            default: { fill: isVisited ? 'var(--accent)' : isWished ? '#e05252' : 'var(--map-land)', stroke: 'var(--map-border)', strokeWidth: 0.4, outline: 'none' },
-                            hover:   { fill: isVisited ? 'var(--accent-hover)' : isWished ? '#c94040' : 'var(--map-hover)', stroke: 'var(--map-border)', strokeWidth: 0.4, outline: 'none', cursor: 'pointer' },
-                            pressed: { fill: isVisited ? 'var(--accent-hover)' : isWished ? '#c94040' : 'var(--map-hover)', outline: 'none' },
-                          }}
-                        />
-                      );
-                    })}
-                  </Geographies>
+                  <ZoomableGroup zoom={mapZoom} center={mapCenter} onMoveEnd={({ coordinates, zoom }) => { setMapCenter(coordinates); setMapZoom(zoom); }}>
+                    <Geographies geography={GEO_URL}>
+                      {({ geographies }) => geographies.map(geo => {
+                        const iso = Number(geo.id);
+                        const isVisited = visitedIsos.has(iso);
+                        const isWished = !isVisited && wishlist.has(iso);
+                        const trip = tripByIso[iso];
+                        return (
+                          <Geography
+                            key={geo.rsmKey}
+                            geography={geo}
+                            onMouseEnter={() => setMapTooltip(
+                              isVisited ? `${geo.properties.name} — ${trip.name}` :
+                              isWished  ? `${geo.properties.name} — ★ Wishlist` :
+                              geo.properties.name
+                            )}
+                            onMouseLeave={() => setMapTooltip('')}
+                            onClick={() => {
+                              if (isVisited && trip) { setActiveTrip(trip.id); setTripsView('grid'); }
+                              else toggleWishlist(iso);
+                            }}
+                            style={{
+                              default: { fill: isVisited ? 'var(--accent)' : isWished ? '#e05252' : 'var(--map-land)', stroke: 'var(--map-border)', strokeWidth: 0.4, outline: 'none' },
+                              hover:   { fill: isVisited ? 'var(--accent-hover)' : isWished ? '#c94040' : 'var(--map-hover)', stroke: 'var(--map-border)', strokeWidth: 0.4, outline: 'none', cursor: 'pointer' },
+                              pressed: { fill: isVisited ? 'var(--accent-hover)' : isWished ? '#c94040' : 'var(--map-hover)', outline: 'none' },
+                            }}
+                          />
+                        );
+                      })}
+                    </Geographies>
+                  </ZoomableGroup>
                 </ComposableMap>
-                <div className="map-tooltip-bar">{mapTooltip || ' '}</div>
+                <div className="map-tooltip-bar">{mapTooltip || ' '}</div>
               </div>
             )}
 
             {/* ─ Grid view ─ */}
             {tripsView === 'grid' && (
               <div className="trips-grid">
-                {trips.map((trip, i) => (
+                {trips.map((trip, i) => {
+                  const isOwner = !trip.ownerId || trip.ownerId === user.uid;
+                  return (
                   <div key={trip.id} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }} onClick={() => setActiveTrip(trip.id)}>
                     <div className={`trip-cover ${trip.cover ? '' : 'trip-cover-empty'}`}
                       style={trip.cover ? { backgroundImage: `url(${trip.cover})` } : {}}>
                       {!trip.cover && <span>🗺</span>}
-                      <button className="trip-delete" onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>
-                      <button className={`trip-share ${trip.shareToken ? 'trip-share-active' : ''}`}
-                        title={trip.shareToken ? 'Shared — click to see link' : 'Share this trip'}
-                        disabled={shareGenerating === trip.id}
-                        onClick={e => { e.stopPropagation(); generateShareLink(trip); }}>
-                        {shareGenerating === trip.id ? '…' : '↗'}
-                      </button>
+                      {trip.visibility === 'private' && <div className="trip-private-badge" title="Private — only you can see this">🔒</div>}
+                      {isOwner && <button className="trip-delete" onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>}
+                      {isOwner && (
+                        <button className={`trip-share ${trip.shareToken ? 'trip-share-active' : ''}`}
+                          title={trip.shareToken ? 'Shared — click to see link' : 'Share this trip'}
+                          disabled={shareGenerating === trip.id}
+                          onClick={e => { e.stopPropagation(); generateShareLink(trip); }}>
+                          {shareGenerating === trip.id ? '…' : '↗'}
+                        </button>
+                      )}
                     </div>
                     <div className="trip-info">
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                         <div className="trip-name">{trip.name}</div>
-                        <button className="trip-edit-btn" title="Edit trip" onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>
+                        {isOwner && <button className="trip-edit-btn" title="Edit trip" onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>}
                       </div>
                       <div className="trip-meta">
                         {trip.country ? `${trip.country}${trip.date || trip.photoCount ? ' · ' : ''}` : ''}
@@ -641,7 +896,8 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -656,6 +912,12 @@ export default function App() {
                 {activeTripData.date && <span className="gallery-date">{activeTripData.date}</span>}
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {activeTripData.miroUrl && (
+                  <a href={activeTripData.miroUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm miro-link">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    Miro
+                  </a>
+                )}
                 <button className={`btn btn-sm ${activeTripData.shareToken ? 'btn-accent' : ''}`}
                   onClick={() => generateShareLink(activeTripData)} disabled={shareGenerating === activeTrip}>
                   {shareGenerating === activeTrip ? 'Generating…' : activeTripData.shareToken ? '↗ Shared' : '↗ Share'}
@@ -678,7 +940,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Grid with drag-to-reorder */}
             {photos.length > 0 && view === 'grid' && (
               <div className="photo-grid" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
                 {photos.map((p, i) => (
@@ -694,6 +955,7 @@ export default function App() {
                     onClick={() => setLightbox(p)}>
                     <img src={p.url} alt={p.name} loading="lazy" />
                     <div className="photo-drag-handle">⠿</div>
+                    {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
                   </div>
                 ))}
                 <div className="add-tile" onClick={() => fileRef.current?.click()}>+</div>
@@ -707,6 +969,7 @@ export default function App() {
                     <img src={p.url} alt={p.name} loading="lazy" />
                     <div>
                       <div className="photo-list-name">{p.name}</div>
+                      {p.description && <div className="photo-list-desc">{p.description}</div>}
                       {p.createdAt?.seconds && <div className="photo-list-date">{new Date(p.createdAt.seconds * 1000).toLocaleDateString()}</div>}
                     </div>
                   </div>
@@ -725,6 +988,15 @@ export default function App() {
           {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" onClick={e => { e.stopPropagation(); navLightbox(-1); }}>‹</button>}
           {lbIndex < photos.length - 1 && <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); navLightbox(1); }}>›</button>}
           <div className="lb-counter">{lbIndex + 1} / {photos.length}</div>
+          <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
+            <textarea
+              className="lb-desc"
+              placeholder="Add a description…"
+              value={lbDesc}
+              onChange={e => setLbDesc(e.target.value)}
+              onBlur={() => savePhotoDesc(lightbox.id, lbDesc)}
+            />
+          </div>
           <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title="Delete photo">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -751,23 +1023,34 @@ export default function App() {
       {editTrip && (
         <div className="modal-overlay fade-scale" onClick={() => setEditTrip(null)}>
           <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
-            <p className="modal-title">Edit Trip</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+            <p className="modal-title" style={{ marginBottom: 16 }}>Edit Trip</p>
+            <div className="edit-modal-fields">
               <div className="form-group">
-                <label>Trip Name</label>
+                <label>Name</label>
                 <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveEditTrip()} className="input" autoFocus />
               </div>
-              <div className="form-group">
-                <label>Date (optional)</label>
+              <div className="form-group" style={{ flex: '0 0 150px' }}>
+                <label>Date</label>
                 <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="input" />
               </div>
-              <div className="form-group">
-                <label>Country (optional)</label>
+              <div className="form-group" style={{ flex: '0 0 160px' }}>
+                <label>Country</label>
                 <input list="countries-list-edit" value={editCountry} onChange={e => setEditCountry(e.target.value)} placeholder="e.g. Italy" className="input" />
-                <datalist id="countries-list-edit">{COUNTRY_NAMES.map(c => <option key={c} value={c} />)}</datalist>
+                <datalist id="countries-list-edit">{WORLD_COUNTRIES.map(c => <option key={c} value={c} />)}</datalist>
+              </div>
+              <div className="form-group" style={{ flex: '0 0 400px' }}>
+                <label>Miro link</label>
+                <input value={editMiro} onChange={e => setEditMiro(e.target.value)} placeholder="https://miro.com/…" className="input" />
+              </div>
+              <div className="form-group" style={{ flex: '0 0 auto' }}>
+                <label>Visibility</label>
+                <div className="vis-toggle">
+                  <button className={`vis-btn${editVisibility === 'shared' ? ' active' : ''}`} onClick={() => setEditVisibility('shared')}>🌍 Shared</button>
+                  <button className={`vis-btn${editVisibility === 'private' ? ' active' : ''}`} onClick={() => setEditVisibility('private')}>🔒 Private</button>
+                </div>
               </div>
             </div>
-            <div className="modal-actions" style={{ marginTop: 20 }}>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
               <button className="btn btn-sm" onClick={() => setEditTrip(null)}>Cancel</button>
               <button className="btn btn-accent" onClick={saveEditTrip} disabled={editSaving || !editName.trim()}>{editSaving ? 'Saving…' : 'Save'}</button>
             </div>
