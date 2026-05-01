@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm list *)",
       "Bash(node -e \"require\\('firebase-admin'\\)\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(npx vite *)"
     ]
   }
 }

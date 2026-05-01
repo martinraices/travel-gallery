@@ -86,6 +86,68 @@ const COUNTRY_CONTINENT = {
 };
 const CONTINENT_ORDER = ['Europe', 'North America', 'South America', 'Asia', 'Africa', 'Oceania', 'Other'];
 
+// ─── Facebook import helpers ───
+const FB_SKIP_EXACT = new Set(['Photos', 'Cover photos', 'TANIA!', 'Timeline Photos']);
+const FB_SKIP_CONTAINS = [
+  'CamWow', 'InstaEdit', 'Instagram Photos', 'Mobile uploads',
+  'Profile pictures', 'INGENIERO', 'Tania conoce',
+];
+const FB_OVERRIDES = {
+  'Casablanca 2009': { trip: 'Marruecos 2009', city: 'Casablanca', country: 'Morocco' },
+  'Casablanca 2009  - Parte 2': { trip: 'Marruecos 2009', city: 'Casablanca', country: 'Morocco' },
+  'Fes 2009': { trip: 'Marruecos 2009', city: 'Fes', country: 'Morocco' },
+  'Fes 2009 - Parte 2': { trip: 'Marruecos 2009', city: 'Fes', country: 'Morocco' },
+  "D'Ozour 2009": { trip: 'Marruecos 2009', city: "D'Ozour", country: 'Morocco' },
+  "D'Ozour 2009 Parte 2": { trip: 'Marruecos 2009', city: "D'Ozour", country: 'Morocco' },
+  'Luxor 2007 - Parte 1': { trip: 'Egypt 2007', city: 'Luxor', country: 'Egypt' },
+  'Luxor 2007 - Parte 2': { trip: 'Egypt 2007', city: 'Luxor', country: 'Egypt' },
+  'Luxor 2007 - Parte 3': { trip: 'Egypt 2007', city: 'Luxor', country: 'Egypt' },
+  'USA 2013 Part 1': { trip: 'USA 2013', city: null, country: 'United States' },
+  'USA 2013 Part 2': { trip: 'USA 2013', city: null, country: 'United States' },
+  'USA 2013 Part 3': { trip: 'USA 2013', city: null, country: 'United States' },
+  'Panamá 2013 - daytrip': { trip: 'Panama 2013', city: null, country: 'Panama' },
+  'Rascafria 2010 - Madrid': { trip: 'Spain 2010', city: 'Rascafria', country: 'Spain' },
+  'Isla de San Andrés 2014 , Colombia': { trip: 'Colombia 2014', city: 'San Andres', country: 'Colombia' },
+  'Cusco, Machu Pichu y Lima 2016': { trip: 'Peru 2016', city: 'Cusco, Machu Pichu y Lima', country: 'Peru' },
+  'Copenhagen 2016,  Denmark': { trip: 'Denmark 2016', city: 'Copenhagen', country: 'Denmark' },
+  'Cinque terre, Portofino and Genova': { trip: 'Italy 2008', city: 'Cinque terre, Portofino and Genova', country: 'Italy' },
+};
+
+function parseFbAlbum(rawTitle) {
+  const title = rawTitle.trim();
+  if (FB_SKIP_EXACT.has(title)) return null;
+  if (FB_SKIP_CONTAINS.some(s => title.includes(s))) return null;
+  if (FB_OVERRIDES[title]) return { ...FB_OVERRIDES[title], rawTitle: title };
+
+  // "City Year (Country)"
+  const parenM = title.match(/^(.+?)\s+(\d{4})\s*\(([^)]+)\)$/);
+  if (parenM) {
+    const [, place, year, country] = parenM;
+    return { trip: `${country.trim()} ${year}`, city: place.trim(), country: country.trim(), rawTitle: title };
+  }
+
+  // "City, Country Year"
+  const commaM = title.match(/^(.+?),\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(\d{4})$/);
+  if (commaM) {
+    const [, place, country, year] = commaM;
+    if (WORLD_COUNTRIES.includes(country.trim())) {
+      return { trip: `${country.trim()} ${year}`, city: place.trim(), country: country.trim(), rawTitle: title };
+    }
+  }
+
+  // "Place Year" (optional suffix after year)
+  const yearM = title.match(/^(.+?)\s+(\d{4})(?:\s.*)?$/);
+  if (yearM) {
+    const place = yearM[1].trim(), year = yearM[2];
+    if (WORLD_COUNTRIES.includes(place)) {
+      return { trip: `${place} ${year}`, city: null, country: place, rawTitle: title };
+    }
+    return { trip: `${place} ${year}`, city: place, country: null, rawTitle: title };
+  }
+
+  return { trip: title, city: null, country: null, rawTitle: title };
+}
+
 // ─── Image compression ───
 function compressImage(file, maxDim = 2000, quality = 0.82) {
   return new Promise((resolve) => {
@@ -112,6 +174,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const [creatorMap, setCreatorMap] = useState({}); // { [uid]: email }
 
   // ─── Core state ───
   const [trips, setTrips] = useState([]);
@@ -186,6 +249,24 @@ export default function App() {
   // ─── Active city sub-album ───
   const [activeCity, setActiveCity] = useState(null); // null | city-string | '__uncategorized__'
 
+  // ─── Facebook import ───
+  const [fbModal, setFbModal] = useState(false);
+  const [fbStep, setFbStep] = useState('folder'); // 'folder' | 'select' | 'import' | 'done'
+  const [fbDirHandle, setFbDirHandle] = useState(null); // posts/ folder handle (for album HTMLs)
+  const [fbMediaBase, setFbMediaBase] = useState(null); // handle used as base for media path navigation
+  const [fbPathPrefix, setFbPathPrefix] = useState(''); // prefix to strip from media paths before navigating from fbMediaBase
+  const [fbTripGroups, setFbTripGroups] = useState([]); // [{tripName, country, albums:[{city,rawTitle,albumHref}]}]
+  const [fbRows, setFbRows] = useState([]); // flat: [{id, city, country, rawTitle, albumHref}]
+  const [fbAlbumNames, setFbAlbumNames] = useState({}); // {rowId: albumName} — user-editable
+  const [fbSelected, setFbSelected] = useState(new Set()); // Set of row ids (albumHref)
+  const [fbImportedSet, setFbImportedSet] = useState(new Set()); // "tripName::city" pairs already in Firestore
+  const [fbProgress, setFbProgress] = useState({}); // {albumName: {done, total}}
+  const [fbTotalDone, setFbTotalDone] = useState(0);
+  const [fbFilter, setFbFilter] = useState('');
+  const [fbError, setFbError] = useState('');
+  const fbCancelRef = useRef(false);
+  const fbImportStartRef = useRef(null);
+
   // ─── Dark mode effect ───
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
@@ -197,6 +278,11 @@ export default function App() {
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthLoading(false);
+      // Save email to public profiles/{uid} so other users can look up the creator name
+      if (u?.email) {
+        setDoc(doc(db, 'profiles', u.uid), { email: u.email, displayName: u.displayName || null }, { merge: true })
+          .catch(() => {});
+      }
     });
   }, []);
 
@@ -213,6 +299,23 @@ export default function App() {
 
   useEffect(() => { if (!user) return; loadTrips(); }, [user]);
   useEffect(() => { if (!activeTrip || !user) { setPhotos([]); return; } loadPhotos(activeTrip); setSelectedPhotos(new Set()); setActiveCity(null); }, [activeTrip, user]);
+
+  // Auto-fix: trips with photos but no cover — fetch first photo and set as cover
+  useEffect(() => {
+    if (!user || trips.length === 0) return;
+    const uncovered = trips.filter(t => !t.cover && (t.photoCount || 0) > 0);
+    if (uncovered.length === 0) return;
+    uncovered.forEach(async (trip) => {
+      try {
+        const snap = await getDocs(query(photosCol(trip.id), orderBy('createdAt', 'asc')));
+        const first = snap.docs[0];
+        if (!first) { console.warn('[Cover fix] no photos found for', trip.name); return; }
+        const cover = first.data().url;
+        await updateDoc(doc(db, 'trips', trip.id), { cover });
+        setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cover } : t));
+      } catch (err) { console.warn('[Cover fix] failed for', trip.name, err.code, err.message); }
+    });
+  }, [trips.length, user]);
 
   // ─── Load wishlist from Firestore ───
   useEffect(() => {
@@ -286,6 +389,19 @@ export default function App() {
       }
       merged.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setTrips(merged);
+
+      // Fetch public profiles for all foreign trip owners
+      const unknownUids = [...new Set(
+        merged.map(t => t.ownerId).filter(uid => uid && uid !== user.uid)
+      )];
+      if (unknownUids.length > 0) {
+        const profileSnaps = await Promise.all(unknownUids.map(uid => getDoc(doc(db, 'profiles', uid))));
+        const map = {};
+        for (const snap of profileSnaps) {
+          if (snap.exists()) map[snap.id] = snap.data().email || null;
+        }
+        setCreatorMap(map);
+      }
     } catch (err) { console.error('Load trips error:', err); }
     setLoadingTrips(false);
   };
@@ -298,6 +414,7 @@ export default function App() {
       country: newTripCountry.trim() || null,
       miroUrl: newTripMiro.trim() || null,
       ownerId: user.uid,
+      ownerEmail: user.email,
       visibility: newTripVisibility,
       cover: null, photoCount: 0, createdAt: serverTimestamp(),
     };
@@ -426,6 +543,275 @@ export default function App() {
       next.has(photoId) ? next.delete(photoId) : next.add(photoId);
       return next;
     });
+  };
+
+  // ─── Facebook import ───
+  const buildFbTripGroups = async (albumEntries) => {
+    const tripMap = {};
+    for (const { rawTitle, albumHref } of albumEntries) {
+      if (!rawTitle) continue;
+      const parsed = parseFbAlbum(rawTitle);
+      if (!parsed) continue;
+      if (!tripMap[parsed.trip]) {
+        tripMap[parsed.trip] = { tripName: parsed.trip, country: parsed.country, albums: [] };
+      }
+      tripMap[parsed.trip].albums.push({ city: parsed.city, rawTitle, albumHref });
+    }
+    const groups = Object.values(tripMap).sort((a, b) => a.tripName.localeCompare(b.tripName));
+    const rows = [];
+    const albumNames = {};
+    for (const group of groups) {
+      for (const album of group.albums) {
+        const id = album.albumHref;
+        rows.push({ id, city: album.city || album.rawTitle, country: group.country, rawTitle: album.rawTitle, albumHref: album.albumHref });
+        albumNames[id] = group.tripName;
+      }
+    }
+
+    // Build set of all album names we need to check
+    const neededAlbumNames = new Set(Object.values(albumNames));
+
+    // For each existing trip whose name appears in our album list,
+    // load its photos to discover which cities are already imported.
+    const importedSet = new Set();
+    const matchingTrips = trips.filter(t => neededAlbumNames.has(t.name));
+    await Promise.all(matchingTrips.map(async (trip) => {
+      let cities = trip.cities;
+      if (!cities) {
+        // Query photos to discover cities (works for data imported before cities field was added)
+        try {
+          const snap = await getDocs(photosCol(trip.id));
+          cities = [...new Set(snap.docs.map(d => d.data().city).filter(Boolean))];
+          if (cities.length > 0) {
+            await updateDoc(doc(db, 'trips', trip.id), { cities });
+            setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cities } : t));
+          }
+        } catch {}
+      }
+      for (const city of (cities || [])) {
+        importedSet.add(`${trip.name}::${city}`);
+      }
+    }));
+
+    const availableIds = rows
+      .filter(r => r.city === null || !importedSet.has(`${albumNames[r.id]}::${r.city}`))
+      .map(r => r.id);
+
+    setFbTripGroups(groups);
+    setFbRows(rows);
+    setFbAlbumNames(albumNames);
+    setFbImportedSet(importedSet);
+    setFbSelected(new Set(availableIds));
+    setFbStep('select');
+  };
+
+  // Resolve the handles needed for a folder the user selected.
+  // Returns { postsHandle, mediaBase, pathPrefix } or null on failure.
+  const resolveFbHandles = async (rootHandle) => {
+    const name = rootHandle.name;
+
+    // Case A: user selected the PARENT of the export root (e.g. Downloads/)
+    // Structure: rootHandle/your_facebook_activity/posts/album/
+    // Media paths in HTML: "your_facebook_activity/posts/media/..." → navigate from rootHandle, no stripping
+    try {
+      const yfaHandle = await rootHandle.getDirectoryHandle('your_facebook_activity');
+      const ph = await yfaHandle.getDirectoryHandle('posts');
+      await ph.getDirectoryHandle('album');
+      console.log('[FB] Case A: root is parent of export folder');
+      return { postsHandle: ph, mediaBase: rootHandle, pathPrefix: '' };
+    } catch {}
+
+    // Case B: user selected your_facebook_activity itself
+    // Structure: rootHandle/posts/album/
+    // Media paths: "your_facebook_activity/posts/media/..." → strip "name/posts/", navigate from rootHandle
+    try {
+      const ph = await rootHandle.getDirectoryHandle('posts');
+      await ph.getDirectoryHandle('album');
+      console.log('[FB] Case B: root is your_facebook_activity, prefix:', `${name}/posts/`);
+      return { postsHandle: ph, mediaBase: rootHandle, pathPrefix: `${name}/posts/` };
+    } catch {}
+
+    // Case C: user selected posts/ itself
+    // Structure: rootHandle/album/
+    // Media paths: "your_facebook_activity/posts/media/..." → strip "your_facebook_activity/posts/", navigate from rootHandle
+    try {
+      await rootHandle.getDirectoryHandle('album');
+      console.log('[FB] Case C: root is posts/, prefix: your_facebook_activity/posts/');
+      return { postsHandle: rootHandle, mediaBase: rootHandle, pathPrefix: 'your_facebook_activity/posts/' };
+    } catch {}
+
+    return null;
+  };
+
+  const scanFbFolder = async () => {
+    try {
+      const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+      setFbError('');
+
+      const resolved = await resolveFbHandles(rootHandle);
+      if (!resolved) {
+        setFbError('Could not find "album" subfolder. Try selecting the "your_facebook_activity" folder or the folder that contains it.');
+        return;
+      }
+      const { postsHandle, mediaBase, pathPrefix } = resolved;
+
+      const albumDirHandle = await postsHandle.getDirectoryHandle('album');
+      const entries = [];
+      for await (const [name, handle] of albumDirHandle.entries()) {
+        if (handle.kind !== 'file' || !name.endsWith('.html')) continue;
+        try {
+          const text = await (await handle.getFile()).text();
+          const albumDoc = new DOMParser().parseFromString(text, 'text/html');
+          const rawTitle = albumDoc.querySelector('h1')?.textContent?.trim()
+            || albumDoc.querySelector('h2')?.textContent?.trim()
+            || albumDoc.title?.trim()
+            || name.replace('.html', '');
+          entries.push({ rawTitle, albumHref: `album/${name}` });
+        } catch {}
+      }
+
+      if (entries.length === 0) { setFbError('No album HTML files found in posts/album/.'); return; }
+
+      setFbDirHandle(postsHandle);
+      setFbMediaBase(mediaBase);
+      setFbPathPrefix(pathPrefix);
+      await buildFbTripGroups(entries);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setFbError(`Error: ${err.message}`);
+    }
+  };
+
+  const handleFbImportClick = async () => {
+    if (fbDirHandle) { startFbImport(fbDirHandle, fbMediaBase, fbPathPrefix); return; }
+    try {
+      const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+      const resolved = await resolveFbHandles(rootHandle);
+      if (!resolved) { setFbError('Could not find the posts/album folder. Select your_facebook_activity or its parent folder.'); return; }
+      const { postsHandle, mediaBase, pathPrefix } = resolved;
+      setFbDirHandle(postsHandle);
+      setFbMediaBase(mediaBase);
+      setFbPathPrefix(pathPrefix);
+      startFbImport(postsHandle, mediaBase, pathPrefix);
+    } catch (err) {
+      if (err.name !== 'AbortError') setFbError(`Folder error: ${err.message}`);
+    }
+  };
+
+  const startFbImport = async (postsHandle, mediaBase, pathPrefix) => {
+    fbCancelRef.current = false;
+    setFbStep('import');
+    setFbTotalDone(0);
+
+    // Build import groups from row-level selection + user-edited album names
+    const selectedRows = fbRows.filter(r => fbSelected.has(r.id));
+    const albumGroupMap = {};
+    for (const row of selectedRows) {
+      const albumName = (fbAlbumNames[row.id] || row.rawTitle).trim();
+      if (!albumGroupMap[albumName]) albumGroupMap[albumName] = { tripName: albumName, country: row.country, albums: [] };
+      albumGroupMap[albumName].albums.push({ city: row.city, rawTitle: row.rawTitle, albumHref: row.albumHref });
+    }
+    const toImport = Object.values(albumGroupMap);
+
+    // ── Phase 1: Scan all album HTMLs to collect photo paths (so total is known for ETA) ──
+    const initialProgress = {};
+    for (const g of toImport) initialProgress[g.tripName] = { done: 0, total: 0, scanning: true };
+    setFbProgress(initialProgress);
+
+    const groupPaths = {}; // tripName → [{city, path}]
+    for (const { tripName, albums } of toImport) {
+      const allPaths = [];
+      for (const album of albums) {
+        try {
+          const parts = album.albumHref.split('/');
+          let dh = postsHandle;
+          for (let i = 0; i < parts.length - 1; i++) dh = await dh.getDirectoryHandle(parts[i]);
+          const fh = await dh.getFileHandle(parts[parts.length - 1]);
+          const albumDoc = new DOMParser().parseFromString(await (await fh.getFile()).text(), 'text/html');
+          const seen = new Set();
+          const addPath = (raw) => {
+            if (!raw) return;
+            const clean = raw.split('?')[0].split('#')[0];
+            if (!/\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/i.test(clean)) return;
+            const resolved = clean.replace(/^(?:\.\.\/)+/, '').replace(/^\//, '');
+            if (resolved && !seen.has(resolved)) { seen.add(resolved); allPaths.push({ city: album.city, path: resolved }); }
+          };
+          albumDoc.querySelectorAll('[src]').forEach(el => addPath(el.getAttribute('src')));
+          albumDoc.querySelectorAll('a[href]').forEach(el => addPath(el.getAttribute('href')));
+        } catch (err) { console.warn('Could not read album:', album.rawTitle, err); }
+      }
+      groupPaths[tripName] = allPaths;
+      setFbProgress(prev => ({ ...prev, [tripName]: { done: 0, total: allPaths.length, scanning: false } }));
+    }
+
+    // ── Phase 2: Upload all photos with ETA tracking ──
+    fbImportStartRef.current = Date.now();
+    let totalUploaded = 0;
+
+    for (const { tripName, country, albums } of toImport) {
+      if (fbCancelRef.current) break;
+
+      // Find or create Firestore trip
+      let tripId;
+      const existing = trips.find(t => t.name === tripName);
+      if (existing) {
+        tripId = existing.id;
+      } else {
+        const tripData = {
+          name: tripName, date: null, country: country || null, miroUrl: null,
+          ownerId: user.uid, ownerEmail: user.email, visibility: 'private', cover: null, photoCount: 0, createdAt: serverTimestamp(),
+        };
+        const docRef = await addDoc(tripsCol(), tripData);
+        tripId = docRef.id;
+        setTrips(prev => [{ id: docRef.id, ...tripData }, ...prev]);
+      }
+
+      const allPaths = groupPaths[tripName] || [];
+      let doneCount = 0;
+      let coverUrl = null;
+
+      for (const { city, path } of allPaths) {
+        if (fbCancelRef.current) break;
+        try {
+          const navPath = (pathPrefix && path.startsWith(pathPrefix)) ? path.slice(pathPrefix.length) : path;
+          const pathParts = navPath.split('/');
+          let handle = mediaBase;
+          for (let i = 0; i < pathParts.length - 1; i++) handle = await handle.getDirectoryHandle(pathParts[i]);
+          const fileHandle = await handle.getFileHandle(pathParts[pathParts.length - 1]);
+          const file = await fileHandle.getFile();
+
+          const compressed = await compressImage(file);
+          const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const storagePath = `users/${user.uid}/trips/${tripId}/${safeName}`;
+          const storageRef = ref(storage, storagePath);
+          await uploadBytes(storageRef, compressed);
+          const url = await getDownloadURL(storageRef);
+          if (!coverUrl) coverUrl = url;
+
+          await addDoc(photosCol(tripId), { name: file.name, url, storagePath, city: city || null, createdAt: serverTimestamp() });
+          doneCount++;
+          totalUploaded++;
+        } catch (err) {
+          console.warn('Upload failed:', path, err);
+          doneCount++;
+        }
+        setFbProgress(prev => ({ ...prev, [tripName]: { done: doneCount, total: allPaths.length, scanning: false } }));
+        setFbTotalDone(totalUploaded);
+      }
+
+      if (doneCount > 0) {
+        const newCities = [...new Set(albums.map(a => a.city).filter(Boolean))];
+        const existingCities = trips.find(t => t.id === tripId)?.cities || [];
+        const mergedCities = [...new Set([...existingCities, ...newCities])];
+        const updates = { photoCount: doneCount, cities: mergedCities, ...(coverUrl ? { cover: coverUrl } : {}) };
+        try {
+          await updateDoc(doc(db, 'trips', tripId), updates);
+          setTrips(prev => prev.map(t => t.id === tripId ? { ...t, ...updates } : t));
+        } catch {}
+      }
+    }
+
+    setFbStep('done');
   };
 
   // ─── Photo reorder ───
@@ -712,18 +1098,13 @@ export default function App() {
       {/* ─── Header ─── */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {activeTrip && activeCity !== null && (
-            <button className="btn btn-sm" onClick={() => { setActiveCity(null); setSelectedPhotos(new Set()); }}>← {activeTripData?.name || 'Album'}</button>
-          )}
-          {activeTrip && activeCity === null && (
-            <button className="btn btn-sm" onClick={() => setActiveTrip(null)}>← Trips</button>
-          )}
           <div className="header-logo-wrap" onClick={() => setActiveTrip(null)}>
             <img src="/logo.png" alt="Pepini per il mondo" className="header-logo-img" />
             <span className="header-logo heading">Pepini per il mondo</span>
           </div>
         </div>
         <div className="header-actions">
+          {!activeTrip && <button className="btn btn-facebook" onClick={() => { setFbStep('folder'); setFbError(''); setFbModal(true); }}>↓ Facebook</button>}
           {!activeTrip && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>+ New Trip</button>}
           {activeTrip && (
             <button className="btn btn-accent" onClick={() => fileRef.current?.click()} disabled={uploading}>
@@ -918,6 +1299,10 @@ export default function App() {
               <div className="trips-grid">
                 {trips.map((trip, i) => {
                   const isOwner = !trip.ownerId || trip.ownerId === user.uid;
+                  const creatorEmail = trip.ownerEmail
+                    || creatorMap[trip.ownerId]
+                    || (isOwner ? user.email : null);
+                  const creatorUsername = creatorEmail ? creatorEmail.split('@')[0] : null;
                   return (
                   <div key={trip.id} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }} onClick={() => setActiveTrip(trip.id)}>
                     <div className={`trip-cover ${trip.cover ? '' : 'trip-cover-empty'}`}
@@ -948,6 +1333,9 @@ export default function App() {
                         {trip.date ? `${trip.date} · ` : ''}
                         {trip.photoCount || 0} photo{(trip.photoCount || 0) !== 1 ? 's' : ''}
                       </div>
+                      {creatorUsername && (
+                        <div className="trip-creator">Created by {creatorUsername}</div>
+                      )}
                     </div>
                   </div>
                   );
@@ -971,6 +1359,10 @@ export default function App() {
                 {activeTripData.date && <span className="gallery-date">{activeTripData.date}</span>}
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {activeCity !== null
+                  ? <button className="btn btn-sm" onClick={() => { setActiveCity(null); setSelectedPhotos(new Set()); }}>← {activeTripData.name}</button>
+                  : <button className="btn btn-sm" onClick={() => setActiveTrip(null)}>← Trips</button>
+                }
                 {activeTripData.miroUrl && (
                   <a href={activeTripData.miroUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm miro-link">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -1199,6 +1591,154 @@ export default function App() {
               <button className="btn btn-sm" onClick={() => setCityModal(false)}>Cancel</button>
               <button className="btn btn-accent" onClick={saveCityToPhotos}>Save</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ FACEBOOK IMPORT MODAL ═══ */}
+      {fbModal && (
+        <div className="modal-overlay fade-scale" onClick={() => fbStep !== 'import' && setFbModal(false)}>
+          <div className="modal fb-import-modal" onClick={e => e.stopPropagation()}>
+
+            {fbStep === 'folder' && (
+              <>
+                <p className="modal-title">Import from Facebook</p>
+                <p className="modal-sub">Select your <code>your_facebook_activity</code> folder (or its parent) from your Facebook data export. Chrome/Edge only.</p>
+                {fbError && <p className="fb-error">{fbError}</p>}
+                <div className="modal-actions" style={{ marginTop: 20 }}>
+                  <button className="btn btn-sm" onClick={() => setFbModal(false)}>Cancel</button>
+                  <button className="btn btn-accent" onClick={scanFbFolder}>Scan folder…</button>
+                </div>
+              </>
+            )}
+
+            {fbStep === 'select' && (() => {
+              const availableRows = fbRows.filter(r => {
+                const albumName = (fbAlbumNames[r.id] || r.rawTitle).trim();
+                return r.city === null || !fbImportedSet.has(`${albumName}::${r.city}`);
+              });
+              const hiddenCount = fbRows.length - availableRows.length;
+
+              const filtered = availableRows.filter(r => {
+                if (!fbFilter) return true;
+                const q = fbFilter.toLowerCase();
+                return (r.city || r.rawTitle).toLowerCase().includes(q)
+                  || (fbAlbumNames[r.id] || '').toLowerCase().includes(q);
+              });
+              const selectedCount = fbSelected.size;
+              const uniqueAlbums = new Set(availableRows.filter(r => fbSelected.has(r.id)).map(r => (fbAlbumNames[r.id] || r.rawTitle).trim())).size;
+              return (
+                <>
+                  <p className="modal-title">Select cities to import</p>
+                  <p className="modal-sub">
+                    {availableRows.length} cities available · {selectedCount} selected · {uniqueAlbums} album{uniqueAlbums !== 1 ? 's' : ''}
+                    {hiddenCount > 0 && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>· {hiddenCount} already imported</span>}
+                  </p>
+                  <div className="fb-filter-bar">
+                    <input className="input" value={fbFilter} onChange={e => setFbFilter(e.target.value)} placeholder="Filter by city or album…" />
+                    <button className="btn btn-sm" onClick={() => setFbSelected(new Set(availableRows.map(r => r.id)))}>All</button>
+                    <button className="btn btn-sm" onClick={() => setFbSelected(new Set())}>None</button>
+                  </div>
+                  <div className="fb-list-header">
+                    <span className="fb-lh-check" />
+                    <span className="fb-lh-city">City</span>
+                    <span className="fb-lh-album">Album</span>
+                  </div>
+                  <div className="fb-album-list">
+                    {filtered.map(r => (
+                      <label key={r.id} className="fb-album-row">
+                        <input type="checkbox" checked={fbSelected.has(r.id)}
+                          onChange={() => setFbSelected(prev => {
+                            const next = new Set(prev);
+                            next.has(r.id) ? next.delete(r.id) : next.add(r.id);
+                            return next;
+                          })} />
+                        <span className="fb-row-city">{r.city || r.rawTitle}</span>
+                        <input
+                          className="input fb-row-album-input"
+                          value={fbAlbumNames[r.id] || ''}
+                          onChange={e => setFbAlbumNames(prev => ({ ...prev, [r.id]: e.target.value }))}
+                          onClick={e => e.preventDefault()}
+                          placeholder="Album name"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="modal-actions" style={{ marginTop: 12 }}>
+                    <button className="btn btn-sm" onClick={() => setFbModal(false)}>Cancel</button>
+                    <button className="btn btn-accent" onClick={handleFbImportClick} disabled={selectedCount === 0}>
+                      Import {selectedCount} cit{selectedCount !== 1 ? 'ies' : 'y'}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+
+            {fbStep === 'import' && (() => {
+              const totalPhotos = Object.values(fbProgress).reduce((s, p) => s + p.total, 0);
+              const isScanning = Object.values(fbProgress).some(p => p.scanning);
+              const elapsed = fbImportStartRef.current ? Date.now() - fbImportStartRef.current : 0;
+              const rate = elapsed > 0 && fbTotalDone > 0 ? fbTotalDone / elapsed : 0;
+              const remaining = totalPhotos - fbTotalDone;
+              const etaMs = rate > 0 && remaining > 0 ? remaining / rate : 0;
+              const formatTime = (ms) => {
+                const s = Math.round(ms / 1000);
+                if (s < 60) return `${s}s`;
+                const m = Math.floor(s / 60), rs = s % 60;
+                if (m < 60) return rs > 0 ? `${m}m ${rs}s` : `${m}m`;
+                return `${Math.floor(m / 60)}h ${m % 60}m`;
+              };
+              return (
+                <>
+                  <p className="modal-title">Importing…</p>
+                  <div className="fb-eta-bar">
+                    <span>{fbTotalDone} / {totalPhotos || '?'} photos</span>
+                    {isScanning && <span className="fb-eta-scanning">Scanning albums…</span>}
+                    {!isScanning && etaMs > 0 && (
+                      <span className="fb-eta-time">~{formatTime(etaMs)} remaining</span>
+                    )}
+                    {!isScanning && fbTotalDone > 0 && elapsed > 0 && (
+                      <span className="fb-eta-elapsed">Elapsed: {formatTime(elapsed)}</span>
+                    )}
+                  </div>
+                  <div className="fb-eta-total-bar-wrap">
+                    <div className="fb-eta-total-bar" style={{ width: totalPhotos > 0 ? `${Math.round((fbTotalDone / totalPhotos) * 100)}%` : '0%' }} />
+                  </div>
+                  <div className="fb-album-list">
+                    {Object.entries(fbProgress).map(([name, prog]) => {
+                      const pct = prog.total > 0 ? Math.round((prog.done / prog.total) * 100) : 0;
+                      return (
+                        <div key={name} className="fb-progress-item">
+                          <div className="fb-progress-name">{name}</div>
+                          {prog.scanning
+                            ? <div className="fb-progress-waiting">Scanning…</div>
+                            : prog.total > 0 ? (
+                              <div className="fb-progress-bar-wrap">
+                                <div className="fb-progress-bar" style={{ width: `${pct}%` }} />
+                                <span className="fb-progress-label">{prog.done} / {prog.total}</span>
+                              </div>
+                            ) : <div className="fb-progress-waiting">Waiting…</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="modal-actions" style={{ marginTop: 12 }}>
+                    <button className="btn btn-sm btn-danger" onClick={() => { fbCancelRef.current = true; }}>Stop import</button>
+                  </div>
+                </>
+              );
+            })()}
+
+            {fbStep === 'done' && (
+              <>
+                <p className="modal-title">Import complete</p>
+                <p className="modal-sub">{fbTotalDone} photos imported into {fbSelected.size} trip{fbSelected.size !== 1 ? 's' : ''}.</p>
+                <div className="modal-actions" style={{ marginTop: 20 }}>
+                  <button className="btn btn-accent" onClick={() => { setFbModal(false); loadTrips(); }}>Done</button>
+                </div>
+              </>
+            )}
+
           </div>
         </div>
       )}
