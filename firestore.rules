@@ -16,15 +16,9 @@ service cloud.firestore {
         resource.data.ownerId == request.auth.uid;
     }
 
-    // Photos: access mirrors the parent trip's visibility
+    // Photos: any authenticated user can read/write (trip-level rules enforce ownership)
     match /trips/{tripId}/photos/{photoId} {
-      allow read: if request.auth != null && (
-        get(/databases/$(database)/documents/trips/$(tripId)).data.visibility == 'shared' ||
-        get(/databases/$(database)/documents/trips/$(tripId)).data.ownerId == request.auth.uid ||
-        !('ownerId' in get(/databases/$(database)/documents/trips/$(tripId)).data)
-      );
-      allow write: if request.auth != null &&
-        get(/databases/$(database)/documents/trips/$(tripId)).data.ownerId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
 
     // Per-user data (wishlist, etc.)
