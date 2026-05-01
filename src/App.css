@@ -233,6 +233,7 @@ input, button { font-family: inherit; }
 /* ─── Edit button on trip card ─── */
 .trip-edit-btn { background: none; border: none; color: var(--border-hover); cursor: pointer; font-size: 15px; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color .2s; }
 .trip-edit-btn:hover { color: var(--accent); }
+.trip-vis-icon { font-size: 13px; line-height: 1; opacity: .65; cursor: default; }
 .edit-modal { max-width: 780px; width: 90vw; text-align: left; }
 .edit-modal .modal-title { text-align: center; }
 .edit-modal-fields { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
@@ -250,6 +251,18 @@ input, button { font-family: inherit; }
 /* ─── Share URL modal ─── */
 .share-url-box { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-top: 14px; }
 .share-url-text { font-size: 11px; color: var(--text-muted); flex: 1; word-break: break-all; text-align: left; }
+
+/* ─── City sub-album grouping ─── */
+.city-section { margin-bottom: 28px; }
+.city-group-header { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); display: flex; align-items: baseline; gap: 10px; }
+.city-group-count { font-family: 'Archivo', system-ui, sans-serif; font-size: 12px; color: var(--text-muted); font-weight: 400; }
+.city-group-uncat .city-group-count { font-style: italic; }
+.city-group-uncat { color: var(--text-muted); font-style: italic; }
+
+/* ─── List view checkboxes & selection ─── */
+.photo-list-check { width: 17px; height: 17px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+.photo-list-item.selected { border-color: var(--accent); background: var(--accent-dim); }
+.photo-list-city { font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 2px; letter-spacing: .3px; }
 
 @media (max-width: 640px) {
   .content { padding: 16px; }

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm list *)",
+      "Bash(node -e \"require\\('firebase-admin'\\)\")",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

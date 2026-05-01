@@ -178,6 +178,14 @@ export default function App() {
   const [migrationCount, setMigrationCount] = useState(0);
   const [migrationError, setMigrationError] = useState('');
 
+  // ─── Photo city selection ───
+  const [selectedPhotos, setSelectedPhotos] = useState(new Set());
+  const [cityModal, setCityModal] = useState(false);
+  const [cityInput, setCityInput] = useState('');
+
+  // ─── Active city sub-album ───
+  const [activeCity, setActiveCity] = useState(null); // null | city-string | '__uncategorized__'
+
   // ─── Dark mode effect ───
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
@@ -204,7 +212,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (!user) return; loadTrips(); }, [user]);
-  useEffect(() => { if (!activeTrip || !user) { setPhotos([]); return; } loadPhotos(activeTrip); }, [activeTrip, user]);
+  useEffect(() => { if (!activeTrip || !user) { setPhotos([]); return; } loadPhotos(activeTrip); setSelectedPhotos(new Set()); setActiveCity(null); }, [activeTrip, user]);
 
   // ─── Load wishlist from Firestore ───
   useEffect(() => {
@@ -388,6 +396,38 @@ export default function App() {
     } catch (err) { console.error('Save desc error:', err); }
   };
 
+  const saveCityToPhotos = async () => {
+    const city = cityInput.trim() || null;
+    for (const photoId of selectedPhotos) {
+      await updateDoc(doc(db, 'trips', activeTrip, 'photos', photoId), { city });
+    }
+    setPhotos(ps => ps.map(p => selectedPhotos.has(p.id) ? { ...p, city } : p));
+    setSelectedPhotos(new Set());
+    setCityModal(false);
+    setCityInput('');
+  };
+
+  const groupPhotosByCity = (photoList) => {
+    const groups = {};
+    const uncategorized = [];
+    for (const p of photoList) {
+      if (p.city) {
+        (groups[p.city] = groups[p.city] || []).push(p);
+      } else {
+        uncategorized.push(p);
+      }
+    }
+    return { groups, uncategorized, hasCities: Object.keys(groups).length > 0 };
+  };
+
+  const togglePhotoSelection = (photoId) => {
+    setSelectedPhotos(prev => {
+      const next = new Set(prev);
+      next.has(photoId) ? next.delete(photoId) : next.add(photoId);
+      return next;
+    });
+  };
+
   // ─── Photo reorder ───
   const reorderPhotos = async (dropIdx) => {
     const dragIdx = draggingIdx.current;
@@ -404,8 +444,11 @@ export default function App() {
     } catch (err) { console.error('Reorder error:', err); }
   };
 
-  const lbIndex = lightbox ? photos.findIndex(p => p.id === lightbox.id) : -1;
-  const navLightbox = (dir) => { const next = lbIndex + dir; if (next >= 0 && next < photos.length) setLightbox(photos[next]); };
+  const displayPhotos = activeCity === null ? photos
+    : activeCity === '__uncategorized__' ? photos.filter(p => !p.city)
+    : photos.filter(p => p.city === activeCity);
+  const lbIndex = lightbox ? displayPhotos.findIndex(p => p.id === lightbox.id) : -1;
+  const navLightbox = (dir) => { const next = lbIndex + dir; if (next >= 0 && next < displayPhotos.length) setLightbox(displayPhotos[next]); };
 
   // ─── File drag & drop (grid background) ───
   const onDragOver = (e) => { e.preventDefault(); if (draggingIdx.current === null) setDragging(true); };
@@ -661,13 +704,20 @@ export default function App() {
   // MAIN APP
   // ═══════════════════════════════════════
   const activeTripData = trips.find(t => t.id === activeTrip);
+  const { groups: cityGroups, uncategorized: cityUncategorized, hasCities } = groupPhotosByCity(photos);
+  const showCityCards = hasCities && activeCity === null;
 
   return (
     <div>
       {/* ─── Header ─── */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {activeTrip && <button className="btn btn-sm" onClick={() => setActiveTrip(null)}>← Trips</button>}
+          {activeTrip && activeCity !== null && (
+            <button className="btn btn-sm" onClick={() => { setActiveCity(null); setSelectedPhotos(new Set()); }}>← {activeTripData?.name || 'Album'}</button>
+          )}
+          {activeTrip && activeCity === null && (
+            <button className="btn btn-sm" onClick={() => setActiveTrip(null)}>← Trips</button>
+          )}
           <div className="header-logo-wrap" onClick={() => setActiveTrip(null)}>
             <img src="/logo.png" alt="Pepini per il mondo" className="header-logo-img" />
             <span className="header-logo heading">Pepini per il mondo</span>
@@ -873,7 +923,6 @@ export default function App() {
                     <div className={`trip-cover ${trip.cover ? '' : 'trip-cover-empty'}`}
                       style={trip.cover ? { backgroundImage: `url(${trip.cover})` } : {}}>
                       {!trip.cover && <span>🗺</span>}
-                      {trip.visibility === 'private' && <div className="trip-private-badge" title="Private — only you can see this">🔒</div>}
                       {isOwner && <button className="trip-delete" onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>}
                       {isOwner && (
                         <button className={`trip-share ${trip.shareToken ? 'trip-share-active' : ''}`}
@@ -887,7 +936,12 @@ export default function App() {
                     <div className="trip-info">
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                         <div className="trip-name">{trip.name}</div>
-                        {isOwner && <button className="trip-edit-btn" title="Edit trip" onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                          <span className="trip-vis-icon" title={trip.visibility === 'private' ? 'Private' : 'Shared'}>
+                            {trip.visibility === 'private' ? '🔒' : '🌍'}
+                          </span>
+                          {isOwner && <button className="trip-edit-btn" title="Edit trip" onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>}
+                        </div>
                       </div>
                       <div className="trip-meta">
                         {trip.country ? `${trip.country}${trip.date || trip.photoCount ? ' · ' : ''}` : ''}
@@ -909,6 +963,11 @@ export default function App() {
             <div className="gallery-header">
               <div>
                 <span className="gallery-title heading">{activeTripData.name}</span>
+                {activeCity && (
+                  <span className="gallery-city-sub">
+                    {' / '}{activeCity === '__uncategorized__' ? 'No city assigned' : activeCity}
+                  </span>
+                )}
                 {activeTripData.date && <span className="gallery-date">{activeTripData.date}</span>}
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -922,59 +981,123 @@ export default function App() {
                   onClick={() => generateShareLink(activeTripData)} disabled={shareGenerating === activeTrip}>
                   {shareGenerating === activeTrip ? 'Generating…' : activeTripData.shareToken ? '↗ Shared' : '↗ Share'}
                 </button>
-                <div className="view-toggle">
-                  <button className={`view-btn ${view === 'grid' ? 'active' : ''}`} onClick={() => setView('grid')}>Grid</button>
-                  <button className={`view-btn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>List</button>
-                </div>
+                {!showCityCards && (
+                  <>
+                    {selectedPhotos.size > 0 && (
+                      <button className="btn btn-accent btn-sm" onClick={() => { setCityInput(''); setCityModal(true); }}>
+                        Save Changes ({selectedPhotos.size})
+                      </button>
+                    )}
+                    <div className="view-toggle">
+                      <button className={`view-btn ${view === 'grid' ? 'active' : ''}`} onClick={() => { setView('grid'); setSelectedPhotos(new Set()); }}>Grid</button>
+                      <button className={`view-btn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>List</button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
-            {uploading && <div className="upload-progress"><span className="spinner" />Uploading {uploadCount.done} of {uploadCount.total} photos…</div>}
-            {loadingPhotos && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
-            {!loadingPhotos && photos.length === 0 && !uploading && (
-              <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()}
-                onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-                <div className="drop-zone-icon">📷</div>
-                <p style={{ fontSize: 15, marginBottom: 4 }}>Drag & drop photos here</p>
-                <p style={{ fontSize: 12 }}>or click to browse</p>
-              </div>
-            )}
-
-            {photos.length > 0 && view === 'grid' && (
-              <div className="photo-grid" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-                {photos.map((p, i) => (
-                  <div key={p.id}
-                    className={`photo-thumb fade-in${dragOverIdx === i ? ' drag-over' : ''}`}
-                    style={{ animationDelay: `${i * 30}ms` }}
-                    draggable
-                    onDragStart={() => { draggingIdx.current = i; }}
-                    onDragEnd={() => { draggingIdx.current = null; setDragOverIdx(null); }}
-                    onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverIdx(i); }}
-                    onDragLeave={() => setDragOverIdx(null)}
-                    onDrop={e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(i); setDragOverIdx(null); }}
-                    onClick={() => setLightbox(p)}>
-                    <img src={p.url} alt={p.name} loading="lazy" />
-                    <div className="photo-drag-handle">⠿</div>
-                    {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
-                  </div>
-                ))}
-                <div className="add-tile" onClick={() => fileRef.current?.click()}>+</div>
-              </div>
-            )}
-
-            {photos.length > 0 && view === 'list' && (
-              <div className="photo-list" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-                {photos.map((p, i) => (
-                  <div key={p.id} className="photo-list-item fade-in" style={{ animationDelay: `${i * 25}ms` }} onClick={() => setLightbox(p)}>
-                    <img src={p.url} alt={p.name} loading="lazy" />
-                    <div>
-                      <div className="photo-list-name">{p.name}</div>
-                      {p.description && <div className="photo-list-desc">{p.description}</div>}
-                      {p.createdAt?.seconds && <div className="photo-list-date">{new Date(p.createdAt.seconds * 1000).toLocaleDateString()}</div>}
+            {/* ─ City sub-album cards ─ */}
+            {showCityCards && (
+              <div className="trips-grid">
+                {Object.keys(cityGroups).sort().map((city, i) => {
+                  const coverUrl = cityGroups[city][0]?.url;
+                  return (
+                    <div key={city} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }}
+                      onClick={() => setActiveCity(city)}>
+                      <div className={`trip-cover ${coverUrl ? '' : 'trip-cover-empty'}`}
+                        style={coverUrl ? { backgroundImage: `url(${coverUrl})` } : {}}>
+                        {!coverUrl && <span>🏙</span>}
+                      </div>
+                      <div className="trip-info">
+                        <div className="trip-name">{city}</div>
+                        <div className="trip-meta">{cityGroups[city].length} photo{cityGroups[city].length !== 1 ? 's' : ''}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+                {cityUncategorized.length > 0 && (() => {
+                  const coverUrl = cityUncategorized[0]?.url;
+                  return (
+                    <div className="trip-card fade-in" style={{ animationDelay: `${Object.keys(cityGroups).length * 60}ms` }}
+                      onClick={() => setActiveCity('__uncategorized__')}>
+                      <div className={`trip-cover ${coverUrl ? '' : 'trip-cover-empty'}`}
+                        style={coverUrl ? { backgroundImage: `url(${coverUrl})` } : {}}>
+                        {!coverUrl && <span>🏙</span>}
+                      </div>
+                      <div className="trip-info">
+                        <div className="trip-name" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>No city assigned</div>
+                        <div className="trip-meta">{cityUncategorized.length} photo{cityUncategorized.length !== 1 ? 's' : ''}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
+            )}
+
+            {/* ─ Photo views (flat, inside a city or when no cities set) ─ */}
+            {!showCityCards && (
+              <>
+                {uploading && <div className="upload-progress"><span className="spinner" />Uploading {uploadCount.done} of {uploadCount.total} photos…</div>}
+                {loadingPhotos && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
+                {!loadingPhotos && displayPhotos.length === 0 && !uploading && (
+                  <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()}
+                    onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+                    <div className="drop-zone-icon">📷</div>
+                    <p style={{ fontSize: 15, marginBottom: 4 }}>Drag & drop photos here</p>
+                    <p style={{ fontSize: 12 }}>or click to browse</p>
+                  </div>
+                )}
+
+                {displayPhotos.length > 0 && view === 'grid' && (() => {
+                  const canDrag = activeCity === null;
+                  return (
+                    <div className="photo-grid" onDragOver={canDrag ? onDragOver : undefined} onDragLeave={canDrag ? onDragLeave : undefined} onDrop={canDrag ? onDrop : undefined}>
+                      {displayPhotos.map((p, i) => {
+                        const flatIdx = photos.findIndex(x => x.id === p.id);
+                        return (
+                          <div key={p.id}
+                            className={`photo-thumb fade-in${canDrag && dragOverIdx === flatIdx ? ' drag-over' : ''}`}
+                            style={{ animationDelay: `${i * 30}ms` }}
+                            draggable={canDrag}
+                            onDragStart={canDrag ? () => { draggingIdx.current = flatIdx; } : undefined}
+                            onDragEnd={canDrag ? () => { draggingIdx.current = null; setDragOverIdx(null); } : undefined}
+                            onDragOver={canDrag ? e => { e.preventDefault(); e.stopPropagation(); setDragOverIdx(flatIdx); } : undefined}
+                            onDragLeave={canDrag ? () => setDragOverIdx(null) : undefined}
+                            onDrop={canDrag ? e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(flatIdx); setDragOverIdx(null); } : undefined}
+                            onClick={() => setLightbox(p)}>
+                            <img src={p.url} alt={p.name} loading="lazy" />
+                            {canDrag && <div className="photo-drag-handle">⠿</div>}
+                            {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
+                          </div>
+                        );
+                      })}
+                      {canDrag && <div className="add-tile" onClick={() => fileRef.current?.click()}>+</div>}
+                    </div>
+                  );
+                })()}
+
+                {displayPhotos.length > 0 && view === 'list' && (
+                  <div className="photo-list">
+                    {displayPhotos.map((p, i) => (
+                      <div key={p.id}
+                        className={`photo-list-item fade-in${selectedPhotos.has(p.id) ? ' selected' : ''}`}
+                        style={{ animationDelay: `${i * 25}ms` }}>
+                        <input type="checkbox" className="photo-list-check"
+                          checked={selectedPhotos.has(p.id)}
+                          onChange={() => togglePhotoSelection(p.id)}
+                          onClick={e => e.stopPropagation()} />
+                        <img src={p.url} alt={p.name} loading="lazy" onClick={() => setLightbox(p)} style={{ cursor: 'pointer' }} />
+                        <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setLightbox(p)}>
+                          <div className="photo-list-name">{p.name}</div>
+                          {p.description && <div className="photo-list-desc">{p.description}</div>}
+                          {p.createdAt?.seconds && <div className="photo-list-date">{new Date(p.createdAt.seconds * 1000).toLocaleDateString()}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -986,8 +1109,8 @@ export default function App() {
           <img src={lightbox.url} alt={lightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
           <button className="lb-close" onClick={() => setLightbox(null)}>✕</button>
           {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" onClick={e => { e.stopPropagation(); navLightbox(-1); }}>‹</button>}
-          {lbIndex < photos.length - 1 && <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); navLightbox(1); }}>›</button>}
-          <div className="lb-counter">{lbIndex + 1} / {photos.length}</div>
+          {lbIndex < displayPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); navLightbox(1); }}>›</button>}
+          <div className="lb-counter">{lbIndex + 1} / {displayPhotos.length}</div>
           <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
             <textarea
               className="lb-desc"
@@ -1053,6 +1176,28 @@ export default function App() {
             <div className="modal-actions" style={{ marginTop: 16 }}>
               <button className="btn btn-sm" onClick={() => setEditTrip(null)}>Cancel</button>
               <button className="btn btn-accent" onClick={saveEditTrip} disabled={editSaving || !editName.trim()}>{editSaving ? 'Saving…' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ CITY ASSIGN MODAL ═══ */}
+      {cityModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setCityModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">Assign city</p>
+            <p className="modal-sub">{selectedPhotos.size} photo{selectedPhotos.size !== 1 ? 's' : ''} selected</p>
+            <input
+              className="input"
+              value={cityInput}
+              onChange={e => setCityInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveCityToPhotos()}
+              placeholder="e.g. Beijing"
+              autoFocus
+            />
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setCityModal(false)}>Cancel</button>
+              <button className="btn btn-accent" onClick={saveCityToPhotos}>Save</button>
             </div>
           </div>
         </div>
