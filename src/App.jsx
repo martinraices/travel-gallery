@@ -549,53 +549,90 @@ export default function App() {
   // ─── Facebook import ───
   const buildFbTripGroups = async (albumEntries) => {
     const tripMap = {};
-    for (const { rawTitle, albumHref } of albumEntries) {
+    for (const { rawTitle, albumHref, photoCount = 0 } of albumEntries) {
       if (!rawTitle) continue;
       const parsed = parseFbAlbum(rawTitle);
       if (!parsed) continue;
       if (!tripMap[parsed.trip]) {
         tripMap[parsed.trip] = { tripName: parsed.trip, country: parsed.country, albums: [] };
       }
-      tripMap[parsed.trip].albums.push({ city: parsed.city, rawTitle, albumHref });
+      tripMap[parsed.trip].albums.push({ city: parsed.city, rawTitle, albumHref, photoCount });
     }
     const groups = Object.values(tripMap).sort((a, b) => a.tripName.localeCompare(b.tripName));
     const rows = [];
     const albumNames = {};
     for (const group of groups) {
+      // Merge albums that share the same city within this trip (e.g. "Luxor Parte 1/2/3")
+      // into a single row, summing photo counts and collecting all albumHrefs for import.
+      const cityMap = {};
       for (const album of group.albums) {
-        const id = album.albumHref;
-        rows.push({ id, city: album.city || album.rawTitle, country: group.country, rawTitle: album.rawTitle, albumHref: album.albumHref });
-        albumNames[id] = group.tripName;
+        const city = album.city || album.rawTitle;
+        if (!cityMap[city]) {
+          cityMap[city] = {
+            id: album.albumHref,
+            city,
+            country: group.country,
+            rawTitle: album.rawTitle,
+            albumHref: album.albumHref,
+            albumHrefs: [],
+            rawTitles: [],
+            photoCount: 0,
+          };
+        }
+        cityMap[city].photoCount += album.photoCount || 0;
+        cityMap[city].albumHrefs.push(album.albumHref);
+        cityMap[city].rawTitles.push(album.rawTitle);
+      }
+      for (const mergedRow of Object.values(cityMap)) {
+        rows.push(mergedRow);
+        albumNames[mergedRow.id] = group.tripName;
       }
     }
 
-    // Build set of all album names we need to check
+    // Collect all city names present in the local albums
+    const allLocalCities = new Set(rows.map(r => r.city).filter(Boolean));
+
+    // Also build album name set for fallback (trips without cities field yet)
     const neededAlbumNames = new Set(Object.values(albumNames));
 
-    // For each existing trip whose name appears in our album list,
-    // load its photos to discover which cities are already imported.
+    // Find Firebase trips to query:
+    // Primary: trips whose stored `cities` array overlaps with our local cities
+    //   (catches cases where Facebook album "Amsterdam 2004" was imported as city
+    //    "Amsterdam" inside a differently-named trip like "Holland 2004")
+    // Fallback: trips whose name matches a local album name but lack a `cities` field yet
+    const tripsWithCities = trips.filter(t =>
+      t.cities && t.cities.some(c => allLocalCities.has(c))
+    );
+    const tripsFallback = trips.filter(t =>
+      !t.cities && neededAlbumNames.has(t.name)
+    );
+    const tripsToCheck = [...new Map(
+      [...tripsWithCities, ...tripsFallback].map(t => [t.id, t])
+    ).values()];
+
+    // An album is considered already imported if the same city + photo count exists in Firebase.
     const importedSet = new Set();
-    const matchingTrips = trips.filter(t => neededAlbumNames.has(t.name));
-    await Promise.all(matchingTrips.map(async (trip) => {
-      let cities = trip.cities;
-      if (!cities) {
-        // Query photos to discover cities (works for data imported before cities field was added)
-        try {
-          const snap = await getDocs(photosCol(trip.id));
-          cities = [...new Set(snap.docs.map(d => d.data().city).filter(Boolean))];
-          if (cities.length > 0) {
-            await updateDoc(doc(db, 'trips', trip.id), { cities });
-            setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cities } : t));
-          }
-        } catch {}
-      }
-      for (const city of (cities || [])) {
-        importedSet.add(`${trip.name}::${city}`);
-      }
+    await Promise.all(tripsToCheck.map(async (trip) => {
+      try {
+        const snap = await getDocs(photosCol(trip.id));
+        const cityCountMap = {};
+        for (const d of snap.docs) {
+          const city = d.data().city;
+          if (city) cityCountMap[city] = (cityCountMap[city] || 0) + 1;
+        }
+        const cities = Object.keys(cityCountMap);
+        if (cities.length > 0 && !trip.cities) {
+          await updateDoc(doc(db, 'trips', trip.id), { cities });
+          setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cities } : t));
+        }
+        for (const [city, count] of Object.entries(cityCountMap)) {
+          importedSet.add(`${city}::${count}`);
+        }
+      } catch {}
     }));
 
     const availableIds = rows
-      .filter(r => r.city === null || !importedSet.has(`${albumNames[r.id]}::${r.city}`))
+      .filter(r => r.city === null || !importedSet.has(`${r.city}::${r.photoCount}`))
       .map(r => r.id);
 
     setFbTripGroups(groups);
@@ -667,7 +704,17 @@ export default function App() {
             || albumDoc.querySelector('h2')?.textContent?.trim()
             || albumDoc.title?.trim()
             || name.replace('.html', '');
-          entries.push({ rawTitle, albumHref: `album/${name}` });
+          const seenPaths = new Set();
+          const countPhoto = (raw) => {
+            if (!raw) return;
+            const clean = raw.split('?')[0].split('#')[0];
+            if (!/\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/i.test(clean)) return;
+            const resolved = clean.replace(/^(?:\.\.\/)+/, '').replace(/^\//, '');
+            if (resolved) seenPaths.add(resolved);
+          };
+          albumDoc.querySelectorAll('[src]').forEach(el => countPhoto(el.getAttribute('src')));
+          albumDoc.querySelectorAll('a[href]').forEach(el => countPhoto(el.getAttribute('href')));
+          entries.push({ rawTitle, albumHref: `album/${name}`, photoCount: seenPaths.size });
         } catch {}
       }
 
@@ -704,13 +751,18 @@ export default function App() {
     setFbStep('import');
     setFbTotalDone(0);
 
-    // Build import groups from row-level selection + user-edited album names
+    // Build import groups from row-level selection + user-edited album names.
+    // Each row may represent multiple source albums (e.g. "Luxor Parte 1/2/3" merged into one row).
     const selectedRows = fbRows.filter(r => fbSelected.has(r.id));
     const albumGroupMap = {};
     for (const row of selectedRows) {
       const albumName = (fbAlbumNames[row.id] || row.rawTitle).trim();
       if (!albumGroupMap[albumName]) albumGroupMap[albumName] = { tripName: albumName, country: row.country, albums: [] };
-      albumGroupMap[albumName].albums.push({ city: row.city, rawTitle: row.rawTitle, albumHref: row.albumHref });
+      const hrefs = row.albumHrefs || [row.albumHref];
+      const rawTitles = row.rawTitles || [row.rawTitle];
+      hrefs.forEach((href, i) => {
+        albumGroupMap[albumName].albums.push({ city: row.city, rawTitle: rawTitles[i] || row.rawTitle, albumHref: href });
+      });
     }
     const toImport = Object.values(albumGroupMap);
 
@@ -1629,10 +1681,9 @@ export default function App() {
             )}
 
             {fbStep === 'select' && (() => {
-              const availableRows = fbRows.filter(r => {
-                const albumName = (fbAlbumNames[r.id] || r.rawTitle).trim();
-                return r.city === null || !fbImportedSet.has(`${albumName}::${r.city}`);
-              });
+              const availableRows = fbRows.filter(r =>
+                r.city === null || !fbImportedSet.has(`${r.city}::${r.photoCount}`)
+              );
               const hiddenCount = fbRows.length - availableRows.length;
 
               const filtered = availableRows.filter(r => {
@@ -1659,6 +1710,7 @@ export default function App() {
                     <span className="fb-lh-check" />
                     <span className="fb-lh-city">City</span>
                     <span className="fb-lh-album">Album</span>
+                    <span className="fb-lh-photos">Photos</span>
                   </div>
                   <div className="fb-album-list">
                     {filtered.map(r => (
@@ -1677,6 +1729,7 @@ export default function App() {
                           onClick={e => e.preventDefault()}
                           placeholder="Album name"
                         />
+                        <span className="fb-row-photos">{r.photoCount || '–'}</span>
                       </label>
                     ))}
                   </div>
