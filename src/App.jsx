@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import {
   collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
-  query, where, orderBy, limit, serverTimestamp, getDoc, setDoc,
+  query, where, orderBy, limit, serverTimestamp, getDoc, setDoc, writeBatch,
 } from 'firebase/firestore';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject, listAll,
@@ -213,6 +213,12 @@ export default function App() {
   // ─── Stat panels ───
   const [statPanel, setStatPanel] = useState(null);
   const [expandedContinents, setExpandedContinents] = useState(new Set());
+  const [expandedCountries, setExpandedCountries] = useState(new Set());
+  const [customPanelLabel, setCustomPanelLabel] = useState(() => localStorage.getItem('customPanelLabel') || '');
+  const [customPanelMiro, setCustomPanelMiro] = useState(() => localStorage.getItem('customPanelMiro') || '');
+  const [editingPanel, setEditingPanel] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const panelInputRef = useRef(null);
 
   // ─── Edit trip ───
   const [editTrip, setEditTrip] = useState(null);
@@ -222,6 +228,12 @@ export default function App() {
   const [editMiro, setEditMiro] = useState('');
   const [editVisibility, setEditVisibility] = useState('shared');
   const [editSaving, setEditSaving] = useState(false);
+
+  // ─── Edit city sub-album ───
+  const [editCity, setEditCity] = useState(null); // { tripId, cityName } | null
+  const [editCityName, setEditCityName] = useState('');
+  const [editCityVisibility, setEditCityVisibility] = useState('shared');
+  const [editCitySaving, setEditCitySaving] = useState(false);
 
   // ─── Share ───
   const [shareModal, setShareModal] = useState(null);
@@ -266,6 +278,12 @@ export default function App() {
   const [fbError, setFbError] = useState('');
   const fbCancelRef = useRef(false);
   const fbImportStartRef = useRef(null);
+  const pendingCityRef = useRef(null);
+
+  // ─── Auto-set dates from Facebook ───
+  const [autoDateModal, setAutoDateModal] = useState(false); // false | 'running' | 'done'
+  const [autoDateUpdated, setAutoDateUpdated] = useState(0);
+  const [autoDateScanned, setAutoDateScanned] = useState(0);
 
   // ─── Dark mode effect ───
   useEffect(() => {
@@ -298,7 +316,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (!user) return; loadTrips(); }, [user]);
-  useEffect(() => { if (!activeTrip || !user) { setPhotos([]); return; } loadPhotos(activeTrip); setSelectedPhotos(new Set()); setActiveCity(null); }, [activeTrip, user]);
+  useEffect(() => { if (!activeTrip || !user) { setPhotos([]); return; } loadPhotos(activeTrip); setSelectedPhotos(new Set()); setActiveCity(pendingCityRef.current); pendingCityRef.current = null; }, [activeTrip, user]);
 
   // Auto-fix: trips with a broken/missing cover — list Storage files directly and get a real URL
   useEffect(() => {
@@ -344,11 +362,23 @@ export default function App() {
         if (e.key === 'Escape') setLightbox(null);
         if (e.key === 'ArrowLeft') navLightbox(-1);
         if (e.key === 'ArrowRight') navLightbox(1);
+        return;
       }
       if (publicLightbox && publicShareData?.photos) {
         if (e.key === 'Escape') setPublicLightbox(null);
         if (e.key === 'ArrowLeft' && publicLbIdx > 0) { const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]); }
         if (e.key === 'ArrowRight' && publicLbIdx < publicShareData.photos.length - 1) { const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]); }
+        return;
+      }
+      if (e.key === 'Escape') {
+        if (editTrip) { setEditTrip(null); }
+        else if (editCity) { setEditCity(null); }
+        else if (shareModal) { setShareModal(null); }
+        else if (confirmDelete) { setConfirmDelete(null); }
+        else if (cityModal) { setCityModal(false); }
+        else if (fbModal && fbStep !== 'import') { setFbModal(false); }
+        else if (activeCity) { setActiveCity(null); }
+        else if (activeTrip) { setActiveTrip(null); setStatPanel(null); }
       }
     };
     window.addEventListener('keydown', handler);
@@ -544,6 +574,100 @@ export default function App() {
       next.has(photoId) ? next.delete(photoId) : next.add(photoId);
       return next;
     });
+  };
+
+  // ─── Auto-set dates from Facebook ───
+  const autoSetDatesFromFb = async () => {
+    setAutoDateModal('running');
+    setAutoDateUpdated(0);
+    try {
+      const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+      const resolved = await resolveFbHandles(rootHandle);
+      if (!resolved) { setAutoDateModal(false); return; }
+      const { postsHandle } = resolved;
+
+      const albumDirHandle = await postsHandle.getDirectoryHandle('album');
+      // tripName → latest timestamp
+      const dateMap = {};
+      let scanned = 0;
+      for await (const [name, handle] of albumDirHandle.entries()) {
+        if (handle.kind !== 'file' || !name.endsWith('.html')) continue;
+        try {
+          const albumDoc = new DOMParser().parseFromString(await (await handle.getFile()).text(), 'text/html');
+          const rawTitle = albumDoc.querySelector('h1')?.textContent?.trim()
+            || albumDoc.querySelector('h2')?.textContent?.trim()
+            || albumDoc.title?.trim()
+            || name.replace('.html', '');
+          const parsed = parseFbAlbum(rawTitle);
+          if (!parsed) continue;
+          scanned++;
+          const tripName = parsed.trip;
+          const updateDateMap = (ts) => {
+            if (!dateMap[tripName] || ts > dateMap[tripName]) dateMap[tripName] = ts;
+          };
+          // Method 1: old Facebook export format (._a6-q class), English or Spanish "Taken" label
+          const takenLabels = new Set(['Taken', 'Tomada', 'Tomado', 'Fecha de toma', 'Date taken']);
+          albumDoc.querySelectorAll('._a6-q').forEach(el => {
+            if (takenLabels.has(el.textContent.trim())) {
+              let next = el.nextElementSibling;
+              while (next) {
+                const dateEl = next.querySelector('._a6-q');
+                if (dateEl) {
+                  const d = new Date(dateEl.textContent.trim());
+                  if (!isNaN(d.getTime())) updateDateMap(d.getTime());
+                  break;
+                }
+                next = next.nextElementSibling;
+              }
+            }
+          });
+          // Method 2: <time datetime="..."> elements (newer export formats)
+          albumDoc.querySelectorAll('time[datetime]').forEach(el => {
+            const d = new Date(el.getAttribute('datetime'));
+            if (!isNaN(d.getTime()) && d.getFullYear() > 1990) updateDateMap(d.getTime());
+          });
+          // Method 3: date strings in English ("January 15, 2015") or Spanish ("15 de enero de 2015")
+          if (!dateMap[tripName]) {
+            const bodyText = albumDoc.body?.textContent || '';
+            const enRe = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/g;
+            const esRe = /\b\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+de\s+\d{4}\b/gi;
+            const esMonths = { enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11 };
+            let m;
+            while ((m = enRe.exec(bodyText)) !== null) {
+              const d = new Date(m[0]);
+              if (!isNaN(d.getTime()) && d.getFullYear() > 1990) updateDateMap(d.getTime());
+            }
+            while ((m = esRe.exec(bodyText)) !== null) {
+              const parts = m[0].match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i);
+              if (parts) {
+                const d = new Date(+parts[3], esMonths[parts[2].toLowerCase()], +parts[1]);
+                if (!isNaN(d.getTime()) && d.getFullYear() > 1990) updateDateMap(d.getTime());
+              }
+            }
+          }
+        } catch {}
+      }
+
+      let updated = 0;
+      const tripsWithoutDate = trips.filter(t => !t.date && (!t.ownerId || t.ownerId === user.uid));
+      await Promise.all(tripsWithoutDate.map(async (trip) => {
+        const ts = dateMap[trip.name];
+        if (!ts) return;
+        const isoDate = new Date(ts).toISOString().split('T')[0];
+        try {
+          await updateDoc(doc(db, 'trips', trip.id), { date: isoDate });
+          setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, date: isoDate } : t));
+          updated++;
+        } catch {}
+      }));
+
+      setAutoDateUpdated(updated);
+      setAutoDateScanned(scanned);
+      setAutoDateModal('done');
+    } catch (err) {
+      if (err.name !== 'AbortError') console.error('Auto-date error:', err);
+      setAutoDateModal(false);
+    }
   };
 
   // ─── Facebook import ───
@@ -772,8 +896,10 @@ export default function App() {
     setFbProgress(initialProgress);
 
     const groupPaths = {}; // tripName → [{city, path}]
+    const groupLatestDate = {}; // tripName → ISO date string (most recent Taken date)
     for (const { tripName, albums } of toImport) {
       const allPaths = [];
+      let latestTs = null;
       for (const album of albums) {
         try {
           const parts = album.albumHref.split('/');
@@ -791,9 +917,25 @@ export default function App() {
           };
           albumDoc.querySelectorAll('[src]').forEach(el => addPath(el.getAttribute('src')));
           albumDoc.querySelectorAll('a[href]').forEach(el => addPath(el.getAttribute('href')));
+          // Extract most recent "Taken" date from this album
+          albumDoc.querySelectorAll('._a6-q').forEach(el => {
+            if (el.textContent.trim() === 'Taken') {
+              let next = el.nextElementSibling;
+              while (next) {
+                const dateEl = next.querySelector('._a6-q');
+                if (dateEl) {
+                  const d = new Date(dateEl.textContent.trim());
+                  if (!isNaN(d.getTime()) && (latestTs === null || d.getTime() > latestTs)) latestTs = d.getTime();
+                  break;
+                }
+                next = next.nextElementSibling;
+              }
+            }
+          });
         } catch (err) { console.warn('Could not read album:', album.rawTitle, err); }
       }
       groupPaths[tripName] = allPaths;
+      if (latestTs !== null) groupLatestDate[tripName] = new Date(latestTs).toISOString().split('T')[0];
       setFbProgress(prev => ({ ...prev, [tripName]: { done: 0, total: allPaths.length, scanning: false } }));
     }
 
@@ -806,12 +948,19 @@ export default function App() {
 
       // Find or create Firestore trip
       let tripId;
+      const autoDate = groupLatestDate[tripName] || null;
       const existing = trips.find(t => t.name === tripName);
       if (existing) {
         tripId = existing.id;
+        if (autoDate && !existing.date) {
+          try {
+            await updateDoc(doc(db, 'trips', tripId), { date: autoDate });
+            setTrips(prev => prev.map(t => t.id === tripId ? { ...t, date: autoDate } : t));
+          } catch {}
+        }
       } else {
         const tripData = {
-          name: tripName, date: null, country: country || null, miroUrl: null,
+          name: tripName, date: autoDate, country: country || null, miroUrl: null,
           ownerId: user.uid, ownerEmail: user.email, visibility: 'private', cover: null, photoCount: 0, createdAt: serverTimestamp(),
         };
         const docRef = await addDoc(tripsCol(), tripData);
@@ -929,6 +1078,51 @@ export default function App() {
   };
 
   // ═══════════════════════════════════════
+  // EDIT CITY SUB-ALBUM
+  // ═══════════════════════════════════════
+  const openEditCity = (cityName) => {
+    const tripData = trips.find(t => t.id === activeTrip);
+    const vis = tripData?.cityMetadata?.[cityName]?.visibility || tripData?.visibility || 'shared';
+    setEditCity({ tripId: activeTrip, cityName });
+    setEditCityName(cityName);
+    setEditCityVisibility(vis);
+  };
+
+  const saveEditCity = async () => {
+    if (!editCityName.trim() || !editCity) return;
+    setEditCitySaving(true);
+    const { tripId, cityName } = editCity;
+    const newName = editCityName.trim();
+    const tripData = trips.find(t => t.id === tripId);
+    try {
+      const existingMeta = tripData?.cityMetadata || {};
+      const newMeta = { ...existingMeta };
+      if (cityName !== newName) delete newMeta[cityName];
+      newMeta[newName] = { ...(newMeta[newName] || {}), visibility: editCityVisibility };
+
+      const existingCities = tripData?.cities || [];
+      const newCities = existingCities.map(c => c === cityName ? newName : c);
+      if (!newCities.includes(newName)) newCities.push(newName);
+
+      if (cityName !== newName) {
+        const snap = await getDocs(photosCol(tripId));
+        const batch = writeBatch(db);
+        for (const d of snap.docs) {
+          if (d.data().city === cityName) batch.update(d.ref, { city: newName });
+        }
+        await batch.commit();
+        setPhotos(prev => prev.map(p => p.city === cityName ? { ...p, city: newName } : p));
+      }
+
+      await updateDoc(doc(db, 'trips', tripId), { cities: newCities, cityMetadata: newMeta });
+      setTrips(prev => prev.map(t => t.id === tripId ? { ...t, cities: newCities, cityMetadata: newMeta } : t));
+      if (activeCity === cityName) setActiveCity(newName);
+      setEditCity(null);
+    } catch (err) { console.error('Edit city error:', err); }
+    setEditCitySaving(false);
+  };
+
+  // ═══════════════════════════════════════
   // SHARE
   // ═══════════════════════════════════════
   const generateShareLink = async (trip) => {
@@ -1014,6 +1208,12 @@ export default function App() {
     return n;
   });
 
+  const toggleCountry = (country) => setExpandedCountries(prev => {
+    const n = new Set(prev);
+    n.has(country) ? n.delete(country) : n.add(country);
+    return n;
+  });
+
   const renderStatPanel = () => {
     if (!statPanel) return null;
     if (statPanel === 'trips') {
@@ -1051,12 +1251,38 @@ export default function App() {
           return (
             <div key={continent} className="continent-group">
               <div className="continent-header" onClick={() => toggleContinent(continent)}>
-                <span>{continent} <span className="continent-count">({byContinent[continent].length})</span></span>
                 <span className="continent-toggle">{isExpanded ? '−' : '+'}</span>
+                <span>{continent} <span className="continent-count">({byContinent[continent].length})</span></span>
               </div>
-              {isExpanded && byContinent[continent].sort().map(name => (
-                <div key={name} className="stat-panel-country">{name}</div>
-              ))}
+              {isExpanded && byContinent[continent].sort().map(name => {
+                const countryTrips = trips
+                  .filter(t => t.country === name)
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                const cityItems = statPanel === 'countries'
+                  ? countryTrips.flatMap(trip =>
+                      (trip.cities && trip.cities.length > 0)
+                        ? trip.cities.sort().map(city => ({ city, tripId: trip.id }))
+                        : [{ city: trip.name, tripId: trip.id, isTrip: true }]
+                    )
+                  : [];
+                const countryExpanded = expandedCountries.has(name);
+                return (
+                  <div key={name} className="country-group">
+                    <div className="country-header" onClick={() => statPanel === 'countries' && cityItems.length > 0 && toggleCountry(name)}>
+                      {statPanel === 'countries' && cityItems.length > 0 && (
+                        <span className="country-toggle">{countryExpanded ? '−' : '+'}</span>
+                      )}
+                      <span className="stat-panel-country-name">{name}</span>
+                    </div>
+                    {countryExpanded && cityItems.map(({ city, tripId }, i) => (
+                      <div key={`${tripId}-${city}-${i}`} className="country-city-link"
+                        onClick={() => { pendingCityRef.current = city; setActiveTrip(tripId); setStatPanel(null); }}>
+                        {city}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -1266,9 +1492,100 @@ export default function App() {
                     </div>
                   )}
                   {topTrip && topTrip.photoCount > 0 && (
-                    <div className="stat-card stat-card-wide">
-                      <div className="stat-value stat-value-sm">{topTrip.name}</div>
-                      <div className="stat-label">Most photos ({topTrip.photoCount})</div>
+                    <div
+                      className="stat-card stat-card-wide stat-card-btn"
+                      style={{ position: 'relative' }}
+                      onClick={() => !editingPanel && setEditingPanel(true)}
+                      title="Clic para editar el nombre"
+                    >
+                      {editingPanel ? (
+                        <div className="panel-edit-wrap" style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }} onClick={e => e.stopPropagation()}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
+                            <input
+                              ref={panelInputRef}
+                              className="input"
+                              style={{ fontSize: 15, fontFamily: "'Playfair Display', serif", fontWeight: 600, padding: '4px 8px', height: 'auto', flex: 1 }}
+                              autoFocus
+                              value={customPanelLabel}
+                              placeholder={topTrip.name}
+                              onChange={e => {
+                                setCustomPanelLabel(e.target.value);
+                                localStorage.setItem('customPanelLabel', e.target.value);
+                              }}
+                              onBlur={e => {
+                                if (!e.relatedTarget?.closest?.('.panel-edit-wrap')) {
+                                  setEditingPanel(false);
+                                  setShowEmojiPicker(false);
+                                }
+                              }}
+                              onKeyDown={e => { if (e.key === 'Escape') { setEditingPanel(false); setShowEmojiPicker(false); } }}
+                            />
+                            <button
+                              className="emoji-trigger-btn"
+                              title="Insertar emoji"
+                              onMouseDown={e => { e.preventDefault(); setShowEmojiPicker(v => !v); }}
+                            >😊</button>
+                            {showEmojiPicker && (
+                              <div className="emoji-picker-popover" onMouseDown={e => e.preventDefault()}>
+                                {['😊','😄','😍','🥰','😎','🤩','🥳','😂','❤️','✨','🌟','⭐','🎉','🎊','🏖️','🏝️','🗺️','✈️','🌍','🌏','🌎','🏔️','🏕️','🌅','🌄','🌠','🌈','🍹','🍜','🍕','📸','🎒','🧳','🗼','🗽','🏯','🕌','🛫','🛬','🚢','🚂','🚗','🏄','🤿','🎭','🎨','🎵','🌺','🌸','🌻','🌿','🦋','🐬','🦜','🦁','🐘','🦒','🦓','🌴','🏞️','⛰️','🎑','🌊','🏜️','🏟️','🎠','💫','🔥','💎','🌙','☀️','⛅','🌤️'].map(em => (
+                                  <button
+                                    key={em}
+                                    className="emoji-item-btn"
+                                    onMouseDown={e => {
+                                      e.preventDefault();
+                                      const inp = panelInputRef.current;
+                                      if (!inp) return;
+                                      const start = inp.selectionStart;
+                                      const end = inp.selectionEnd;
+                                      const newVal = customPanelLabel.slice(0, start) + em + customPanelLabel.slice(end);
+                                      setCustomPanelLabel(newVal);
+                                      localStorage.setItem('customPanelLabel', newVal);
+                                      setShowEmojiPicker(false);
+                                      requestAnimationFrame(() => {
+                                        inp.focus();
+                                        inp.setSelectionRange(start + em.length, start + em.length);
+                                      });
+                                    }}
+                                  >{em}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <input
+                            className="input"
+                            style={{ fontSize: 12, padding: '4px 8px', height: 'auto' }}
+                            value={customPanelMiro}
+                            placeholder="Miro link (optional)"
+                            onChange={e => {
+                              setCustomPanelMiro(e.target.value);
+                              localStorage.setItem('customPanelMiro', e.target.value);
+                            }}
+                            onBlur={e => {
+                              if (!e.relatedTarget?.closest?.('.panel-edit-wrap')) {
+                                setEditingPanel(false);
+                                setShowEmojiPicker(false);
+                              }
+                            }}
+                            onKeyDown={e => { if (e.key === 'Escape') { setEditingPanel(false); setShowEmojiPicker(false); } }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {customPanelMiro && (
+                            <a
+                              href={customPanelMiro}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              title="Open in Miro"
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 5, background: '#FFD02F', color: '#1a1a1a', textDecoration: 'none', flexShrink: 0, fontWeight: 800, fontSize: 14, lineHeight: 1, fontFamily: 'system-ui, sans-serif' }}
+                            >M</a>
+                          )}
+                          <div className="stat-value stat-value-sm">{customPanelLabel || topTrip.name}</div>
+                        </div>
+                      )}
+
+                      {!editingPanel && <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 12, opacity: 0.4 }}>✎</span>}
                     </div>
                   )}
                 </div>
@@ -1280,8 +1597,12 @@ export default function App() {
             {trips.length > 0 && (
               <div className="trips-view-header">
                 <div className="view-toggle">
-                  <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')}>Grid</button>
-                  {hasMapData && <button className={`view-btn ${tripsView === 'map' ? 'active' : ''}`} onClick={() => setTripsView('map')}>Map</button>}
+                  <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')} title="Grid view">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="0" width="6" height="6" rx="1"/><rect x="8" y="0" width="6" height="6" rx="1"/><rect x="0" y="8" width="6" height="6" rx="1"/><rect x="8" y="8" width="6" height="6" rx="1"/></svg>
+                  </button>
+                  {hasMapData && <button className={`view-btn ${tripsView === 'map' ? 'active' : ''}`} onClick={() => setTripsView('map')} title="Map view">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"><path d="M1 2.5l4-1.5 4 1.5 4-1.5v10l-4 1.5-4-1.5-4 1.5V2.5z"/><line x1="5" y1="1" x2="5" y2="11.5"/><line x1="9" y1="2.5" x2="9" y2="13"/></svg>
+                  </button>}
                 </div>
               </div>
             )}
@@ -1462,6 +1783,8 @@ export default function App() {
               <div className="trips-grid">
                 {Object.keys(cityGroups).sort().map((city, i) => {
                   const coverUrl = cityGroups[city][0]?.url;
+                  const isOwner = !activeTripData?.ownerId || activeTripData?.ownerId === user?.uid;
+                  const cityVis = activeTripData?.cityMetadata?.[city]?.visibility || activeTripData?.visibility || 'shared';
                   return (
                     <div key={city} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }}
                       onClick={() => setActiveCity(city)}>
@@ -1470,7 +1793,18 @@ export default function App() {
                         {!coverUrl && <span>🏙</span>}
                       </div>
                       <div className="trip-info">
-                        <div className="trip-name">{city}</div>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                          <div className="trip-name">{city}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            <span className="trip-vis-icon" title={cityVis === 'private' ? 'Private' : 'Shared'}>
+                              {cityVis === 'private' ? '🔒' : '🌍'}
+                            </span>
+                            {isOwner && (
+                              <button className="trip-edit-btn" title="Edit sub-album"
+                                onClick={e => { e.stopPropagation(); openEditCity(city); }}>✎</button>
+                            )}
+                          </div>
+                        </div>
                         <div className="trip-meta">{cityGroups[city].length} photo{cityGroups[city].length !== 1 ? 's' : ''}</div>
                       </div>
                     </div>
@@ -1641,6 +1975,38 @@ export default function App() {
         </div>
       )}
 
+      {/* ═══ EDIT CITY SUB-ALBUM MODAL ═══ */}
+      {editCity && (
+        <div className="modal-overlay fade-scale" onClick={() => setEditCity(null)}>
+          <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title" style={{ marginBottom: 16 }}>Edit Sub-Album</p>
+            <div className="edit-modal-fields">
+              <div className="form-group">
+                <label>Name</label>
+                <input value={editCityName} onChange={e => setEditCityName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && saveEditCity()} className="input" autoFocus />
+              </div>
+              <div className="form-group" style={{ flex: '0 0 auto' }}>
+                <label>Visibility</label>
+                <div className="vis-toggle">
+                  <button className={`vis-btn${editCityVisibility === 'shared' ? ' active' : ''}`}
+                    onClick={() => setEditCityVisibility('shared')}>🌍 Shared</button>
+                  <button className={`vis-btn${editCityVisibility === 'private' ? ' active' : ''}`}
+                    onClick={() => setEditCityVisibility('private')}>🔒 Private</button>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setEditCity(null)}>Cancel</button>
+              <button className="btn btn-accent" onClick={saveEditCity}
+                disabled={editCitySaving || !editCityName.trim()}>
+                {editCitySaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══ CITY ASSIGN MODAL ═══ */}
       {cityModal && (
         <div className="modal-overlay fade-scale" onClick={() => setCityModal(false)}>
@@ -1659,6 +2025,36 @@ export default function App() {
               <button className="btn btn-sm" onClick={() => setCityModal(false)}>Cancel</button>
               <button className="btn btn-accent" onClick={saveCityToPhotos}>Save</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ AUTO-DATE MODAL ═══ */}
+      {autoDateModal && (
+        <div className="modal-overlay fade-scale" onClick={() => autoDateModal === 'done' && setAutoDateModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            {autoDateModal === 'running' && (
+              <>
+                <p className="modal-title">Setting travel dates…</p>
+                <div style={{ textAlign: 'center', padding: '20px 0' }}><span className="spinner" /></div>
+                <p className="modal-sub">Scanning Facebook albums for photo dates.</p>
+              </>
+            )}
+            {autoDateModal === 'done' && (
+              <>
+                <p className="modal-title">Done</p>
+                <p className="modal-sub">
+                  {autoDateUpdated > 0
+                    ? `Updated ${autoDateUpdated} trip${autoDateUpdated !== 1 ? 's' : ''} from ${autoDateScanned} album${autoDateScanned !== 1 ? 's' : ''} scanned.`
+                    : autoDateScanned === 0
+                      ? 'No Facebook albums could be read. Check that you selected the correct folder.'
+                      : `Scanned ${autoDateScanned} album${autoDateScanned !== 1 ? 's' : ''} but no dates were found in the photos. The export format may not include "taken" dates.`}
+                </p>
+                <div className="modal-actions" style={{ marginTop: 16 }}>
+                  <button className="btn btn-accent" onClick={() => setAutoDateModal(false)}>Close</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

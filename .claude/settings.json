@@ -4,7 +4,10 @@
       "Bash(npm list *)",
       "Bash(node -e \"require\\('firebase-admin'\\)\")",
       "Bash(node -e ' *)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Force)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -Filter \"*.jsx\" -File)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }
