@@ -865,8 +865,10 @@ export default function App() {
     const trip = trips.find(t => t.id === activeTrip);
     if (trip) {
       const newCount = Math.max(0, (trip.photoCount || 1) - 1);
-      await updateDoc(doc(db, 'trips', activeTrip), { photoCount: newCount });
-      setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, photoCount: newCount } : t));
+      const updates = { photoCount: newCount };
+      if (trip.cover === photo.url) updates.cover = null;
+      await updateDoc(doc(db, 'trips', activeTrip), updates);
+      setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, ...updates } : t));
     }
     setLightbox(null);
   };
@@ -1996,9 +1998,9 @@ export default function App() {
               </div>
             )}
 
-            {/* ─ Stats ─ */}
+            {/* ─ Stats + View toggle ─ */}
             {trips.length > 0 && (
-              <>
+              <div className="sticky-header-zone">
                 <div className="stats-bar fade-in">
                   <div className={`stat-card stat-card-btn${statPanel === 'trips' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'trips' ? null : 'trips')}>
                     <div className="stat-value">{trips.length}</div><div className="stat-label">{T.tripsLabel}</div>
@@ -2114,23 +2116,20 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                {renderStatPanel()}
-              </>
-            )}
-
-            {/* ─ View toggle ─ */}
-            {trips.length > 0 && (
-              <div className="trips-view-header">
-                <div className="view-toggle">
-                  <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')} title={T.gridView}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="0" width="6" height="6" rx="1"/><rect x="8" y="0" width="6" height="6" rx="1"/><rect x="0" y="8" width="6" height="6" rx="1"/><rect x="8" y="8" width="6" height="6" rx="1"/></svg>
-                  </button>
-                  {hasMapData && <button className={`view-btn ${tripsView === 'map' ? 'active' : ''}`} onClick={() => setTripsView('map')} title={isSpanish ? 'Vista de mapa' : 'Map view'}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"><path d="M1 2.5l4-1.5 4 1.5 4-1.5v10l-4 1.5-4-1.5-4 1.5V2.5z"/><line x1="5" y1="1" x2="5" y2="11.5"/><line x1="9" y1="2.5" x2="9" y2="13"/></svg>
-                  </button>}
+                <div className="trips-view-header">
+                  <div className="view-toggle">
+                    <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')} title={T.gridView}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="0" width="6" height="6" rx="1"/><rect x="8" y="0" width="6" height="6" rx="1"/><rect x="0" y="8" width="6" height="6" rx="1"/><rect x="8" y="8" width="6" height="6" rx="1"/></svg>
+                    </button>
+                    {hasMapData && <button className={`view-btn ${tripsView === 'map' ? 'active' : ''}`} onClick={() => setTripsView('map')} title={isSpanish ? 'Vista de mapa' : 'Map view'}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"><path d="M1 2.5l4-1.5 4 1.5 4-1.5v10l-4 1.5-4-1.5-4 1.5V2.5z"/><line x1="5" y1="1" x2="5" y2="11.5"/><line x1="9" y1="2.5" x2="9" y2="13"/></svg>
+                    </button>}
+                  </div>
                 </div>
               </div>
             )}
+
+            {trips.length > 0 && renderStatPanel()}
 
             {loadingTrips && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
 
