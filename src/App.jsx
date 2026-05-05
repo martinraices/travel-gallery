@@ -11,7 +11,7 @@ import {
   query, where, orderBy, limit, serverTimestamp, getDoc, setDoc, writeBatch,
 } from 'firebase/firestore';
 import {
-  ref, uploadBytes, getDownloadURL, deleteObject, listAll, getBlob,
+  ref, uploadBytes, getDownloadURL, deleteObject, listAll,
 } from 'firebase/storage';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 
@@ -293,7 +293,7 @@ export default function App() {
     // Header
     adminTools: isSpanish ? '⚙ Herramientas' : '⚙ Admin Tools',
     importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
-    generateThumbsMenu: isSpanish ? 'Generar miniaturas' : 'Generate thumbnails',
+    generateThumbsMenu: isSpanish ? 'Generar miniaturas desde carpeta local' : 'Generate thumbnails from local folder',
     manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
     newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
     addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
@@ -317,10 +317,11 @@ export default function App() {
     migrationFailed: isSpanish ? 'La migración falló:' : 'Migration failed:',
     retry: isSpanish ? 'Reintentar' : 'Retry',
     thumbMigrationTitle: isSpanish ? 'Generando miniaturas' : 'Generating thumbnails',
-    thumbMigrationScanning: isSpanish ? 'Buscando fotos sin miniatura…' : 'Finding photos without thumbnails…',
+    thumbMigrationScanning: isSpanish ? 'Indexando carpeta local y buscando fotos sin miniatura…' : 'Indexing local folder and finding photos without thumbnails…',
     thumbMigrationProgress: (d, t) => isSpanish ? `${d} de ${t} miniaturas generadas` : `${d} of ${t} thumbnails generated`,
     thumbMigrationDone: (n) => isSpanish ? `Listo: ${n} miniatura${n !== 1 ? 's' : ''} generada${n !== 1 ? 's' : ''}.` : `Done: ${n} thumbnail${n !== 1 ? 's' : ''} generated.`,
     thumbMigrationNone: isSpanish ? 'Todas las fotos ya tienen miniatura.' : 'Every photo already has a thumbnail.',
+    thumbMigrationMissing: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''} no encontrada${n !== 1 ? 's' : ''} en la carpeta local` : `${n} photo${n !== 1 ? 's' : ''} not found in the local folder`,
     thumbMigrationEta: (eta, rate) => isSpanish ? `Tiempo estimado: ${eta} · ${rate}/min` : `ETA: ${eta} · ${rate}/min`,
     calculatingEta: isSpanish ? 'Calculando tiempo…' : 'Calculating time…',
     // New trip form
@@ -1674,13 +1675,6 @@ export default function App() {
     }
   };
 
-  const getPhotoBlobForThumbnail = async (photo) => {
-    if (photo.storagePath) return getBlob(ref(storage, photo.storagePath));
-    const res = await fetch(photo.url);
-    if (!res.ok) throw new Error(`Could not download ${photo.name || photo.id}`);
-    return res.blob();
-  };
-
   const getThumbStoragePath = (trip, photo) => {
     if (photo.storagePath && photo.storagePath.startsWith(`users/${user.uid}/`)) {
       const parts = photo.storagePath.split('/');
@@ -1690,46 +1684,94 @@ export default function App() {
     return `users/${user.uid}/thumb-migrations/${trip.id}/${photo.id}.jpg`;
   };
 
+  const findLocalMediaRoot = async (rootHandle) => {
+    try {
+      const yfa = await rootHandle.getDirectoryHandle('your_facebook_activity');
+      const posts = await yfa.getDirectoryHandle('posts');
+      return await posts.getDirectoryHandle('media');
+    } catch {}
+    try {
+      const posts = await rootHandle.getDirectoryHandle('posts');
+      return await posts.getDirectoryHandle('media');
+    } catch {}
+    try {
+      return await rootHandle.getDirectoryHandle('media');
+    } catch {}
+    return rootHandle;
+  };
+
+  const indexLocalImagesByName = async (rootHandle) => {
+    const mediaRoot = await findLocalMediaRoot(rootHandle);
+    const index = new Map();
+    const imageExt = /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i;
+
+    const walk = async (dirHandle) => {
+      for await (const [, handle] of dirHandle.entries()) {
+        if (handle.kind === 'directory') {
+          await walk(handle);
+        } else if (imageExt.test(handle.name)) {
+          const key = handle.name.toLowerCase();
+          const list = index.get(key) || [];
+          list.push(handle);
+          index.set(key, list);
+        }
+      }
+    };
+
+    await walk(mediaRoot);
+    return index;
+  };
+
   const runThumbnailMigration = async () => {
     if (!user || isReadOnly) return;
     setAdminDropdown(false);
     setThumbMigration({ status: 'scanning', done: 0, total: 0, error: '' });
     try {
+      const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
+      const localImages = await indexLocalImagesByName(rootHandle);
       const jobs = [];
+      let missing = 0;
       for (const trip of trips) {
         const snap = await getDocs(photosCol(trip.id));
         snap.docs.forEach(photoDoc => {
           const photo = { id: photoDoc.id, ...photoDoc.data() };
-          if (!photo.thumbUrl && (photo.storagePath || photo.url)) jobs.push({ trip, photoDoc, photo });
+          if (photo.thumbUrl) return;
+          const localMatches = localImages.get((photo.name || '').toLowerCase());
+          const fileHandle = localMatches?.shift();
+          if (fileHandle) jobs.push({ trip, photoDoc, photo, fileHandle });
+          else missing++;
         });
       }
 
       if (jobs.length === 0) {
-        setThumbMigration({ status: 'done', done: 0, total: 0, error: '' });
+        setThumbMigration({ status: 'done', done: 0, total: 0, error: missing ? T.thumbMigrationMissing(missing) : '' });
         return;
       }
 
       const startedAt = Date.now();
-      setThumbMigration({ status: 'running', done: 0, total: jobs.length, error: '', startedAt, etaMs: null, ratePerMin: 0 });
+      setThumbMigration({ status: 'running', done: 0, total: jobs.length, error: missing ? T.thumbMigrationMissing(missing) : '', startedAt, etaMs: null, ratePerMin: 0 });
       let failed = 0;
       let done = 0;
       let nextJob = 0;
-      const concurrency = Math.min(8, Math.max(2, navigator.hardwareConcurrency ? Math.floor(navigator.hardwareConcurrency / 2) : 4));
+      const concurrency = Math.min(12, Math.max(4, navigator.hardwareConcurrency || 6));
       const reportProgress = () => {
         setThumbMigration({
           status: 'running',
           done,
           total: jobs.length,
-          error: failed ? `${failed} ${failed === 1 ? 'photo failed' : 'photos failed'}` : '',
+          error: [
+            missing ? T.thumbMigrationMissing(missing) : '',
+            failed ? `${failed} ${failed === 1 ? 'photo failed' : 'photos failed'}` : '',
+          ].filter(Boolean).join(' · '),
           startedAt,
           etaMs: done > 0 ? ((Date.now() - startedAt) / done) * (jobs.length - done) : null,
           ratePerMin: done > 0 ? Math.round(done / Math.max((Date.now() - startedAt) / 60000, 1 / 60)) : 0,
         });
       };
 
-      const processJob = async ({ trip, photoDoc, photo }) => {
+      const processJob = async ({ trip, photoDoc, photo, fileHandle }) => {
         try {
-          const sourceBlob = await getPhotoBlobForThumbnail(photo);
+          const sourceBlob = await fileHandle.getFile();
           const thumbBlob = await compressImage(sourceBlob, 420, 0.68);
           const thumbStoragePath = getThumbStoragePath(trip, photo);
           const thumbStorageRef = ref(storage, thumbStoragePath);
@@ -1759,7 +1801,10 @@ export default function App() {
         status: 'done',
         done: jobs.length - failed,
         total: jobs.length,
-        error: failed ? `${failed} ${failed === 1 ? 'photo failed' : 'photos failed'}` : '',
+        error: [
+          missing ? T.thumbMigrationMissing(missing) : '',
+          failed ? `${failed} ${failed === 1 ? 'photo failed' : 'photos failed'}` : '',
+        ].filter(Boolean).join(' · '),
         startedAt,
         etaMs: 0,
         ratePerMin: Math.round(jobs.length / Math.max((Date.now() - startedAt) / 60000, 1 / 60)),
