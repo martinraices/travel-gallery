@@ -30,11 +30,46 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 48%, var(--border)) transparent;
+}
+
 ::selection { background: var(--accent-dim); color: var(--accent); }
-::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d5cfc6; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 34%, var(--border)); border: 2px solid var(--bg); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--accent) 56%, var(--border)); }
 input, button { font-family: inherit; }
+
+.app-shell::before,
+.app-shell::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 82px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .22s ease;
+  z-index: 80;
+}
+
+.app-shell::before {
+  top: 63px;
+  background: linear-gradient(to bottom, var(--bg), transparent);
+}
+
+.app-shell::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--bg), transparent);
+}
+
+.app-shell.scroll-fade-up::before,
+.app-shell.scroll-fade-down::after {
+  opacity: .92;
+}
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeScale { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
@@ -68,12 +103,16 @@ input, button { font-family: inherit; }
 .btn-google { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; padding: 13px 24px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text); font-size: 15px; font-weight: 500; cursor: pointer; transition: all .2s; font-family: inherit; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
 .btn-google:hover { border-color: var(--border-hover); background: var(--surface-2); box-shadow: 0 3px 10px rgba(0,0,0,.1); transform: translateY(-1px); }
 .btn-google:disabled { opacity: .6; cursor: default; transform: none; }
+.btn-guest { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 11px 24px; margin-top: 10px; border-radius: 10px; border: 1.5px solid var(--border); background: transparent; color: var(--text-muted); font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; font-family: inherit; }
+.btn-guest:hover { border-color: var(--border-hover); background: var(--surface-2); color: var(--text); }
+.btn-guest:disabled { opacity: .6; cursor: default; }
 
 .header { padding: 12px 28px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(248,245,239,.92); backdrop-filter: blur(12px); z-index: 100; }
 .header-logo { font-size: 22px; color: var(--gold); cursor: pointer; }
 .header-logo-wrap { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .header-logo-img { width: 38px; height: auto; }
 .header-actions { display: flex; gap: 8px; align-items: center; }
+.guest-pill { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .btn-icon { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; transition: all .2s; }
 .btn-icon:hover { border-color: var(--border-hover); background: var(--surface-2); color: var(--text); }
 
@@ -173,6 +212,9 @@ input, button { font-family: inherit; }
 .stat-value { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
 .stat-value-sm { font-size: 17px; }
 .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+.guest-info-card { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-height: 82px; }
+.guest-info-title { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.15; }
+.guest-info-text { max-width: 760px; font-size: 13px; line-height: 1.45; color: var(--text-muted); }
 
 /* ─── Emoji picker ─── */
 .emoji-trigger-btn { background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px 4px; border-radius: 6px; opacity: 0.6; transition: opacity .15s, background .15s; flex-shrink: 0; }
@@ -182,7 +224,11 @@ input, button { font-family: inherit; }
 .emoji-item-btn:hover { background: var(--card-bg, rgba(255,255,255,.1)); }
 
 /* ─── Trips view header ─── */
-.trips-view-header { display: flex; justify-content: flex-end; margin-bottom: 8px; padding-bottom: 8px; }
+.trips-view-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; padding-bottom: 8px; flex-wrap: wrap; }
+.sort-toggle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sort-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; box-shadow: 0 1px 4px rgba(42,37,32,.04); }
+.sort-btn:hover { border-color: var(--border-hover); background: var(--surface-2); }
+.sort-btn.active { border-color: transparent; background: var(--accent-dim); color: var(--accent); }
 
 /* ─── Choropleth map ─── */
 .map-wrap { margin-bottom: 24px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 2px 12px rgba(42,37,32,.06); background: var(--surface); }

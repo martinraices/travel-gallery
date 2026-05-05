@@ -2,61 +2,63 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null &&
+        request.auth.token.email in ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];
+    }
 
     // Trips: owner can always read/write; others can read shared trips or trips shared with their email
     match /trips/{tripId} {
-      allow read: if request.auth != null && (
-        resource.data.visibility == 'shared' ||
-        resource.data.ownerId == request.auth.uid ||
-        !('ownerId' in resource.data) ||
-        (request.auth.token.email != null &&
-         'allowedEmails' in resource.data &&
-         request.auth.token.email in resource.data.allowedEmails)
+      allow read: if resource.data.visibility == 'shared' || (
+        request.auth != null && (
+          resource.data.ownerId == request.auth.uid ||
+          !('ownerId' in resource.data) ||
+          (request.auth.token.email != null &&
+           'allowedEmails' in resource.data &&
+           request.auth.token.email in resource.data.allowedEmails)
+        )
       );
-      allow create: if request.auth != null &&
+      allow create: if isAdmin() &&
         request.resource.data.ownerId == request.auth.uid;
-      allow update: if request.auth != null && (
-        resource.data.ownerId == request.auth.uid ||
-        // Any authenticated user can patch cover or ownerEmail on shared trips
-        (resource.data.visibility == 'shared' &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cover', 'ownerEmail']))
-      );
-      allow delete: if request.auth != null &&
-        resource.data.ownerId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // Photos: any authenticated user can read/write (trip-level rules enforce ownership)
     match /trips/{tripId}/photos/{photoId} {
-      allow read, write: if request.auth != null;
+      allow read: if isAdmin() ||
+        get(/databases/$(database)/documents/trips/$(tripId)).data.visibility == 'shared' ||
+        !('ownerId' in get(/databases/$(database)/documents/trips/$(tripId)).data);
+      allow write: if isAdmin();
     }
 
     // Per-user data (wishlist, etc.) — private
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAdmin() && request.auth.uid == userId;
     }
 
     // Public profiles — any authenticated user can read email/displayName for creator attribution
     match /profiles/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAdmin() && request.auth.uid == userId;
     }
 
     // Shared links are publicly readable; only authenticated users can create/delete them
     match /sharedLinks/{token} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
     // Album shares — authenticated users can read/write (admin-only in practice via app logic)
     match /albumShares/{shareId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAdmin();
     }
 
     // Global settings (panel label etc.) — any authenticated user can read; only admins can write
     match /globalSettings/{docId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-        request.auth.token.email in ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];
+      allow write: if isAdmin();
     }
   }
 }

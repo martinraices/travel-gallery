@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { auth, db, storage } from './firebase';
 import {
   GoogleAuthProvider,
@@ -302,6 +302,8 @@ export default function App() {
     wishlistTooltip: isSpanish ? '★ Lista de deseos' : '★ Wishlist',
     // Trip cards
     gridView: isSpanish ? 'Vista de cuadrícula' : 'Grid view',
+    sortByDate: 'Sort by Date',
+    sortAZ: 'Sort A-Z',
     privateTitle: isSpanish ? 'Privado' : 'Private',
     sharedTitle: isSpanish ? 'Compartido' : 'Shared',
     editTripBtn: isSpanish ? 'Editar viaje' : 'Edit trip',
@@ -326,6 +328,7 @@ export default function App() {
     // Photo area
     dragDropPhotos: isSpanish ? 'Arrastra y suelta fotos aquí' : 'Drag & drop photos here',
     orClickToBrowse: isSpanish ? 'o haz clic para buscar' : 'or click to browse',
+    noPhotosYet: isSpanish ? 'Aún no hay fotos en este álbum' : 'No photos in this album yet',
     uploadingPhotos: (d, t) => isSpanish ? `Subiendo ${d} de ${t} fotos…` : `Uploading ${d} of ${t} photos…`,
     clickToEditName: isSpanish ? 'Clic para editar el nombre' : 'Click to edit the name',
     insertEmoji: isSpanish ? 'Insertar emoji' : 'Insert emoji',
@@ -440,8 +443,15 @@ export default function App() {
     // Login
     signInSub: isSpanish ? 'Inicia sesión para acceder a tu galería privada' : 'Sign in to access your private gallery',
     continueWithGoogle: isSpanish ? 'Continuar con Google' : 'Continue with Google',
+    continueAsGuest: isSpanish ? 'Entrar como invitado' : 'Continue as Guest',
     signingIn: isSpanish ? 'Iniciando sesión…' : 'Signing in…',
     signInFailed: isSpanish ? 'Error al iniciar sesión — inténtalo de nuevo' : 'Sign-in failed — please try again',
+    guestSignInFailed: isSpanish ? 'No se pudo entrar como invitado' : 'Guest access failed',
+    guestModeLabel: isSpanish ? 'Invitado' : 'Guest',
+    guestBannerTitle: isSpanish ? 'Has entrado como invitado' : 'You are browsing as a Guest',
+    guestBannerText: isSpanish
+      ? 'Modo solo lectura: puedes ver álbumes compartidos, fotos y el mapa. No puedes crear, editar, borrar, subir fotos, compartir álbumes ni cambiar ajustes.'
+      : 'Read-only mode: you can view shared albums, photos, and the map. You cannot create, edit, delete, upload photos, share albums, or change settings.',
     // Access denied
     accessDenied: isSpanish ? 'Acceso denegado' : 'Access denied',
     appIsPrivate: isSpanish ? 'Esta aplicación es privada y solo accesible por invitación.' : 'This application is private and accessible by invitation only.',
@@ -453,7 +463,11 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const [guestLoggingIn, setGuestLoggingIn] = useState(false);
+  const [guestMode, setGuestMode] = useState(false);
   const [creatorMap, setCreatorMap] = useState({}); // { [uid]: email }
+  const isGuest = guestMode || !!user?.isAnonymous;
+  const isReadOnly = isGuest;
 
   // ─── Core state ───
   const [trips, setTrips] = useState([]);
@@ -473,8 +487,12 @@ export default function App() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [view, setView] = useState('grid');
   const [tripsView, setTripsView] = useState('grid');
+  const [tripSort, setTripSort] = useState(null);
+  const [scrollFade, setScrollFade] = useState('');
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef();
+  const lastScrollYRef = useRef(0);
+  const scrollFadeTimerRef = useRef(null);
 
   // ─── Dark mode ───
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
@@ -594,7 +612,7 @@ export default function App() {
   // ─── Auth listener ───
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
-      if (u && !ALLOWED_EMAILS.includes(u.email)) {
+      if (u && !u.isAnonymous && !ALLOWED_EMAILS.includes(u.email)) {
         signOut(auth).catch(() => {});
         setUser(null);
         setAuthLoading(false);
@@ -614,6 +632,7 @@ export default function App() {
   // ─── Load panel label from per-user settings ───
   useEffect(() => {
     if (!user) { setCustomPanelLabel(''); setCustomPanelMiro(''); return; }
+    if (isReadOnly) { setCustomPanelLabel(''); setCustomPanelMiro(''); return; }
     getDoc(doc(db, 'users', user.uid, 'profile', 'settings'))
       .then(snap => {
         if (snap.exists()) {
@@ -622,7 +641,7 @@ export default function App() {
         }
       })
       .catch(() => {});
-  }, [user]);
+  }, [user, isReadOnly]);
 
   // ─── Public share: check URL on mount ───
   useEffect(() => {
@@ -635,12 +654,34 @@ export default function App() {
       .finally(() => setPublicShareLoading(false));
   }, []);
 
-  useEffect(() => { if (!user) return; loadTrips(); }, [user]);
-  useEffect(() => { if (!activeTrip || !user) { setPhotos([]); return; } loadPhotos(activeTrip); setSelectedPhotos(new Set()); setActiveCity(pendingCityRef.current); pendingCityRef.current = null; }, [activeTrip, user]);
+  useEffect(() => { if (!user && !guestMode) return; loadTrips(); }, [user, guestMode]);
+  useEffect(() => { if (!activeTrip || (!user && !guestMode)) { setPhotos([]); return; } loadPhotos(activeTrip); setSelectedPhotos(new Set()); setActiveCity(pendingCityRef.current); pendingCityRef.current = null; }, [activeTrip, user, guestMode]);
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      const delta = currentY - lastScrollYRef.current;
+
+      if (maxScroll > 0 && Math.abs(delta) > 2) {
+        setScrollFade(delta > 0 ? 'down' : 'up');
+        window.clearTimeout(scrollFadeTimerRef.current);
+        scrollFadeTimerRef.current = window.setTimeout(() => setScrollFade(''), 360);
+      }
+
+      lastScrollYRef.current = currentY;
+    };
+
+    lastScrollYRef.current = window.scrollY;
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.clearTimeout(scrollFadeTimerRef.current);
+    };
+  }, []);
 
   // Auto-fix: trips with a broken/missing cover — list Storage files directly and get a real URL
   useEffect(() => {
-    if (!user || trips.length === 0) return;
+    if (!user || isReadOnly || trips.length === 0) return;
     // Run for trips with no cover OR whose current cover returns 404 (we re-run on every load to heal broken covers)
     const needsFix = trips.filter(t => (t.photoCount || 0) > 0 && t.ownerId && !t.cover);
     needsFix.forEach(async (trip) => {
@@ -654,23 +695,23 @@ export default function App() {
         setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cover } : t));
       } catch {}
     });
-  }, [trips.length, user]);
+  }, [trips.length, user, isReadOnly]);
 
   // ─── Load wishlist from Firestore ───
   useEffect(() => {
-    if (!user) { setWishlist(new Set()); return; }
+    if (!user || isReadOnly) { setWishlist(new Set()); return; }
     getDoc(doc(db, 'users', user.uid, 'profile', 'map'))
       .then(snap => { if (snap.exists()) setWishlist(new Set(snap.data().wishlist || [])); })
       .catch(() => {});
-  }, [user]);
+  }, [user, isReadOnly]);
 
   // ─── Check for data in old user-scoped path ───
   useEffect(() => {
-    if (!user) return;
+    if (!user || isReadOnly) return;
     getDocs(collection(db, 'users', user.uid, 'trips'))
       .then(snap => { if (!snap.empty) { setMigration('needed'); setMigrationCount(snap.size); } })
       .catch(() => {});
-  }, [user]);
+  }, [user, isReadOnly]);
 
   // ─── Sync lightbox description ───
   useEffect(() => { setLbDesc(lightbox?.description || ''); setLbCoverSet(false); }, [lightbox?.id]);
@@ -714,6 +755,7 @@ export default function App() {
   // ═══════════════════════════════════════
   const handleGoogleLogin = async () => {
     setLoginError('');
+    setGuestMode(false);
     setLoggingIn(true);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
@@ -723,11 +765,20 @@ export default function App() {
     setLoggingIn(false);
   };
 
+  const handleGuestLogin = async () => {
+    setLoginError('');
+    setGuestLoggingIn(true);
+    setGuestMode(true);
+    setAccessDenied(false);
+    setUser(null);
+    setGuestLoggingIn(false);
+  };
+
   // ═══════════════════════════════════════
   // GLOBAL SETTINGS
   // ═══════════════════════════════════════
   const savePanelLabel = (label, miro) => {
-    if (!user) return;
+    if (!user || isReadOnly) return;
     if (panelSaveTimer.current) clearTimeout(panelSaveTimer.current);
     panelSaveTimer.current = setTimeout(() => {
       setDoc(doc(db, 'users', user.uid, 'profile', 'settings'), { panelLabel: label, panelMiro: miro }, { merge: true }).catch(() => {});
@@ -742,14 +793,16 @@ export default function App() {
   const loadTrips = async () => {
     setLoadingTrips(true);
     try {
-      const [mySnap, sharedSnap, allowedSnap] = await Promise.all([
-        getDocs(query(tripsCol(), where('ownerId', '==', user.uid))),
-        getDocs(query(tripsCol(), where('visibility', '==', 'shared'))),
-        getDocs(query(tripsCol(), where('allowedEmails', 'array-contains', user.email))),
-      ]);
+      const snaps = isReadOnly
+        ? [await getDocs(query(tripsCol(), where('visibility', '==', 'shared')))]
+        : await Promise.all([
+            getDocs(query(tripsCol(), where('ownerId', '==', user.uid))),
+            getDocs(query(tripsCol(), where('visibility', '==', 'shared'))),
+            getDocs(query(tripsCol(), where('allowedEmails', 'array-contains', user.email))),
+          ]);
       const seen = new Set();
       const merged = [];
-      for (const snap of [mySnap, sharedSnap, allowedSnap]) {
+      for (const snap of snaps) {
         for (const d of snap.docs) {
           if (!seen.has(d.id)) { seen.add(d.id); merged.push({ id: d.id, ...d.data() }); }
         }
@@ -759,9 +812,9 @@ export default function App() {
 
       // Fetch public profiles for all foreign trip owners
       const unknownUids = [...new Set(
-        merged.map(t => t.ownerId).filter(uid => uid && uid !== user.uid)
+        merged.map(t => t.ownerId).filter(uid => uid && uid !== user?.uid)
       )];
-      if (unknownUids.length > 0) {
+      if (!isReadOnly && unknownUids.length > 0) {
         const profileSnaps = await Promise.all(unknownUids.map(uid => getDoc(doc(db, 'profiles', uid))));
         const map = {};
         for (const snap of profileSnaps) {
@@ -774,6 +827,7 @@ export default function App() {
   };
 
   const addTrip = async () => {
+    if (isReadOnly) return;
     if (!newTripName.trim()) return;
     const tripData = {
       name: newTripName.trim(),
@@ -791,6 +845,7 @@ export default function App() {
   };
 
   const deleteTrip = async (tripId) => {
+    if (isReadOnly) return;
     const trip = trips.find(t => t.id === tripId);
     if (trip?.shareToken) { try { await deleteDoc(doc(db, 'sharedLinks', trip.shareToken)); } catch {} }
     const photosSnap = await getDocs(photosCol(tripId));
@@ -826,6 +881,7 @@ export default function App() {
   };
 
   const handleFiles = useCallback(async (files) => {
+    if (isReadOnly) return;
     if (!activeTrip || !files.length) return;
     const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
     if (!imageFiles.length) return;
@@ -856,9 +912,10 @@ export default function App() {
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, ...updates } : t));
     }
     setUploading(false);
-  }, [activeTrip, user, trips]);
+  }, [activeTrip, user, trips, isReadOnly]);
 
   const deletePhoto = async (photo) => {
+    if (isReadOnly) return;
     if (photo.storagePath) { try { await deleteObject(ref(storage, photo.storagePath)); } catch {} }
     await deleteDoc(doc(db, 'trips', activeTrip, 'photos', photo.id));
     setPhotos(prev => prev.filter(p => p.id !== photo.id));
@@ -874,6 +931,7 @@ export default function App() {
   };
 
   const savePhotoDesc = async (photoId, desc) => {
+    if (isReadOnly) return;
     const photo = photos.find(p => p.id === photoId);
     if (!photo || desc === (photo.description || '')) return;
     try {
@@ -883,6 +941,7 @@ export default function App() {
   };
 
   const setPhotoAsAlbumCover = async (photoUrl) => {
+    if (isReadOnly) return;
     if (!activeTrip) return;
     try {
       await updateDoc(doc(db, 'trips', activeTrip), { cover: photoUrl });
@@ -891,6 +950,7 @@ export default function App() {
   };
 
   const saveCityToPhotos = async () => {
+    if (isReadOnly) return;
     const city = cityInput.trim() || null;
     for (const photoId of selectedPhotos) {
       await updateDoc(doc(db, 'trips', activeTrip, 'photos', photoId), { city });
@@ -915,6 +975,7 @@ export default function App() {
   };
 
   const togglePhotoSelection = (photoId) => {
+    if (isReadOnly) return;
     setSelectedPhotos(prev => {
       const next = new Set(prev);
       next.has(photoId) ? next.delete(photoId) : next.add(photoId);
@@ -924,6 +985,7 @@ export default function App() {
 
   // ─── Auto-set dates from Facebook ───
   const autoSetDatesFromFb = async () => {
+    if (isReadOnly) return;
     setAutoDateModal('running');
     setAutoDateUpdated(0);
     try {
@@ -1152,6 +1214,7 @@ export default function App() {
   };
 
   const scanFbFolder = async () => {
+    if (isReadOnly) return;
     try {
       const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
       setFbError('');
@@ -1201,6 +1264,7 @@ export default function App() {
   };
 
   const handleFbImportClick = async () => {
+    if (isReadOnly) return;
     if (fbDirHandle) { startFbImport(fbDirHandle, fbMediaBase, fbPathPrefix); return; }
     try {
       const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
@@ -1217,6 +1281,7 @@ export default function App() {
   };
 
   const startFbImport = async (postsHandle, mediaBase, pathPrefix) => {
+    if (isReadOnly) return;
     fbCancelRef.current = false;
     setFbStep('import');
     setFbTotalDone(0);
@@ -1364,6 +1429,7 @@ export default function App() {
 
   // ─── Photo reorder ───
   const reorderPhotos = async (dropIdx) => {
+    if (isReadOnly) return;
     const dragIdx = draggingIdx.current;
     if (dragIdx === null || dragIdx === dropIdx) return;
     draggingIdx.current = null;
@@ -1389,6 +1455,7 @@ export default function App() {
   const onDragLeave = () => setDragging(false);
   const onDrop = (e) => {
     e.preventDefault(); setDragging(false);
+    if (isReadOnly) return;
     if (draggingIdx.current !== null) return;
     handleFiles(e.dataTransfer.files);
   };
@@ -1397,6 +1464,7 @@ export default function App() {
   // EDIT TRIP
   // ═══════════════════════════════════════
   const openEditTrip = (trip) => {
+    if (isReadOnly) return;
     setEditTrip(trip);
     setEditName(trip.name);
     setEditDate(trip.date || '');
@@ -1406,6 +1474,7 @@ export default function App() {
   };
 
   const saveEditTrip = async () => {
+    if (isReadOnly) return;
     if (!editName.trim() || !editTrip) return;
     setEditSaving(true);
     const updates = {
@@ -1427,6 +1496,7 @@ export default function App() {
   // EDIT CITY SUB-ALBUM
   // ═══════════════════════════════════════
   const openEditCity = (cityName) => {
+    if (isReadOnly) return;
     const tripData = trips.find(t => t.id === activeTrip);
     const vis = tripData?.cityMetadata?.[cityName]?.visibility || tripData?.visibility || 'shared';
     setEditCity({ tripId: activeTrip, cityName });
@@ -1435,6 +1505,7 @@ export default function App() {
   };
 
   const saveEditCity = async () => {
+    if (isReadOnly) return;
     if (!editCityName.trim() || !editCity) return;
     setEditCitySaving(true);
     const { tripId, cityName } = editCity;
@@ -1472,6 +1543,7 @@ export default function App() {
   // SHARE
   // ═══════════════════════════════════════
   const generateShareLink = async (trip) => {
+    if (isReadOnly) return;
     if (trip.shareToken) { setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${trip.shareToken}` }); return; }
     setShareGenerating(trip.id);
     try {
@@ -1487,6 +1559,7 @@ export default function App() {
   };
 
   const revokeShareLink = async (tripId, shareToken) => {
+    if (isReadOnly) return;
     try {
       await deleteDoc(doc(db, 'sharedLinks', shareToken));
       await updateDoc(doc(db, 'trips', tripId), { shareToken: null });
@@ -1499,6 +1572,7 @@ export default function App() {
   // WISHLIST
   // ═══════════════════════════════════════
   const toggleWishlist = async (iso) => {
+    if (isReadOnly) return;
     const next = new Set(wishlist);
     if (next.has(iso)) next.delete(iso); else next.add(iso);
     setWishlist(next);
@@ -1511,6 +1585,7 @@ export default function App() {
   // MIGRATION
   // ═══════════════════════════════════════
   const runMigration = async () => {
+    if (isReadOnly) return;
     setMigration('running');
     setMigrationError('');
     try {
@@ -1538,6 +1613,7 @@ export default function App() {
   // ALBUM SHARING
   // ═══════════════════════════════════════
   const shareAlbums = async (emails) => {
+    if (isReadOnly) return;
     if (!emails.length || !selectedTrips.size) return;
     setSharingAlbums(true);
     try {
@@ -1594,6 +1670,7 @@ export default function App() {
   };
 
   const loadAlbumShares = async () => {
+    if (isReadOnly) return;
     setLoadingShares(true);
     try {
       const snap = await getDocs(collection(db, 'albumShares'));
@@ -1607,6 +1684,7 @@ export default function App() {
   };
 
   const revokeAlbumAccess = async (shareId, tripIds, email) => {
+    if (isReadOnly) return;
     try {
       const batch = writeBatch(db);
       for (const tripId of tripIds) {
@@ -1644,6 +1722,34 @@ export default function App() {
   // ═══════════════════════════════════════
   // STATS
   // ═══════════════════════════════════════
+  const sortedTrips = useMemo(() => {
+    const tripTime = (trip) => {
+      if (trip.date) {
+        const parsed = Date.parse(trip.date);
+        if (!Number.isNaN(parsed)) return parsed;
+      }
+      return trip.createdAt?.seconds ? trip.createdAt.seconds * 1000 : 0;
+    };
+
+    const nameCompare = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, {
+      sensitivity: 'base',
+      numeric: true,
+    });
+
+    if (tripSort === 'date') {
+      return [...trips].sort((a, b) => {
+        const byDate = tripTime(b) - tripTime(a);
+        return byDate || nameCompare(a, b);
+      });
+    }
+
+    if (tripSort === 'az') {
+      return [...trips].sort((a, b) => nameCompare(a, b));
+    }
+
+    return trips;
+  }, [trips, tripSort]);
+
   const totalPhotos = trips.reduce((s, t) => s + (t.photoCount || 0), 0);
   const countriesVisited = new Set(trips.map(t => t.country).filter(Boolean)).size;
   const topTrip = trips.reduce((best, t) => (!best || (t.photoCount || 0) > (best.photoCount || 0)) ? t : best, null);
@@ -1670,27 +1776,29 @@ export default function App() {
   const renderStatPanel = () => {
     if (!statPanel) return null;
     if (statPanel === 'trips') {
-      const allSelected = trips.length > 0 && trips.every(t => selectedTrips.has(t.id));
+      const allSelected = sortedTrips.length > 0 && sortedTrips.every(t => selectedTrips.has(t.id));
       const someSelected = selectedTrips.size > 0 && !allSelected;
       return (
         <div className="stat-panel fade-in">
           <div className="stat-panel-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                type="checkbox"
-                className="trip-select-check"
-                checked={allSelected}
-                ref={el => { if (el) el.indeterminate = someSelected; }}
-                onChange={() => {
-                  if (allSelected || someSelected) setSelectedTrips(new Set());
-                  else setSelectedTrips(new Set(trips.map(t => t.id)));
-                }}
-                title={T.selectAll}
-              />
+              {!isReadOnly && (
+                <input
+                  type="checkbox"
+                  className="trip-select-check"
+                  checked={allSelected}
+                  ref={el => { if (el) el.indeterminate = someSelected; }}
+                  onChange={() => {
+                    if (allSelected || someSelected) setSelectedTrips(new Set());
+                    else setSelectedTrips(new Set(sortedTrips.map(t => t.id)));
+                  }}
+                  title={T.selectAll}
+                />
+              )}
               <span>{T.allTrips}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {selectedTrips.size > 0 && (
+              {!isReadOnly && selectedTrips.size > 0 && (
                 <button className="btn btn-accent btn-sm" onClick={() => setShareAlbumsModal(true)}>
                   {T.shareAlbumsBtn(selectedTrips.size)}
                 </button>
@@ -1698,26 +1806,28 @@ export default function App() {
               <button className="stat-panel-close" onClick={() => { setStatPanel(null); setSelectedTrips(new Set()); }}>✕</button>
             </div>
           </div>
-          {trips.map(trip => (
+          {sortedTrips.map(trip => (
             <div
               key={trip.id}
               className={`stat-panel-row${selectedTrips.has(trip.id) ? ' stat-panel-row-selected' : ''}`}
               onClick={() => { setActiveTrip(trip.id); setStatPanel(null); setSelectedTrips(new Set()); }}
             >
-              <input
-                type="checkbox"
-                className="trip-select-check"
-                checked={selectedTrips.has(trip.id)}
-                onChange={e => {
-                  e.stopPropagation();
-                  setSelectedTrips(prev => {
-                    const next = new Set(prev);
-                    next.has(trip.id) ? next.delete(trip.id) : next.add(trip.id);
-                    return next;
-                  });
-                }}
-                onClick={e => e.stopPropagation()}
-              />
+              {!isReadOnly && (
+                <input
+                  type="checkbox"
+                  className="trip-select-check"
+                  checked={selectedTrips.has(trip.id)}
+                  onChange={e => {
+                    e.stopPropagation();
+                    setSelectedTrips(prev => {
+                      const next = new Set(prev);
+                      next.has(trip.id) ? next.delete(trip.id) : next.add(trip.id);
+                      return next;
+                    });
+                  }}
+                  onClick={e => e.stopPropagation()}
+                />
+              )}
               <span className="stat-panel-name">{trip.name}</span>
               {trip.date && <span className="stat-panel-meta">{trip.date}</span>}
             </div>
@@ -1857,7 +1967,7 @@ export default function App() {
   // ═══════════════════════════════════════
   // LOGIN SCREEN
   // ═══════════════════════════════════════
-  if (!user) {
+  if (!user && !guestMode) {
     return (
       <div className="login-page">
         <div className="login-card fade-scale">
@@ -1868,6 +1978,11 @@ export default function App() {
               ? <><span className="spinner" style={{ width: 16, height: 16 }} /> {T.signingIn}</>
               : <><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>{T.continueWithGoogle}</>
             }
+          </button>
+          <button onClick={handleGuestLogin} className="btn-guest" disabled={guestLoggingIn || loggingIn}>
+            {guestLoggingIn
+              ? <><span className="spinner" style={{ width: 16, height: 16 }} /> {T.signingIn}</>
+              : T.continueAsGuest}
           </button>
           {loginError && <p className="login-error">{loginError}</p>}
         </div>
@@ -1883,7 +1998,7 @@ export default function App() {
   const showCityCards = hasCities && activeCity === null;
 
   return (
-    <div>
+    <div className={`app-shell${scrollFade ? ` scroll-fade-${scrollFade}` : ''}`}>
       {/* ─── Header ─── */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -1893,7 +2008,8 @@ export default function App() {
           </div>
         </div>
         <div className="header-actions">
-          {!activeTrip && (
+          {isGuest && <span className="guest-pill">{T.guestModeLabel}</span>}
+          {!activeTrip && !isReadOnly && (
             <div style={{ position: 'relative' }}>
               <button className="btn btn-secondary" onClick={() => setAdminDropdown(d => !d)}>{T.adminTools}</button>
               {adminDropdown && (
@@ -1911,8 +2027,8 @@ export default function App() {
               )}
             </div>
           )}
-          {!activeTrip && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>}
-          {activeTrip && (
+          {!activeTrip && !isReadOnly && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>}
+          {activeTrip && !isReadOnly && (
             <button className="btn btn-accent" onClick={() => fileRef.current?.click()} disabled={uploading}>
               {uploading ? T.uploading(uploadCount.done, uploadCount.total) : T.addPhotos}
             </button>
@@ -1923,7 +2039,7 @@ export default function App() {
               : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             }
           </button>
-          <button className="btn-icon" onClick={() => signOut(auth)} title={T.signOut}>
+          <button className="btn-icon" onClick={() => { setGuestMode(false); signOut(auth).catch(() => {}); }} title={T.signOut}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
@@ -1938,7 +2054,7 @@ export default function App() {
       <div className="content">
 
         {/* ═══ MIGRATION BANNER ═══ */}
-        {(migration === 'needed' || migration === 'running' || migration === 'done' || migration === 'error') && !activeTrip && (
+        {!isReadOnly && (migration === 'needed' || migration === 'running' || migration === 'done' || migration === 'error') && !activeTrip && (
           <div className={`migration-banner fade-in ${migration}`}>
             {migration === 'needed' && (
               <>
@@ -1965,7 +2081,7 @@ export default function App() {
           <div className="fade-in">
 
             {/* ─ New Trip Form ─ */}
-            {showNewTrip && (
+            {!isReadOnly && showNewTrip && (
               <div className="new-trip-form fade-scale">
                 <div className="form-group">
                   <label>{T.tripNameLabel}</label>
@@ -2018,11 +2134,17 @@ export default function App() {
                       <div className="stat-value">{wishlist.size}</div><div className="stat-label">{T.wishlistLabel}</div>
                     </div>
                   )}
-                  {topTrip && topTrip.photoCount > 0 && (
+                  {isReadOnly && (
+                    <div className="stat-card stat-card-wide guest-info-card">
+                      <div className="guest-info-title">{T.guestBannerTitle}</div>
+                      <div className="guest-info-text">{T.guestBannerText}</div>
+                    </div>
+                  )}
+                  {!isReadOnly && topTrip && topTrip.photoCount > 0 && (
                     <div
                       className="stat-card stat-card-wide stat-card-btn"
                       style={{ position: 'relative' }}
-                      onClick={() => !editingPanel && setEditingPanel(true)}
+                      onClick={() => !isReadOnly && !editingPanel && setEditingPanel(true)}
                       title={T.clickToEditName}
                     >
                       {editingPanel ? (
@@ -2112,11 +2234,25 @@ export default function App() {
                         </div>
                       )}
 
-                      {!editingPanel && <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 12, opacity: 0.4 }}>✎</span>}
+                      {!isReadOnly && !editingPanel && <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 12, opacity: 0.4 }}>✎</span>}
                     </div>
                   )}
                 </div>
                 <div className="trips-view-header">
+                  <div className="sort-toggle" aria-label="Album sorting">
+                    <button
+                      className={`sort-btn ${tripSort === 'date' ? 'active' : ''}`}
+                      onClick={() => setTripSort('date')}
+                    >
+                      {T.sortByDate}
+                    </button>
+                    <button
+                      className={`sort-btn ${tripSort === 'az' ? 'active' : ''}`}
+                      onClick={() => setTripSort('az')}
+                    >
+                      {T.sortAZ}
+                    </button>
+                  </div>
                   <div className="view-toggle">
                     <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')} title={T.gridView}>
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="0" width="6" height="6" rx="1"/><rect x="8" y="0" width="6" height="6" rx="1"/><rect x="0" y="8" width="6" height="6" rx="1"/><rect x="8" y="8" width="6" height="6" rx="1"/></svg>
@@ -2138,7 +2274,7 @@ export default function App() {
                 <div className="empty-icon">✈</div>
                 <p className="empty-title heading">{T.noTripsYet}</p>
                 <p className="empty-sub">{T.noTripsYetSub}</p>
-                <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>
+                {!isReadOnly && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>}
               </div>
             )}
 
@@ -2175,7 +2311,7 @@ export default function App() {
                             onMouseLeave={() => setMapTooltip('')}
                             onClick={() => {
                               if (isVisited && trip) { setActiveTrip(trip.id); setTripsView('grid'); }
-                              else toggleWishlist(iso);
+                              else if (!isReadOnly) toggleWishlist(iso);
                             }}
                             style={{
                               default: { fill: isVisited ? 'var(--accent)' : isWished ? '#e05252' : 'var(--map-land)', stroke: 'var(--map-border)', strokeWidth: 0.4, outline: 'none' },
@@ -2195,8 +2331,8 @@ export default function App() {
             {/* ─ Grid view ─ */}
             {tripsView === 'grid' && (
               <div className="trips-grid">
-                {trips.map((trip, i) => {
-                  const isOwner = !trip.ownerId || trip.ownerId === user.uid;
+                {sortedTrips.map((trip, i) => {
+                  const isOwner = !isReadOnly && (!trip.ownerId || trip.ownerId === user.uid);
                   const creatorEmail = trip.ownerEmail
                     || creatorMap[trip.ownerId]
                     || (isOwner ? user.email : null);
@@ -2233,7 +2369,7 @@ export default function App() {
                       </div>
                       {creatorUsername
                         ? <div className="trip-creator">{T.createdBy(creatorUsername)}</div>
-                        : !isOwner && (
+                        : !isReadOnly && !isOwner && (
                           <div className="trip-creator trip-creator-unknown"
                             onClick={async e => {
                               e.stopPropagation();
@@ -2282,13 +2418,15 @@ export default function App() {
                     Miro
                   </a>
                 )}
-                <button className={`btn btn-sm ${activeTripData.shareToken ? 'btn-accent' : ''}`}
-                  onClick={() => generateShareLink(activeTripData)} disabled={shareGenerating === activeTrip}>
-                  {shareGenerating === activeTrip ? T.generating : activeTripData.shareToken ? T.sharedBtn : T.shareBtn}
-                </button>
+                {!isReadOnly && (
+                  <button className={`btn btn-sm ${activeTripData.shareToken ? 'btn-accent' : ''}`}
+                    onClick={() => generateShareLink(activeTripData)} disabled={shareGenerating === activeTrip}>
+                    {shareGenerating === activeTrip ? T.generating : activeTripData.shareToken ? T.sharedBtn : T.shareBtn}
+                  </button>
+                )}
                 {!showCityCards && (
                   <>
-                    {selectedPhotos.size > 0 && (
+                    {!isReadOnly && selectedPhotos.size > 0 && (
                       <button className="btn btn-accent btn-sm" onClick={() => { setCityInput(''); setCityModal(true); }}>
                         {T.saveChanges(selectedPhotos.size)}
                       </button>
@@ -2307,7 +2445,7 @@ export default function App() {
               <div className="trips-grid">
                 {Object.keys(cityGroups).sort().map((city, i) => {
                   const coverUrl = cityGroups[city][0]?.url;
-                  const isOwner = !activeTripData?.ownerId || activeTripData?.ownerId === user?.uid;
+                  const isOwner = !isReadOnly && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid);
                   const cityVis = activeTripData?.cityMetadata?.[city]?.visibility || activeTripData?.visibility || 'shared';
                   return (
                     <div key={city} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }}
@@ -2359,16 +2497,16 @@ export default function App() {
                 {uploading && <div className="upload-progress"><span className="spinner" />{T.uploadingPhotos(uploadCount.done, uploadCount.total)}</div>}
                 {loadingPhotos && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
                 {!loadingPhotos && displayPhotos.length === 0 && !uploading && (
-                  <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()}
-                    onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+                  <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onClick={() => !isReadOnly && fileRef.current?.click()}
+                    onDragOver={!isReadOnly ? onDragOver : undefined} onDragLeave={!isReadOnly ? onDragLeave : undefined} onDrop={!isReadOnly ? onDrop : undefined}>
                     <div className="drop-zone-icon">📷</div>
-                    <p style={{ fontSize: 15, marginBottom: 4 }}>{T.dragDropPhotos}</p>
-                    <p style={{ fontSize: 12 }}>{T.orClickToBrowse}</p>
+                    <p style={{ fontSize: 15, marginBottom: 4 }}>{isReadOnly ? T.noPhotosYet : T.dragDropPhotos}</p>
+                    {!isReadOnly && <p style={{ fontSize: 12 }}>{T.orClickToBrowse}</p>}
                   </div>
                 )}
 
                 {displayPhotos.length > 0 && view === 'grid' && (() => {
-                  const canDrag = activeCity === null;
+                  const canDrag = !isReadOnly && activeCity === null;
                   return (
                     <div className="photo-grid" onDragOver={canDrag ? onDragOver : undefined} onDragLeave={canDrag ? onDragLeave : undefined} onDrop={canDrag ? onDrop : undefined}>
                       {displayPhotos.map((p, i) => {
@@ -2384,7 +2522,7 @@ export default function App() {
                             onDragLeave={canDrag ? () => setDragOverIdx(null) : undefined}
                             onDrop={canDrag ? e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(flatIdx); setDragOverIdx(null); } : undefined}
                             onClick={() => setLightbox(p)}
-                            onContextMenu={activeCity && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid) ? e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, photo: p }); } : undefined}>
+                            onContextMenu={activeCity && !isReadOnly && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid) ? e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, photo: p }); } : undefined}>
                             <img src={p.url} alt={p.name} loading="lazy" />
                             {canDrag && <div className="photo-drag-handle">⠿</div>}
                             {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
@@ -2402,10 +2540,12 @@ export default function App() {
                       <div key={p.id}
                         className={`photo-list-item fade-in${selectedPhotos.has(p.id) ? ' selected' : ''}`}
                         style={{ animationDelay: `${i * 25}ms` }}>
-                        <input type="checkbox" className="photo-list-check"
-                          checked={selectedPhotos.has(p.id)}
-                          onChange={() => togglePhotoSelection(p.id)}
-                          onClick={e => e.stopPropagation()} />
+                        {!isReadOnly && (
+                          <input type="checkbox" className="photo-list-check"
+                            checked={selectedPhotos.has(p.id)}
+                            onChange={() => togglePhotoSelection(p.id)}
+                            onClick={e => e.stopPropagation()} />
+                        )}
                         <img src={p.url} alt={p.name} loading="lazy" onClick={() => setLightbox(p)} style={{ cursor: 'pointer' }} />
                         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setLightbox(p)}>
                           <div className="photo-list-name">{p.name}</div>
@@ -2430,16 +2570,18 @@ export default function App() {
           {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" onClick={e => { e.stopPropagation(); navLightbox(-1); }}>‹</button>}
           {lbIndex < displayPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); navLightbox(1); }}>›</button>}
           <div className="lb-counter">{lbIndex + 1} / {displayPhotos.length}</div>
-          <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
-            <textarea
-              className="lb-desc"
-              placeholder={T.addDescriptionPh}
-              value={lbDesc}
-              onChange={e => setLbDesc(e.target.value)}
-              onBlur={() => savePhotoDesc(lightbox.id, lbDesc)}
-            />
-          </div>
-          {activeCity && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid) && (
+          {!isReadOnly && (
+            <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
+              <textarea
+                className="lb-desc"
+                placeholder={T.addDescriptionPh}
+                value={lbDesc}
+                onChange={e => setLbDesc(e.target.value)}
+                onBlur={() => savePhotoDesc(lightbox.id, lbDesc)}
+              />
+            </div>
+          )}
+          {activeCity && !isReadOnly && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid) && (
             <button
               className="lb-cover-btn"
               title={T.setAsAlbumCoverTitle}
@@ -2456,16 +2598,18 @@ export default function App() {
               }
             </button>
           )}
-          <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title={T.deletePhotoTitle}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-          </button>
+          {!isReadOnly && (
+            <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title={T.deletePhotoTitle}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          )}
         </div>
       )}
 
       {/* ═══ CONTEXT MENU ═══ */}
-      {contextMenu && (
+      {contextMenu && !isReadOnly && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 1099 }} onClick={() => setContextMenu(null)} onContextMenu={e => { e.preventDefault(); setContextMenu(null); }} />
           <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={e => e.stopPropagation()}>
@@ -2482,7 +2626,7 @@ export default function App() {
       )}
 
       {/* ═══ DELETE TRIP ═══ */}
-      {confirmDelete && (
+      {!isReadOnly && confirmDelete && (
         <div className="modal-overlay fade-scale" onClick={() => setConfirmDelete(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.deleteTripQuestion}</p>
@@ -2496,7 +2640,7 @@ export default function App() {
       )}
 
       {/* ═══ EDIT TRIP ═══ */}
-      {editTrip && (
+      {!isReadOnly && editTrip && (
         <div className="modal-overlay fade-scale" onClick={() => setEditTrip(null)}>
           <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title" style={{ marginBottom: 16 }}>{T.editTripHeading}</p>
@@ -2535,7 +2679,7 @@ export default function App() {
       )}
 
       {/* ═══ EDIT CITY SUB-ALBUM MODAL ═══ */}
-      {editCity && (
+      {!isReadOnly && editCity && (
         <div className="modal-overlay fade-scale" onClick={() => setEditCity(null)}>
           <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title" style={{ marginBottom: 16 }}>{T.editSubAlbumHeading}</p>
@@ -2567,7 +2711,7 @@ export default function App() {
       )}
 
       {/* ═══ CITY ASSIGN MODAL ═══ */}
-      {cityModal && (
+      {!isReadOnly && cityModal && (
         <div className="modal-overlay fade-scale" onClick={() => setCityModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.assignCityHeading}</p>
@@ -2589,7 +2733,7 @@ export default function App() {
       )}
 
       {/* ═══ AUTO-DATE MODAL ═══ */}
-      {autoDateModal && (
+      {!isReadOnly && autoDateModal && (
         <div className="modal-overlay fade-scale" onClick={() => autoDateModal === 'done' && setAutoDateModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             {autoDateModal === 'running' && (
@@ -2619,7 +2763,7 @@ export default function App() {
       )}
 
       {/* ═══ FACEBOOK IMPORT MODAL ═══ */}
-      {fbModal && (
+      {!isReadOnly && fbModal && (
         <div className="modal-overlay fade-scale" onClick={() => fbStep !== 'import' && setFbModal(false)}>
           <div className="modal fb-import-modal" onClick={e => e.stopPropagation()}>
 
@@ -2768,7 +2912,7 @@ export default function App() {
       )}
 
       {/* ═══ SHARE MODAL ═══ */}
-      {shareModal && (
+      {!isReadOnly && shareModal && (
         <div className="modal-overlay fade-scale" onClick={() => setShareModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
             <p className="modal-title">{T.shareTripTitle}</p>
@@ -2786,7 +2930,7 @@ export default function App() {
       )}
 
       {/* ═══ SHARE ALBUMS MODAL ═══ */}
-      {shareAlbumsModal && (
+      {!isReadOnly && shareAlbumsModal && (
         <div className="modal-overlay fade-scale" onClick={() => setShareAlbumsModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
             <p className="modal-title">{T.shareAlbumsTitle}</p>
@@ -2830,7 +2974,7 @@ export default function App() {
       )}
 
       {/* ═══ SHARE SUCCESS MODAL ═══ */}
-      {shareSuccess && (
+      {!isReadOnly && shareSuccess && (
         <div className="modal-overlay fade-scale" onClick={() => setShareSuccess(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, textAlign: 'center' }}>
             <p style={{ fontSize: 32, marginBottom: 8 }}>✓</p>
@@ -2850,7 +2994,7 @@ export default function App() {
       )}
 
       {/* ═══ MANAGE ACCESSES MODAL ═══ */}
-      {manageAccessesModal && (
+      {!isReadOnly && manageAccessesModal && (
         <div className="modal-overlay fade-scale" onClick={() => setManageAccessesModal(false)}>
           <div className="modal manage-accesses-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.manageAccessesTitle}</p>
