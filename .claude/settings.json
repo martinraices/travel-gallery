@@ -7,7 +7,9 @@
       "Bash(npx vite *)",
       "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Force)",
       "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -Filter \"*.jsx\" -File)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -File)",
+      "Bash(Select-Object -First 50)"
     ]
   }
 }
