@@ -9,7 +9,9 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -Filter \"*.jsx\" -File)",
       "Bash(Select-Object FullName)",
       "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -File)",
-      "Bash(Select-Object -First 50)"
+      "Bash(Select-Object -First 50)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

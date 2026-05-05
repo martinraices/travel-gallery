@@ -162,6 +162,8 @@ const COUNTRY_CONTINENT = {
 };
 const CONTINENT_ORDER = ['Europe', 'North America', 'South America', 'Asia', 'Africa', 'Oceania', 'Other'];
 
+const ALLOWED_EMAILS = ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];
+
 // ─── Facebook import helpers ───
 const FB_SKIP_EXACT = new Set(['Photos', 'Cover photos', 'TANIA!', 'Timeline Photos']);
 const FB_SKIP_CONTAINS = [
@@ -290,11 +292,28 @@ export default function App() {
   const [statPanel, setStatPanel] = useState(null);
   const [expandedContinents, setExpandedContinents] = useState(new Set());
   const [expandedCountries, setExpandedCountries] = useState(new Set());
-  const [customPanelLabel, setCustomPanelLabel] = useState(() => localStorage.getItem('customPanelLabel') || '');
-  const [customPanelMiro, setCustomPanelMiro] = useState(() => localStorage.getItem('customPanelMiro') || '');
+  const [customPanelLabel, setCustomPanelLabel] = useState('');
+  const [customPanelMiro, setCustomPanelMiro] = useState('');
   const [editingPanel, setEditingPanel] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const panelInputRef = useRef(null);
+  const panelSaveTimer = useRef(null);
+
+  // ─── Trip selection & album sharing ───
+  const [selectedTrips, setSelectedTrips] = useState(new Set());
+  const [shareAlbumsModal, setShareAlbumsModal] = useState(false);
+  const [shareEmailsInput, setShareEmailsInput] = useState('');
+  const [sharingAlbums, setSharingAlbums] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(null); // { emails, tripNames }
+
+  // ─── Admin tools ───
+  const [adminDropdown, setAdminDropdown] = useState(false);
+  const [manageAccessesModal, setManageAccessesModal] = useState(false);
+  const [albumShares, setAlbumShares] = useState([]);
+  const [loadingShares, setLoadingShares] = useState(false);
+
+  // ─── Access denied (non-whitelisted users) ───
+  const [accessDenied, setAccessDenied] = useState(false);
 
   // ─── Edit trip ───
   const [editTrip, setEditTrip] = useState(null);
@@ -323,6 +342,7 @@ export default function App() {
 
   // ─── Lightbox description ───
   const [lbDesc, setLbDesc] = useState('');
+  const [lbCoverSet, setLbCoverSet] = useState(false);
 
   // ─── Migration ───
   const [migration, setMigration] = useState(null); // null | 'needed' | 'running' | 'done' | 'error'
@@ -370,15 +390,35 @@ export default function App() {
   // ─── Auth listener ───
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
+      if (u && !ALLOWED_EMAILS.includes(u.email)) {
+        signOut(auth).catch(() => {});
+        setUser(null);
+        setAuthLoading(false);
+        setAccessDenied(true);
+        return;
+      }
+      setAccessDenied(false);
       setUser(u);
       setAuthLoading(false);
-      // Save email to public profiles/{uid} so other users can look up the creator name
       if (u?.email) {
         setDoc(doc(db, 'profiles', u.uid), { email: u.email, displayName: u.displayName || null }, { merge: true })
           .catch(() => {});
       }
     });
   }, []);
+
+  // ─── Load panel label from per-user settings ───
+  useEffect(() => {
+    if (!user) { setCustomPanelLabel(''); setCustomPanelMiro(''); return; }
+    getDoc(doc(db, 'users', user.uid, 'profile', 'settings'))
+      .then(snap => {
+        if (snap.exists()) {
+          setCustomPanelLabel(snap.data().panelLabel || '');
+          setCustomPanelMiro(snap.data().panelMiro || '');
+        }
+      })
+      .catch(() => {});
+  }, [user]);
 
   // ─── Public share: check URL on mount ───
   useEffect(() => {
@@ -429,7 +469,7 @@ export default function App() {
   }, [user]);
 
   // ─── Sync lightbox description ───
-  useEffect(() => { setLbDesc(lightbox?.description || ''); }, [lightbox?.id]);
+  useEffect(() => { setLbDesc(lightbox?.description || ''); setLbCoverSet(false); }, [lightbox?.id]);
 
   // ─── Keyboard nav ───
   useEffect(() => {
@@ -447,7 +487,11 @@ export default function App() {
         return;
       }
       if (e.key === 'Escape') {
-        if (editTrip) { setEditTrip(null); }
+        if (shareSuccess) { setShareSuccess(null); }
+        else if (manageAccessesModal) { setManageAccessesModal(false); }
+        else if (shareAlbumsModal) { setShareAlbumsModal(false); }
+        else if (adminDropdown) { setAdminDropdown(false); }
+        else if (editTrip) { setEditTrip(null); }
         else if (editCity) { setEditCity(null); }
         else if (shareModal) { setShareModal(null); }
         else if (confirmDelete) { setConfirmDelete(null); }
@@ -476,6 +520,17 @@ export default function App() {
   };
 
   // ═══════════════════════════════════════
+  // GLOBAL SETTINGS
+  // ═══════════════════════════════════════
+  const savePanelLabel = (label, miro) => {
+    if (!user) return;
+    if (panelSaveTimer.current) clearTimeout(panelSaveTimer.current);
+    panelSaveTimer.current = setTimeout(() => {
+      setDoc(doc(db, 'users', user.uid, 'profile', 'settings'), { panelLabel: label, panelMiro: miro }, { merge: true }).catch(() => {});
+    }, 800);
+  };
+
+  // ═══════════════════════════════════════
   // TRIPS
   // ═══════════════════════════════════════
   const tripsCol = () => collection(db, 'trips');
@@ -483,13 +538,14 @@ export default function App() {
   const loadTrips = async () => {
     setLoadingTrips(true);
     try {
-      const [mySnap, sharedSnap] = await Promise.all([
+      const [mySnap, sharedSnap, allowedSnap] = await Promise.all([
         getDocs(query(tripsCol(), where('ownerId', '==', user.uid))),
         getDocs(query(tripsCol(), where('visibility', '==', 'shared'))),
+        getDocs(query(tripsCol(), where('allowedEmails', 'array-contains', user.email))),
       ]);
       const seen = new Set();
       const merged = [];
-      for (const snap of [mySnap, sharedSnap]) {
+      for (const snap of [mySnap, sharedSnap, allowedSnap]) {
         for (const d of snap.docs) {
           if (!seen.has(d.id)) { seen.add(d.id); merged.push({ id: d.id, ...d.data() }); }
         }
@@ -618,6 +674,14 @@ export default function App() {
       await updateDoc(doc(db, 'trips', activeTrip, 'photos', photoId), { description: desc });
       setPhotos(ps => ps.map(p => p.id === photoId ? { ...p, description: desc } : p));
     } catch (err) { console.error('Save desc error:', err); }
+  };
+
+  const setPhotoAsAlbumCover = async (photoUrl) => {
+    if (!activeTrip) return;
+    try {
+      await updateDoc(doc(db, 'trips', activeTrip), { cover: photoUrl });
+      setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, cover: photoUrl } : t));
+    } catch (err) { console.error('Set cover error:', err); }
   };
 
   const saveCityToPhotos = async () => {
@@ -1265,6 +1329,113 @@ export default function App() {
   };
 
   // ═══════════════════════════════════════
+  // ALBUM SHARING
+  // ═══════════════════════════════════════
+  const shareAlbums = async (emails) => {
+    if (!emails.length || !selectedTrips.size) return;
+    setSharingAlbums(true);
+    try {
+      const tripIds = [...selectedTrips];
+      const tripNames = {};
+      tripIds.forEach(id => {
+        const trip = trips.find(t => t.id === id);
+        if (trip) tripNames[id] = trip.name;
+      });
+
+      await addDoc(collection(db, 'albumShares'), {
+        tripIds,
+        tripNames,
+        emails,
+        createdAt: serverTimestamp(),
+        createdBy: user.email,
+      });
+
+      const batch = writeBatch(db);
+      for (const tripId of tripIds) {
+        const trip = trips.find(t => t.id === tripId);
+        const existing = trip?.allowedEmails || [];
+        const updated = [...new Set([...existing, ...emails])];
+        batch.update(doc(db, 'trips', tripId), { allowedEmails: updated });
+      }
+      await batch.commit();
+
+      setTrips(prev => prev.map(t => {
+        if (!selectedTrips.has(t.id)) return t;
+        const existing = t.allowedEmails || [];
+        return { ...t, allowedEmails: [...new Set([...existing, ...emails])] };
+      }));
+
+      const tripList = tripIds.map(id => {
+        const trip = trips.find(t => t.id === id);
+        return `• ${trip?.name || id}${trip?.date ? ` (${trip.date})` : ''}`;
+      }).join('\n');
+      const appUrl = window.location.origin;
+      const subject = encodeURIComponent('Album access granted — Pepini per il mondo');
+      const body = encodeURIComponent(
+        `Hola!\n\nSe te ha dado acceso a los siguientes álbumes de viaje:\n\n${tripList}\n\nHaz clic aquí para acceder:\n${appUrl}\n\nInicia sesión con tu cuenta de Google usando esta dirección de email para ver los álbumes.\n\n¡Bon voyage!\n— Pepini per il mondo`
+      );
+      window.location.href = `mailto:${emails.join(',')}?subject=${subject}&body=${body}`;
+
+      const sharedTripNames = tripIds.map(id => trips.find(t => t.id === id)?.name).filter(Boolean);
+      setSelectedTrips(new Set());
+      setShareAlbumsModal(false);
+      setShareEmailsInput('');
+      setShareSuccess({ emails, tripNames: sharedTripNames });
+    } catch (err) {
+      console.error('Error sharing albums:', err);
+    }
+    setSharingAlbums(false);
+  };
+
+  const loadAlbumShares = async () => {
+    setLoadingShares(true);
+    try {
+      const snap = await getDocs(collection(db, 'albumShares'));
+      const shares = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      shares.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setAlbumShares(shares);
+    } catch (err) {
+      console.error('Error loading album shares:', err);
+    }
+    setLoadingShares(false);
+  };
+
+  const revokeAlbumAccess = async (shareId, tripIds, email) => {
+    try {
+      const batch = writeBatch(db);
+      for (const tripId of tripIds) {
+        const trip = trips.find(t => t.id === tripId);
+        const existing = trip?.allowedEmails || [];
+        batch.update(doc(db, 'trips', tripId), { allowedEmails: existing.filter(e => e !== email) });
+      }
+      const share = albumShares.find(s => s.id === shareId);
+      if (share) {
+        const updatedEmails = (share.emails || []).filter(e => e !== email);
+        if (updatedEmails.length === 0) {
+          batch.delete(doc(db, 'albumShares', shareId));
+        } else {
+          batch.update(doc(db, 'albumShares', shareId), { emails: updatedEmails });
+        }
+      }
+      await batch.commit();
+
+      setTrips(prev => prev.map(t => {
+        if (!tripIds.includes(t.id)) return t;
+        return { ...t, allowedEmails: (t.allowedEmails || []).filter(e => e !== email) };
+      }));
+      setAlbumShares(prev =>
+        prev.map(s => {
+          if (s.id !== shareId) return s;
+          const updatedEmails = (s.emails || []).filter(e => e !== email);
+          return updatedEmails.length === 0 ? null : { ...s, emails: updatedEmails };
+        }).filter(Boolean)
+      );
+    } catch (err) {
+      console.error('Error revoking access:', err);
+    }
+  };
+
+  // ═══════════════════════════════════════
   // STATS
   // ═══════════════════════════════════════
   const totalPhotos = trips.reduce((s, t) => s + (t.photoCount || 0), 0);
@@ -1293,14 +1464,54 @@ export default function App() {
   const renderStatPanel = () => {
     if (!statPanel) return null;
     if (statPanel === 'trips') {
+      const allSelected = trips.length > 0 && trips.every(t => selectedTrips.has(t.id));
+      const someSelected = selectedTrips.size > 0 && !allSelected;
       return (
         <div className="stat-panel fade-in">
           <div className="stat-panel-header">
-            <span>All Trips</span>
-            <button className="stat-panel-close" onClick={() => setStatPanel(null)}>✕</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                className="trip-select-check"
+                checked={allSelected}
+                ref={el => { if (el) el.indeterminate = someSelected; }}
+                onChange={() => {
+                  if (allSelected || someSelected) setSelectedTrips(new Set());
+                  else setSelectedTrips(new Set(trips.map(t => t.id)));
+                }}
+                title="Select all"
+              />
+              <span>All Trips</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {selectedTrips.size > 0 && (
+                <button className="btn btn-accent btn-sm" onClick={() => setShareAlbumsModal(true)}>
+                  Share Albums ({selectedTrips.size})
+                </button>
+              )}
+              <button className="stat-panel-close" onClick={() => { setStatPanel(null); setSelectedTrips(new Set()); }}>✕</button>
+            </div>
           </div>
           {trips.map(trip => (
-            <div key={trip.id} className="stat-panel-row" onClick={() => { setActiveTrip(trip.id); setStatPanel(null); }}>
+            <div
+              key={trip.id}
+              className={`stat-panel-row${selectedTrips.has(trip.id) ? ' stat-panel-row-selected' : ''}`}
+              onClick={() => { setActiveTrip(trip.id); setStatPanel(null); setSelectedTrips(new Set()); }}
+            >
+              <input
+                type="checkbox"
+                className="trip-select-check"
+                checked={selectedTrips.has(trip.id)}
+                onChange={e => {
+                  e.stopPropagation();
+                  setSelectedTrips(prev => {
+                    const next = new Set(prev);
+                    next.has(trip.id) ? next.delete(trip.id) : next.add(trip.id);
+                    return next;
+                  });
+                }}
+                onClick={e => e.stopPropagation()}
+              />
               <span className="stat-panel-name">{trip.name}</span>
               {trip.date && <span className="stat-panel-meta">{trip.date}</span>}
             </div>
@@ -1421,6 +1632,23 @@ export default function App() {
   if (authLoading) return <div className="login-page"><div className="spinner" style={{ width: 28, height: 28 }} /></div>;
 
   // ═══════════════════════════════════════
+  // ACCESS DENIED
+  // ═══════════════════════════════════════
+  if (accessDenied) {
+    return (
+      <div className="login-page">
+        <div className="login-card fade-scale">
+          <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
+          <p className="login-sub" style={{ fontSize: 18, fontWeight: 600, color: 'var(--danger)', marginBottom: 8 }}>Acceso denegado</p>
+          <p className="login-sub">Esta aplicación es privada y solo accesible por invitación.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>Si crees que deberías tener acceso, contacta al administrador.</p>
+          <button className="btn btn-sm" onClick={() => setAccessDenied(false)} style={{ marginTop: 20 }}>← Volver al login</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════
   // LOGIN SCREEN
   // ═══════════════════════════════════════
   if (!user) {
@@ -1459,7 +1687,24 @@ export default function App() {
           </div>
         </div>
         <div className="header-actions">
-          {!activeTrip && <button className="btn btn-facebook" onClick={() => { setFbStep('folder'); setFbError(''); setFbModal(true); }}>↓ Facebook</button>}
+          {!activeTrip && (
+            <div style={{ position: 'relative' }}>
+              <button className="btn btn-secondary" onClick={() => setAdminDropdown(d => !d)}>⚙ Admin Tools</button>
+              {adminDropdown && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setAdminDropdown(false)} />
+                  <div className="admin-dropdown">
+                    <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); setFbStep('folder'); setFbError(''); setFbModal(true); }}>
+                      ↓ Import from Facebook
+                    </button>
+                    <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); loadAlbumShares(); setManageAccessesModal(true); }}>
+                      👥 Manage Accesses
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {!activeTrip && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>+ New Trip</button>}
           {activeTrip && (
             <button className="btn btn-accent" onClick={() => fileRef.current?.click()} disabled={uploading}>
@@ -1586,7 +1831,7 @@ export default function App() {
                               placeholder={topTrip.name}
                               onChange={e => {
                                 setCustomPanelLabel(e.target.value);
-                                localStorage.setItem('customPanelLabel', e.target.value);
+                                savePanelLabel(e.target.value, customPanelMiro);
                               }}
                               onBlur={e => {
                                 if (!e.relatedTarget?.closest?.('.panel-edit-wrap')) {
@@ -1615,7 +1860,7 @@ export default function App() {
                                       const end = inp.selectionEnd;
                                       const newVal = customPanelLabel.slice(0, start) + em + customPanelLabel.slice(end);
                                       setCustomPanelLabel(newVal);
-                                      localStorage.setItem('customPanelLabel', newVal);
+                                      savePanelLabel(newVal, customPanelMiro);
                                       setShowEmojiPicker(false);
                                       requestAnimationFrame(() => {
                                         inp.focus();
@@ -1634,7 +1879,7 @@ export default function App() {
                             placeholder="Miro link (optional)"
                             onChange={e => {
                               setCustomPanelMiro(e.target.value);
-                              localStorage.setItem('customPanelMiro', e.target.value);
+                              savePanelLabel(customPanelLabel, e.target.value);
                             }}
                             onBlur={e => {
                               if (!e.relatedTarget?.closest?.('.panel-edit-wrap')) {
@@ -1990,6 +2235,23 @@ export default function App() {
               onBlur={() => savePhotoDesc(lightbox.id, lbDesc)}
             />
           </div>
+          {activeCity && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid) && (
+            <button
+              className="lb-cover-btn"
+              title="Set as album cover"
+              onClick={async e => {
+                e.stopPropagation();
+                await setPhotoAsAlbumCover(lightbox.url);
+                setLbCoverSet(true);
+                setTimeout(() => setLbCoverSet(false), 2000);
+              }}
+            >
+              {lbCoverSet
+                ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              }
+            </button>
+          )}
           <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title="Delete photo">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -2297,6 +2559,117 @@ export default function App() {
             <div className="modal-actions" style={{ marginTop: 20 }}>
               <button className="btn btn-sm btn-danger" onClick={() => { const trip = trips.find(t => t.id === shareModal.tripId); if (trip?.shareToken) revokeShareLink(trip.id, trip.shareToken); }}>Revoke link</button>
               <button className="btn btn-sm" onClick={() => setShareModal(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ SHARE ALBUMS MODAL ═══ */}
+      {shareAlbumsModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setShareAlbumsModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <p className="modal-title">Compartir álbumes</p>
+            <p className="modal-sub">
+              {selectedTrips.size} álbum{selectedTrips.size !== 1 ? 'es' : ''} seleccionado{selectedTrips.size !== 1 ? 's' : ''}:
+            </p>
+            <ul className="share-albums-list">
+              {[...selectedTrips].map(id => {
+                const trip = trips.find(t => t.id === id);
+                return trip ? (
+                  <li key={id}>{trip.name}{trip.date ? ` (${trip.date})` : ''}</li>
+                ) : null;
+              })}
+            </ul>
+            <div className="form-group" style={{ marginTop: 16 }}>
+              <label>Direcciones de email</label>
+              <input
+                className="input"
+                value={shareEmailsInput}
+                onChange={e => setShareEmailsInput(e.target.value)}
+                placeholder="email1@ejemplo.com, email2@ejemplo.com"
+                autoFocus
+              />
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                Separa múltiples direcciones con comas. Al confirmar, se abrirá tu cliente de correo con la notificación lista para enviar.
+              </p>
+            </div>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setShareAlbumsModal(false)}>Cancelar</button>
+              <button
+                className="btn btn-accent"
+                onClick={() => {
+                  const emails = shareEmailsInput.split(',').map(e => e.trim()).filter(e => e.includes('@'));
+                  if (emails.length > 0) shareAlbums(emails);
+                }}
+                disabled={sharingAlbums || !shareEmailsInput.trim()}
+              >
+                {sharingAlbums ? 'Compartiendo…' : 'Compartir y notificar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ SHARE SUCCESS MODAL ═══ */}
+      {shareSuccess && (
+        <div className="modal-overlay fade-scale" onClick={() => setShareSuccess(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, textAlign: 'center' }}>
+            <p style={{ fontSize: 32, marginBottom: 8 }}>✓</p>
+            <p className="modal-title">¡Álbumes compartidos!</p>
+            <p className="modal-sub" style={{ marginBottom: 12 }}>
+              Se otorgó acceso a {shareSuccess.emails.join(', ')} para:
+            </p>
+            <ul className="share-albums-list" style={{ textAlign: 'left', marginBottom: 16 }}>
+              {shareSuccess.tripNames.map(name => <li key={name}>{name}</li>)}
+            </ul>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+              Se abrió tu cliente de correo para enviar la notificación. Si no se abrió, revisa que tengas un cliente de correo configurado.
+            </p>
+            <button className="btn btn-accent" onClick={() => setShareSuccess(null)}>Aceptar</button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MANAGE ACCESSES MODAL ═══ */}
+      {manageAccessesModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setManageAccessesModal(false)}>
+          <div className="modal manage-accesses-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">Gestionar accesos</p>
+            {loadingShares ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}><span className="spinner" /></div>
+            ) : albumShares.length === 0 ? (
+              <p className="modal-sub">Aún no se han compartido álbumes con nadie.</p>
+            ) : (
+              <div className="manage-shares-list">
+                {albumShares.map(share => (
+                  <div key={share.id} className="manage-share-item">
+                    <div className="manage-share-header">
+                      <span className="manage-share-albums">
+                        {Object.values(share.tripNames || {}).join(', ') || (share.tripIds || []).join(', ')}
+                      </span>
+                      {share.createdAt?.seconds && (
+                        <span className="manage-share-date">
+                          {new Date(share.createdAt.seconds * 1000).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    {(share.emails || []).map(email => (
+                      <div key={email} className="manage-share-email-row">
+                        <span>{email}</span>
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={() => revokeAlbumAccess(share.id, share.tripIds || [], email)}
+                        >
+                          Revocar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setManageAccessesModal(false)}>Cerrar</button>
             </div>
           </div>
         </div>
