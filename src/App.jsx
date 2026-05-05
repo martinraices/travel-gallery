@@ -164,6 +164,200 @@ const CONTINENT_ORDER = ['Europe', 'North America', 'South America', 'Asia', 'Af
 
 const ALLOWED_EMAILS = ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];
 
+// ─── Language detection & i18n ───
+const isSpanish = (navigator.language || '').startsWith('es');
+const T = {
+  // Header
+  adminTools: isSpanish ? '⚙ Herramientas' : '⚙ Admin Tools',
+  importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
+  manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
+  newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
+  addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
+  uploading: (d, t) => isSpanish ? `Subiendo ${d}/${t}…` : `Uploading ${d}/${t}…`,
+  lightMode: isSpanish ? 'Modo claro' : 'Light mode',
+  darkMode: isSpanish ? 'Modo oscuro' : 'Dark mode',
+  signOut: isSpanish ? 'Cerrar sesión' : 'Sign out',
+  // Stats panel
+  selectAll: isSpanish ? 'Seleccionar todo' : 'Select all',
+  allTrips: isSpanish ? 'Todos los viajes' : 'All Trips',
+  shareAlbumsBtn: (n) => isSpanish ? `Compartir álbumes (${n})` : `Share Albums (${n})`,
+  tripsLabel: isSpanish ? 'Viajes' : 'Trips',
+  photosLabel: isSpanish ? 'Fotos' : 'Photos',
+  countriesLabel: isSpanish ? 'Países' : 'Countries',
+  wishlistLabel: isSpanish ? 'Lista de deseos' : 'Wishlist',
+  countriesVisited: isSpanish ? 'Países visitados' : 'Countries Visited',
+  // Migration
+  migrateNow: isSpanish ? 'Migrar ahora' : 'Migrate now',
+  migratingAlbums: isSpanish ? 'Migrando álbumes… no cierres esta pestaña.' : 'Migrating albums… do not close this tab.',
+  migrationComplete: isSpanish ? '✓ Migración completa — todos los álbumes están ahora en la galería compartida.' : '✓ Migration complete — all albums are now in the shared gallery.',
+  migrationFailed: isSpanish ? 'La migración falló:' : 'Migration failed:',
+  retry: isSpanish ? 'Reintentar' : 'Retry',
+  // New trip form
+  tripNameLabel: isSpanish ? 'Nombre del viaje' : 'Trip Name',
+  dateOptional: isSpanish ? 'Fecha (opcional)' : 'Date (optional)',
+  countryOptional: isSpanish ? 'País (opcional)' : 'Country (optional)',
+  miroLinkOptional: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
+  visibilityLabel: isSpanish ? 'Visibilidad' : 'Visibility',
+  visShared: isSpanish ? '🌍 Compartido' : '🌍 Shared',
+  visPrivate: isSpanish ? '🔒 Privado' : '🔒 Private',
+  create: isSpanish ? 'Crear' : 'Create',
+  cancel: isSpanish ? 'Cancelar' : 'Cancel',
+  tripNamePlaceholder: isSpanish ? 'ej. Patagonia 2024' : 'e.g. Patagonia 2024',
+  countryPlaceholder: isSpanish ? 'ej. Italia' : 'e.g. Italy',
+  // Empty state
+  noTripsYet: isSpanish ? 'Aún no hay viajes' : 'No trips yet',
+  noTripsYetSub: isSpanish ? 'Crea tu primer viaje para empezar a subir fotos.' : 'Create your first trip to start uploading photos.',
+  // Map
+  wishlistTooltip: isSpanish ? '★ Lista de deseos' : '★ Wishlist',
+  // Trip cards
+  gridView: isSpanish ? 'Vista de cuadrícula' : 'Grid view',
+  privateTitle: isSpanish ? 'Privado' : 'Private',
+  sharedTitle: isSpanish ? 'Compartido' : 'Shared',
+  editTripBtn: isSpanish ? 'Editar viaje' : 'Edit trip',
+  sharedSeeLink: isSpanish ? 'Compartido — clic para ver enlace' : 'Shared — click to see link',
+  shareThisTrip: isSpanish ? 'Compartir este viaje' : 'Share this trip',
+  createdBy: (u) => isSpanish ? `Creado por ${u}` : `Created by ${u}`,
+  setCreator: isSpanish ? '+ Establecer creador' : '+ Set creator',
+  whoCreated: isSpanish ? '¿Quién creó este álbum? (ingresa su usuario o email de Gmail)' : 'Who created this album? (enter their Gmail username or email)',
+  couldNotSave: isSpanish ? 'No se pudo guardar: ' : 'Could not save: ',
+  photoCount: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''}` : `${n} photo${n !== 1 ? 's' : ''}`,
+  // Gallery header
+  backToTrips: isSpanish ? '← Viajes' : '← Trips',
+  noCityAssigned: isSpanish ? 'Sin ciudad asignada' : 'No city assigned',
+  openInMiro: isSpanish ? 'Abrir en Miro' : 'Open in Miro',
+  generating: isSpanish ? 'Generando…' : 'Generating…',
+  sharedBtn: isSpanish ? '↗ Compartido' : '↗ Shared',
+  shareBtn: isSpanish ? '↗ Compartir' : '↗ Share',
+  saveChanges: (n) => isSpanish ? `Guardar cambios (${n})` : `Save Changes (${n})`,
+  grid: isSpanish ? 'Cuadrícula' : 'Grid',
+  list: isSpanish ? 'Lista' : 'List',
+  editSubAlbumBtn: isSpanish ? 'Editar subálbum' : 'Edit sub-album',
+  // Photo area
+  dragDropPhotos: isSpanish ? 'Arrastra y suelta fotos aquí' : 'Drag & drop photos here',
+  orClickToBrowse: isSpanish ? 'o haz clic para buscar' : 'or click to browse',
+  uploadingPhotos: (d, t) => isSpanish ? `Subiendo ${d} de ${t} fotos…` : `Uploading ${d} of ${t} photos…`,
+  clickToEditName: isSpanish ? 'Clic para editar el nombre' : 'Click to edit the name',
+  insertEmoji: isSpanish ? 'Insertar emoji' : 'Insert emoji',
+  miroLinkOptionalPh: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
+  // Context menu
+  useAsAlbumCover: isSpanish ? 'Usar como portada del álbum' : 'Use as album cover',
+  deletePhotoMenu: isSpanish ? 'Eliminar foto' : 'Delete photo',
+  // Lightbox
+  addDescriptionPh: isSpanish ? 'Añadir una descripción…' : 'Add a description…',
+  setAsAlbumCoverTitle: isSpanish ? 'Usar como portada del álbum' : 'Set as album cover',
+  deletePhotoTitle: isSpanish ? 'Eliminar foto' : 'Delete photo',
+  // Delete trip modal
+  deleteTripQuestion: isSpanish ? '¿Eliminar este viaje?' : 'Delete this trip?',
+  deleteTripWarn: isSpanish ? 'Todas las fotos serán eliminadas permanentemente del almacenamiento.' : 'All photos will be permanently deleted from storage.',
+  deleteBtn: isSpanish ? 'Eliminar' : 'Delete',
+  // Edit trip / sub-album modals
+  editTripHeading: isSpanish ? 'Editar viaje' : 'Edit Trip',
+  nameLabel: isSpanish ? 'Nombre' : 'Name',
+  dateLabel: isSpanish ? 'Fecha' : 'Date',
+  countryLabel: isSpanish ? 'País' : 'Country',
+  miroLink: isSpanish ? 'Enlace de Miro' : 'Miro link',
+  saving: isSpanish ? 'Guardando…' : 'Saving…',
+  save: isSpanish ? 'Guardar' : 'Save',
+  editSubAlbumHeading: isSpanish ? 'Editar subálbum' : 'Edit Sub-Album',
+  // Assign city modal
+  assignCityHeading: isSpanish ? 'Asignar ciudad' : 'Assign city',
+  photosSelected: (n) => isSpanish
+    ? `${n} foto${n !== 1 ? 's' : ''} seleccionada${n !== 1 ? 's' : ''}`
+    : `${n} photo${n !== 1 ? 's' : ''} selected`,
+  cityPlaceholder: isSpanish ? 'ej. Pekín' : 'e.g. Beijing',
+  // Auto-date modal
+  settingDates: isSpanish ? 'Estableciendo fechas de viaje…' : 'Setting travel dates…',
+  scanningFbAlbums: isSpanish ? 'Escaneando álbumes de Facebook para fechas de fotos.' : 'Scanning Facebook albums for photo dates.',
+  doneBtn: isSpanish ? 'Listo' : 'Done',
+  autoDateUpdated: (u, s) => isSpanish
+    ? `Se actualizaron ${u} viaje${u !== 1 ? 's' : ''} de ${s} álbum${s !== 1 ? 'es' : ''} escaneados.`
+    : `Updated ${u} trip${u !== 1 ? 's' : ''} from ${s} album${s !== 1 ? 's' : ''} scanned.`,
+  autoDateNoAlbums: isSpanish
+    ? 'No se pudieron leer álbumes de Facebook. Verifica que hayas seleccionado la carpeta correcta.'
+    : 'No Facebook albums could be read. Check that you selected the correct folder.',
+  autoDateNoDates: (s) => isSpanish
+    ? `Se escanearon ${s} álbum${s !== 1 ? 'es' : ''} pero no se encontraron fechas. El formato de exportación puede no incluir fechas de toma.`
+    : `Scanned ${s} album${s !== 1 ? 's' : ''} but no dates were found in the photos. The export format may not include "taken" dates.`,
+  close: isSpanish ? 'Cerrar' : 'Close',
+  // Facebook import modal
+  importFbTitle: isSpanish ? 'Importar desde Facebook' : 'Import from Facebook',
+  fbFolderNote: isSpanish
+    ? 'Selecciona tu carpeta your_facebook_activity (o su directorio padre) de tu exportación de datos de Facebook. Solo Chrome/Edge.'
+    : 'Select your your_facebook_activity folder (or its parent) from your Facebook data export. Chrome/Edge only.',
+  scanFolder: isSpanish ? 'Escanear carpeta…' : 'Scan folder…',
+  selectCitiesToImport: isSpanish ? 'Seleccionar ciudades para importar' : 'Select cities to import',
+  citiesAvail: isSpanish ? 'ciudades disponibles' : 'cities available',
+  selectedLabel: isSpanish ? 'seleccionadas' : 'selected',
+  albumsLabel: (n) => isSpanish ? `${n} álbum${n !== 1 ? 'es' : ''}` : `${n} album${n !== 1 ? 's' : ''}`,
+  alreadyImported: isSpanish ? 'ya importadas' : 'already imported',
+  filterByCityOrAlbum: isSpanish ? 'Filtrar por ciudad o álbum…' : 'Filter by city or album…',
+  all: isSpanish ? 'Todos' : 'All',
+  none: isSpanish ? 'Ninguno' : 'None',
+  cityCol: isSpanish ? 'Ciudad' : 'City',
+  albumCol: isSpanish ? 'Álbum' : 'Album',
+  photosCol: isSpanish ? 'Fotos' : 'Photos',
+  albumName: isSpanish ? 'Nombre del álbum' : 'Album name',
+  importNCities: (n) => isSpanish
+    ? `Importar ${n} ciudad${n !== 1 ? 'es' : ''}`
+    : `Import ${n} cit${n !== 1 ? 'ies' : 'y'}`,
+  importing: isSpanish ? 'Importando…' : 'Importing…',
+  scanningAlbums: isSpanish ? 'Escaneando álbumes…' : 'Scanning albums…',
+  remaining: isSpanish ? 'restante' : 'remaining',
+  elapsed: isSpanish ? 'Transcurrido:' : 'Elapsed:',
+  scanningEllipsis: isSpanish ? 'Escaneando…' : 'Scanning…',
+  waiting: isSpanish ? 'Esperando…' : 'Waiting…',
+  stopImport: isSpanish ? 'Detener importación' : 'Stop import',
+  importComplete: isSpanish ? 'Importación completa' : 'Import complete',
+  importedPhotos: (p, t) => isSpanish
+    ? `${p} foto${p !== 1 ? 's' : ''} importada${p !== 1 ? 's' : ''} en ${t} viaje${t !== 1 ? 's' : ''}.`
+    : `${p} photos imported into ${t} trip${t !== 1 ? 's' : ''}.`,
+  // Share trip modal
+  shareTripTitle: isSpanish ? 'Compartir viaje' : 'Share Trip',
+  shareLinkNote: isSpanish
+    ? 'Cualquiera con este enlace puede ver las fotos — sin necesidad de iniciar sesión.'
+    : 'Anyone with this link can view the photos — no login required.',
+  copy: isSpanish ? 'Copiar' : 'Copy',
+  revokeLink: isSpanish ? 'Revocar enlace' : 'Revoke link',
+  // Share albums modal
+  shareAlbumsTitle: isSpanish ? 'Compartir álbumes' : 'Share Albums',
+  albumSelected: (n) => isSpanish
+    ? `${n} álbum${n !== 1 ? 'es' : ''} seleccionado${n !== 1 ? 's' : ''}:`
+    : `${n} album${n !== 1 ? 's' : ''} selected:`,
+  emailAddressesLabel: isSpanish ? 'Direcciones de email' : 'Email addresses',
+  emailPlaceholder: isSpanish ? 'email1@ejemplo.com, email2@ejemplo.com' : 'email1@example.com, email2@example.com',
+  emailNote: isSpanish
+    ? 'Separa múltiples direcciones con comas. Al confirmar, se abrirá tu cliente de correo con la notificación lista para enviar.'
+    : 'Separate multiple addresses with commas. Confirming will open your mail client with the notification ready to send.',
+  sharing: isSpanish ? 'Compartiendo…' : 'Sharing…',
+  shareAndNotify: isSpanish ? 'Compartir y notificar' : 'Share and notify',
+  // Share success modal
+  albumsSharedTitle: isSpanish ? '¡Álbumes compartidos!' : 'Albums shared!',
+  accessGrantedTo: (emails) => isSpanish
+    ? `Se otorgó acceso a ${emails} para:`
+    : `Access granted to ${emails} for:`,
+  emailClientNote: isSpanish
+    ? 'Se abrió tu cliente de correo para enviar la notificación. Si no se abrió, revisa que tengas un cliente de correo configurado.'
+    : 'Your mail client was opened to send the notification. If it did not open, check that you have a mail client configured.',
+  accept: isSpanish ? 'Aceptar' : 'Accept',
+  // Manage accesses modal
+  manageAccessesTitle: isSpanish ? 'Gestionar accesos' : 'Manage Accesses',
+  noAlbumsSharedYet: isSpanish ? 'Aún no se han compartido álbumes con nadie.' : 'No albums have been shared yet.',
+  revoke: isSpanish ? 'Revocar' : 'Revoke',
+  // Public share view
+  sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
+  sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',
+  // Login
+  signInSub: isSpanish ? 'Inicia sesión para acceder a tu galería privada' : 'Sign in to access your private gallery',
+  continueWithGoogle: isSpanish ? 'Continuar con Google' : 'Continue with Google',
+  signingIn: isSpanish ? 'Iniciando sesión…' : 'Signing in…',
+  signInFailed: isSpanish ? 'Error al iniciar sesión — inténtalo de nuevo' : 'Sign-in failed — please try again',
+  // Access denied
+  accessDenied: isSpanish ? 'Acceso denegado' : 'Access denied',
+  appIsPrivate: isSpanish ? 'Esta aplicación es privada y solo accesible por invitación.' : 'This application is private and accessible by invitation only.',
+  contactAdmin: isSpanish ? 'Si crees que deberías tener acceso, contacta al administrador.' : 'If you believe you should have access, contact the administrator.',
+  backToLogin: isSpanish ? '← Volver al login' : '← Back to login',
+};
+
 // ─── Facebook import helpers ───
 const FB_SKIP_EXACT = new Set(['Photos', 'Cover photos', 'TANIA!', 'Timeline Photos']);
 const FB_SKIP_CONTAINS = [
@@ -344,6 +538,9 @@ export default function App() {
   const [lbDesc, setLbDesc] = useState('');
   const [lbCoverSet, setLbCoverSet] = useState(false);
 
+  // ─── Context menu (right-click on photo) ───
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, photo }
+
   // ─── Migration ───
   const [migration, setMigration] = useState(null); // null | 'needed' | 'running' | 'done' | 'error'
   const [migrationCount, setMigrationCount] = useState(0);
@@ -438,7 +635,7 @@ export default function App() {
   useEffect(() => {
     if (!user || trips.length === 0) return;
     // Run for trips with no cover OR whose current cover returns 404 (we re-run on every load to heal broken covers)
-    const needsFix = trips.filter(t => (t.photoCount || 0) > 0 && t.ownerId);
+    const needsFix = trips.filter(t => (t.photoCount || 0) > 0 && t.ownerId && !t.cover);
     needsFix.forEach(async (trip) => {
       try {
         const folder = ref(storage, `users/${trip.ownerId}/trips/${trip.id}`);
@@ -514,7 +711,7 @@ export default function App() {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (err) {
-      if (err.code !== 'auth/popup-closed-by-user') setLoginError('Sign-in failed — please try again');
+      if (err.code !== 'auth/popup-closed-by-user') setLoginError(T.signInFailed);
     }
     setLoggingIn(false);
   };
@@ -1479,14 +1676,14 @@ export default function App() {
                   if (allSelected || someSelected) setSelectedTrips(new Set());
                   else setSelectedTrips(new Set(trips.map(t => t.id)));
                 }}
-                title="Select all"
+                title={T.selectAll}
               />
-              <span>All Trips</span>
+              <span>{T.allTrips}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {selectedTrips.size > 0 && (
                 <button className="btn btn-accent btn-sm" onClick={() => setShareAlbumsModal(true)}>
-                  Share Albums ({selectedTrips.size})
+                  {T.shareAlbumsBtn(selectedTrips.size)}
                 </button>
               )}
               <button className="stat-panel-close" onClick={() => { setStatPanel(null); setSelectedTrips(new Set()); }}>✕</button>
@@ -1530,7 +1727,7 @@ export default function App() {
     return (
       <div className="stat-panel fade-in">
         <div className="stat-panel-header">
-          <span>{statPanel === 'countries' ? 'Countries Visited' : 'Wishlist'}</span>
+          <span>{statPanel === 'countries' ? T.countriesVisited : T.wishlistLabel}</span>
           <button className="stat-panel-close" onClick={() => setStatPanel(null)}>✕</button>
         </div>
         {CONTINENT_ORDER.filter(c => byContinent[c]).map(continent => {
@@ -1586,7 +1783,7 @@ export default function App() {
     if (publicShareData.error) return (
       <div className="login-page"><div className="login-card">
         <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
-        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>This shared link is no longer valid.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{T.sharedLinkInvalid}</p>
       </div></div>
     );
     const pubPhotos = publicShareData.photos || [];
@@ -1597,7 +1794,7 @@ export default function App() {
             <img src="/logo.png" alt="Pepini per il mondo" className="header-logo-img" />
             <span className="header-logo heading">Pepini per il mondo</span>
           </div>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Shared gallery</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{T.sharedGallery}</span>
         </header>
         <div className="content fade-in">
           <div className="gallery-header">
@@ -1605,7 +1802,7 @@ export default function App() {
               <span className="gallery-title heading">{publicShareData.tripName}</span>
               {publicShareData.tripDate && <span className="gallery-date">{publicShareData.tripDate}</span>}
             </div>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{pubPhotos.length} photos</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{T.photoCount(pubPhotos.length)}</span>
           </div>
           <div className="photo-grid">
             {pubPhotos.map((p, i) => (
@@ -1639,10 +1836,10 @@ export default function App() {
       <div className="login-page">
         <div className="login-card fade-scale">
           <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
-          <p className="login-sub" style={{ fontSize: 18, fontWeight: 600, color: 'var(--danger)', marginBottom: 8 }}>Acceso denegado</p>
-          <p className="login-sub">Esta aplicación es privada y solo accesible por invitación.</p>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>Si crees que deberías tener acceso, contacta al administrador.</p>
-          <button className="btn btn-sm" onClick={() => setAccessDenied(false)} style={{ marginTop: 20 }}>← Volver al login</button>
+          <p className="login-sub" style={{ fontSize: 18, fontWeight: 600, color: 'var(--danger)', marginBottom: 8 }}>{T.accessDenied}</p>
+          <p className="login-sub">{T.appIsPrivate}</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{T.contactAdmin}</p>
+          <button className="btn btn-sm" onClick={() => setAccessDenied(false)} style={{ marginTop: 20 }}>{T.backToLogin}</button>
         </div>
       </div>
     );
@@ -1656,11 +1853,11 @@ export default function App() {
       <div className="login-page">
         <div className="login-card fade-scale">
           <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
-          <p className="login-sub">Sign in to access your private gallery</p>
+          <p className="login-sub">{T.signInSub}</p>
           <button onClick={handleGoogleLogin} className="btn-google" disabled={loggingIn}>
             {loggingIn
-              ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Signing in…</>
-              : <><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Continue with Google</>
+              ? <><span className="spinner" style={{ width: 16, height: 16 }} /> {T.signingIn}</>
+              : <><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>{T.continueWithGoogle}</>
             }
           </button>
           {loginError && <p className="login-error">{loginError}</p>}
@@ -1689,35 +1886,35 @@ export default function App() {
         <div className="header-actions">
           {!activeTrip && (
             <div style={{ position: 'relative' }}>
-              <button className="btn btn-secondary" onClick={() => setAdminDropdown(d => !d)}>⚙ Admin Tools</button>
+              <button className="btn btn-secondary" onClick={() => setAdminDropdown(d => !d)}>{T.adminTools}</button>
               {adminDropdown && (
                 <>
                   <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setAdminDropdown(false)} />
                   <div className="admin-dropdown">
                     <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); setFbStep('folder'); setFbError(''); setFbModal(true); }}>
-                      ↓ Import from Facebook
+                      {T.importFbMenu}
                     </button>
                     <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); loadAlbumShares(); setManageAccessesModal(true); }}>
-                      👥 Manage Accesses
+                      {T.manageAccessesMenu}
                     </button>
                   </div>
                 </>
               )}
             </div>
           )}
-          {!activeTrip && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>+ New Trip</button>}
+          {!activeTrip && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>}
           {activeTrip && (
             <button className="btn btn-accent" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? `Uploading ${uploadCount.done}/${uploadCount.total}…` : '+ Add Photos'}
+              {uploading ? T.uploading(uploadCount.done, uploadCount.total) : T.addPhotos}
             </button>
           )}
-          <button className="btn-icon" onClick={() => setDarkMode(d => !d)} title={darkMode ? 'Light mode' : 'Dark mode'}>
+          <button className="btn-icon" onClick={() => setDarkMode(d => !d)} title={darkMode ? T.lightMode : T.darkMode}>
             {darkMode
               ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
               : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             }
           </button>
-          <button className="btn-icon" onClick={() => signOut(auth)} title="Sign out">
+          <button className="btn-icon" onClick={() => signOut(auth)} title={T.signOut}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
@@ -1737,19 +1934,19 @@ export default function App() {
             {migration === 'needed' && (
               <>
                 <span>
-                  <strong>{migrationCount} album{migrationCount !== 1 ? 's' : ''}</strong> found in your old private library. Migrate them to the shared gallery so everyone can see them.
+                  <strong>{migrationCount} {isSpanish ? (migrationCount !== 1 ? 'álbumes' : 'álbum') : (migrationCount !== 1 ? 'albums' : 'album')}</strong> {isSpanish ? `encontrado${migrationCount !== 1 ? 's' : ''} en tu biblioteca privada antigua. Mígralos a la galería compartida para que todos puedan verlos.` : 'found in your old private library. Migrate them to the shared gallery so everyone can see them.'}
                 </span>
-                <button className="btn btn-accent btn-sm" onClick={runMigration}>Migrate now</button>
+                <button className="btn btn-accent btn-sm" onClick={runMigration}>{T.migrateNow}</button>
               </>
             )}
             {migration === 'running' && (
-              <><span className="spinner" style={{ width: 16, height: 16 }} /><span>Migrating albums… do not close this tab.</span></>
+              <><span className="spinner" style={{ width: 16, height: 16 }} /><span>{T.migratingAlbums}</span></>
             )}
             {migration === 'done' && (
-              <><span>✓ Migration complete — all albums are now in the shared gallery.</span><button className="migration-dismiss" onClick={() => setMigration(null)}>✕</button></>
+              <><span>{T.migrationComplete}</span><button className="migration-dismiss" onClick={() => setMigration(null)}>✕</button></>
             )}
             {migration === 'error' && (
-              <><span>Migration failed: {migrationError || 'unknown error'}</span><button className="btn btn-sm" onClick={runMigration}>Retry</button><button className="migration-dismiss" onClick={() => setMigration(null)}>✕</button></>
+              <><span>{T.migrationFailed} {migrationError || (isSpanish ? 'error desconocido' : 'unknown error')}</span><button className="btn btn-sm" onClick={runMigration}>{T.retry}</button><button className="migration-dismiss" onClick={() => setMigration(null)}>✕</button></>
             )}
           </div>
         )}
@@ -1762,33 +1959,33 @@ export default function App() {
             {showNewTrip && (
               <div className="new-trip-form fade-scale">
                 <div className="form-group">
-                  <label>Trip Name</label>
+                  <label>{T.tripNameLabel}</label>
                   <input value={newTripName} onChange={e => setNewTripName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addTrip()}
-                    placeholder="e.g. Patagonia 2024" className="input" autoFocus />
+                    placeholder={T.tripNamePlaceholder} className="input" autoFocus />
                 </div>
                 <div className="form-group" style={{ flex: '0 0 160px' }}>
-                  <label>Date (optional)</label>
+                  <label>{T.dateOptional}</label>
                   <input type="date" value={newTripDate} onChange={e => setNewTripDate(e.target.value)} className="input" />
                 </div>
                 <div className="form-group" style={{ flex: '0 0 180px' }}>
-                  <label>Country (optional)</label>
-                  <input list="countries-list" value={newTripCountry} onChange={e => setNewTripCountry(e.target.value)} placeholder="e.g. Italy" className="input" />
+                  <label>{T.countryOptional}</label>
+                  <input list="countries-list" value={newTripCountry} onChange={e => setNewTripCountry(e.target.value)} placeholder={T.countryPlaceholder} className="input" />
                   <datalist id="countries-list">{WORLD_COUNTRIES.map(c => <option key={c} value={c} />)}</datalist>
                 </div>
                 <div className="form-group" style={{ flex: '0 0 440px' }}>
-                  <label>Miro link (optional)</label>
+                  <label>{T.miroLinkOptional}</label>
                   <input value={newTripMiro} onChange={e => setNewTripMiro(e.target.value)} placeholder="https://miro.com/…" className="input" />
                 </div>
                 <div className="form-group" style={{ flex: '0 0 auto' }}>
-                  <label>Visibility</label>
+                  <label>{T.visibilityLabel}</label>
                   <div className="vis-toggle">
-                    <button className={`vis-btn${newTripVisibility === 'shared' ? ' active' : ''}`} onClick={() => setNewTripVisibility('shared')}>🌍 Shared</button>
-                    <button className={`vis-btn${newTripVisibility === 'private' ? ' active' : ''}`} onClick={() => setNewTripVisibility('private')}>🔒 Private</button>
+                    <button className={`vis-btn${newTripVisibility === 'shared' ? ' active' : ''}`} onClick={() => setNewTripVisibility('shared')}>{T.visShared}</button>
+                    <button className={`vis-btn${newTripVisibility === 'private' ? ' active' : ''}`} onClick={() => setNewTripVisibility('private')}>{T.visPrivate}</button>
                   </div>
                 </div>
-                <button onClick={addTrip} className="btn btn-accent">Create</button>
-                <button onClick={() => { setShowNewTrip(false); setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); setNewTripMiro(''); setNewTripVisibility('shared'); }} className="btn btn-sm">Cancel</button>
+                <button onClick={addTrip} className="btn btn-accent">{T.create}</button>
+                <button onClick={() => { setShowNewTrip(false); setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); setNewTripMiro(''); setNewTripVisibility('shared'); }} className="btn btn-sm">{T.cancel}</button>
               </div>
             )}
 
@@ -1797,19 +1994,19 @@ export default function App() {
               <>
                 <div className="stats-bar fade-in">
                   <div className={`stat-card stat-card-btn${statPanel === 'trips' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'trips' ? null : 'trips')}>
-                    <div className="stat-value">{trips.length}</div><div className="stat-label">Trips</div>
+                    <div className="stat-value">{trips.length}</div><div className="stat-label">{T.tripsLabel}</div>
                   </div>
                   <div className="stat-card">
-                    <div className="stat-value">{totalPhotos}</div><div className="stat-label">Photos</div>
+                    <div className="stat-value">{totalPhotos}</div><div className="stat-label">{T.photosLabel}</div>
                   </div>
                   {countriesVisited > 0 && (
                     <div className={`stat-card stat-card-btn${statPanel === 'countries' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'countries' ? null : 'countries')}>
-                      <div className="stat-value">{countriesVisited}</div><div className="stat-label">Countries</div>
+                      <div className="stat-value">{countriesVisited}</div><div className="stat-label">{T.countriesLabel}</div>
                     </div>
                   )}
                   {wishlist.size > 0 && (
                     <div className={`stat-card stat-card-btn${statPanel === 'wishlist' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'wishlist' ? null : 'wishlist')}>
-                      <div className="stat-value">{wishlist.size}</div><div className="stat-label">Wishlist</div>
+                      <div className="stat-value">{wishlist.size}</div><div className="stat-label">{T.wishlistLabel}</div>
                     </div>
                   )}
                   {topTrip && topTrip.photoCount > 0 && (
@@ -1817,7 +2014,7 @@ export default function App() {
                       className="stat-card stat-card-wide stat-card-btn"
                       style={{ position: 'relative' }}
                       onClick={() => !editingPanel && setEditingPanel(true)}
-                      title="Clic para editar el nombre"
+                      title={T.clickToEditName}
                     >
                       {editingPanel ? (
                         <div className="panel-edit-wrap" style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }} onClick={e => e.stopPropagation()}>
@@ -1843,7 +2040,7 @@ export default function App() {
                             />
                             <button
                               className="emoji-trigger-btn"
-                              title="Insertar emoji"
+                              title={T.insertEmoji}
                               onMouseDown={e => { e.preventDefault(); setShowEmojiPicker(v => !v); }}
                             >😊</button>
                             {showEmojiPicker && (
@@ -1876,7 +2073,7 @@ export default function App() {
                             className="input"
                             style={{ fontSize: 12, padding: '4px 8px', height: 'auto' }}
                             value={customPanelMiro}
-                            placeholder="Miro link (optional)"
+                            placeholder={T.miroLinkOptionalPh}
                             onChange={e => {
                               setCustomPanelMiro(e.target.value);
                               savePanelLabel(customPanelLabel, e.target.value);
@@ -1898,7 +2095,7 @@ export default function App() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={e => e.stopPropagation()}
-                              title="Open in Miro"
+                              title={T.openInMiro}
                               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 5, background: '#FFD02F', color: '#1a1a1a', textDecoration: 'none', flexShrink: 0, fontWeight: 800, fontSize: 14, lineHeight: 1, fontFamily: 'system-ui, sans-serif' }}
                             >M</a>
                           )}
@@ -1918,10 +2115,10 @@ export default function App() {
             {trips.length > 0 && (
               <div className="trips-view-header">
                 <div className="view-toggle">
-                  <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')} title="Grid view">
+                  <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')} title={T.gridView}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="0" width="6" height="6" rx="1"/><rect x="8" y="0" width="6" height="6" rx="1"/><rect x="0" y="8" width="6" height="6" rx="1"/><rect x="8" y="8" width="6" height="6" rx="1"/></svg>
                   </button>
-                  {hasMapData && <button className={`view-btn ${tripsView === 'map' ? 'active' : ''}`} onClick={() => setTripsView('map')} title="Map view">
+                  {hasMapData && <button className={`view-btn ${tripsView === 'map' ? 'active' : ''}`} onClick={() => setTripsView('map')} title={isSpanish ? 'Vista de mapa' : 'Map view'}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"><path d="M1 2.5l4-1.5 4 1.5 4-1.5v10l-4 1.5-4-1.5-4 1.5V2.5z"/><line x1="5" y1="1" x2="5" y2="11.5"/><line x1="9" y1="2.5" x2="9" y2="13"/></svg>
                   </button>}
                 </div>
@@ -1933,9 +2130,9 @@ export default function App() {
             {!loadingTrips && trips.length === 0 && !showNewTrip && (
               <div className="empty">
                 <div className="empty-icon">✈</div>
-                <p className="empty-title heading">No trips yet</p>
-                <p className="empty-sub">Create your first trip to start uploading photos.</p>
-                <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>+ New Trip</button>
+                <p className="empty-title heading">{T.noTripsYet}</p>
+                <p className="empty-sub">{T.noTripsYetSub}</p>
+                <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>
               </div>
             )}
 
@@ -1966,7 +2163,7 @@ export default function App() {
                             geography={geo}
                             onMouseEnter={() => setMapTooltip(
                               isVisited ? `${geo.properties.name} — ${trip.name}` :
-                              isWished  ? `${geo.properties.name} — ★ Wishlist` :
+                              isWished  ? `${geo.properties.name} — ${T.wishlistTooltip}` :
                               geo.properties.name
                             )}
                             onMouseLeave={() => setMapTooltip('')}
@@ -2006,7 +2203,7 @@ export default function App() {
                       {isOwner && <button className="trip-delete" onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>}
                       {isOwner && (
                         <button className={`trip-share ${trip.shareToken ? 'trip-share-active' : ''}`}
-                          title={trip.shareToken ? 'Shared — click to see link' : 'Share this trip'}
+                          title={trip.shareToken ? T.sharedSeeLink : T.shareThisTrip}
                           disabled={shareGenerating === trip.id}
                           onClick={e => { e.stopPropagation(); generateShareLink(trip); }}>
                           {shareGenerating === trip.id ? '…' : '↗'}
@@ -2017,32 +2214,32 @@ export default function App() {
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                         <div className="trip-name">{trip.name}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                          <span className="trip-vis-icon" title={trip.visibility === 'private' ? 'Private' : 'Shared'}>
+                          <span className="trip-vis-icon" title={trip.visibility === 'private' ? T.privateTitle : T.sharedTitle}>
                             {trip.visibility === 'private' ? '🔒' : '🌍'}
                           </span>
-                          {isOwner && <button className="trip-edit-btn" title="Edit trip" onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>}
+                          {isOwner && <button className="trip-edit-btn" title={T.editTripBtn} onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>}
                         </div>
                       </div>
                       <div className="trip-meta">
                         {trip.country ? `${trip.country}${trip.date || trip.photoCount ? ' · ' : ''}` : ''}
                         {trip.date ? `${trip.date} · ` : ''}
-                        {trip.photoCount || 0} photo{(trip.photoCount || 0) !== 1 ? 's' : ''}
+                        {T.photoCount(trip.photoCount || 0)}
                       </div>
                       {creatorUsername
-                        ? <div className="trip-creator">Created by {creatorUsername}</div>
+                        ? <div className="trip-creator">{T.createdBy(creatorUsername)}</div>
                         : !isOwner && (
                           <div className="trip-creator trip-creator-unknown"
                             onClick={async e => {
                               e.stopPropagation();
-                              const name = window.prompt('Who created this album? (enter their Gmail username or email)');
+                              const name = window.prompt(T.whoCreated);
                               if (!name?.trim()) return;
                               const email = name.includes('@') ? name.trim() : `${name.trim()}@gmail.com`;
                               try {
                                 await updateDoc(doc(db, 'trips', trip.id), { ownerEmail: email });
                                 setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, ownerEmail: email } : t));
-                              } catch (err) { alert('Could not save: ' + err.message); }
+                              } catch (err) { alert(T.couldNotSave + err.message); }
                             }}>
-                            + Set creator
+                            {T.setCreator}
                           </div>
                         )
                       }
@@ -2063,7 +2260,7 @@ export default function App() {
                 <span className="gallery-title heading">{activeTripData.name}</span>
                 {activeCity && (
                   <span className="gallery-city-sub">
-                    {' / '}{activeCity === '__uncategorized__' ? 'No city assigned' : activeCity}
+                    {' / '}{activeCity === '__uncategorized__' ? T.noCityAssigned : activeCity}
                   </span>
                 )}
                 {activeTripData.date && <span className="gallery-date">{activeTripData.date}</span>}
@@ -2071,7 +2268,7 @@ export default function App() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 {activeCity !== null
                   ? <button className="btn btn-sm" onClick={() => { setActiveCity(null); setSelectedPhotos(new Set()); }}>← {activeTripData.name}</button>
-                  : <button className="btn btn-sm" onClick={() => setActiveTrip(null)}>← Trips</button>
+                  : <button className="btn btn-sm" onClick={() => setActiveTrip(null)}>{T.backToTrips}</button>
                 }
                 {activeTripData.miroUrl && (
                   <a href={activeTripData.miroUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm miro-link">
@@ -2081,18 +2278,18 @@ export default function App() {
                 )}
                 <button className={`btn btn-sm ${activeTripData.shareToken ? 'btn-accent' : ''}`}
                   onClick={() => generateShareLink(activeTripData)} disabled={shareGenerating === activeTrip}>
-                  {shareGenerating === activeTrip ? 'Generating…' : activeTripData.shareToken ? '↗ Shared' : '↗ Share'}
+                  {shareGenerating === activeTrip ? T.generating : activeTripData.shareToken ? T.sharedBtn : T.shareBtn}
                 </button>
                 {!showCityCards && (
                   <>
                     {selectedPhotos.size > 0 && (
                       <button className="btn btn-accent btn-sm" onClick={() => { setCityInput(''); setCityModal(true); }}>
-                        Save Changes ({selectedPhotos.size})
+                        {T.saveChanges(selectedPhotos.size)}
                       </button>
                     )}
                     <div className="view-toggle">
-                      <button className={`view-btn ${view === 'grid' ? 'active' : ''}`} onClick={() => { setView('grid'); setSelectedPhotos(new Set()); }}>Grid</button>
-                      <button className={`view-btn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>List</button>
+                      <button className={`view-btn ${view === 'grid' ? 'active' : ''}`} onClick={() => { setView('grid'); setSelectedPhotos(new Set()); }}>{T.grid}</button>
+                      <button className={`view-btn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>{T.list}</button>
                     </div>
                   </>
                 )}
@@ -2117,16 +2314,16 @@ export default function App() {
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                           <div className="trip-name">{city}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                            <span className="trip-vis-icon" title={cityVis === 'private' ? 'Private' : 'Shared'}>
+                            <span className="trip-vis-icon" title={cityVis === 'private' ? T.privateTitle : T.sharedTitle}>
                               {cityVis === 'private' ? '🔒' : '🌍'}
                             </span>
                             {isOwner && (
-                              <button className="trip-edit-btn" title="Edit sub-album"
+                              <button className="trip-edit-btn" title={T.editSubAlbumBtn}
                                 onClick={e => { e.stopPropagation(); openEditCity(city); }}>✎</button>
                             )}
                           </div>
                         </div>
-                        <div className="trip-meta">{cityGroups[city].length} photo{cityGroups[city].length !== 1 ? 's' : ''}</div>
+                        <div className="trip-meta">{T.photoCount(cityGroups[city].length)}</div>
                       </div>
                     </div>
                   );
@@ -2141,8 +2338,8 @@ export default function App() {
                         {!coverUrl && <span>🏙</span>}
                       </div>
                       <div className="trip-info">
-                        <div className="trip-name" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>No city assigned</div>
-                        <div className="trip-meta">{cityUncategorized.length} photo{cityUncategorized.length !== 1 ? 's' : ''}</div>
+                        <div className="trip-name" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{T.noCityAssigned}</div>
+                        <div className="trip-meta">{T.photoCount(cityUncategorized.length)}</div>
                       </div>
                     </div>
                   );
@@ -2153,14 +2350,14 @@ export default function App() {
             {/* ─ Photo views (flat, inside a city or when no cities set) ─ */}
             {!showCityCards && (
               <>
-                {uploading && <div className="upload-progress"><span className="spinner" />Uploading {uploadCount.done} of {uploadCount.total} photos…</div>}
+                {uploading && <div className="upload-progress"><span className="spinner" />{T.uploadingPhotos(uploadCount.done, uploadCount.total)}</div>}
                 {loadingPhotos && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
                 {!loadingPhotos && displayPhotos.length === 0 && !uploading && (
                   <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()}
                     onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
                     <div className="drop-zone-icon">📷</div>
-                    <p style={{ fontSize: 15, marginBottom: 4 }}>Drag & drop photos here</p>
-                    <p style={{ fontSize: 12 }}>or click to browse</p>
+                    <p style={{ fontSize: 15, marginBottom: 4 }}>{T.dragDropPhotos}</p>
+                    <p style={{ fontSize: 12 }}>{T.orClickToBrowse}</p>
                   </div>
                 )}
 
@@ -2180,7 +2377,8 @@ export default function App() {
                             onDragOver={canDrag ? e => { e.preventDefault(); e.stopPropagation(); setDragOverIdx(flatIdx); } : undefined}
                             onDragLeave={canDrag ? () => setDragOverIdx(null) : undefined}
                             onDrop={canDrag ? e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(flatIdx); setDragOverIdx(null); } : undefined}
-                            onClick={() => setLightbox(p)}>
+                            onClick={() => setLightbox(p)}
+                            onContextMenu={activeCity && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid) ? e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, photo: p }); } : undefined}>
                             <img src={p.url} alt={p.name} loading="lazy" />
                             {canDrag && <div className="photo-drag-handle">⠿</div>}
                             {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
@@ -2229,7 +2427,7 @@ export default function App() {
           <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
             <textarea
               className="lb-desc"
-              placeholder="Add a description…"
+              placeholder={T.addDescriptionPh}
               value={lbDesc}
               onChange={e => setLbDesc(e.target.value)}
               onBlur={() => savePhotoDesc(lightbox.id, lbDesc)}
@@ -2238,7 +2436,7 @@ export default function App() {
           {activeCity && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid) && (
             <button
               className="lb-cover-btn"
-              title="Set as album cover"
+              title={T.setAsAlbumCoverTitle}
               onClick={async e => {
                 e.stopPropagation();
                 await setPhotoAsAlbumCover(lightbox.url);
@@ -2252,7 +2450,7 @@ export default function App() {
               }
             </button>
           )}
-          <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title="Delete photo">
+          <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title={T.deletePhotoTitle}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
@@ -2260,15 +2458,32 @@ export default function App() {
         </div>
       )}
 
+      {/* ═══ CONTEXT MENU ═══ */}
+      {contextMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1099 }} onClick={() => setContextMenu(null)} onContextMenu={e => { e.preventDefault(); setContextMenu(null); }} />
+          <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={e => e.stopPropagation()}>
+            <button onClick={async () => { await setPhotoAsAlbumCover(contextMenu.photo.url); setContextMenu(null); }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              {T.useAsAlbumCover}
+            </button>
+            <button className="context-menu-danger" onClick={async () => { await deletePhoto(contextMenu.photo); setContextMenu(null); }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              {T.deletePhotoMenu}
+            </button>
+          </div>
+        </>
+      )}
+
       {/* ═══ DELETE TRIP ═══ */}
       {confirmDelete && (
         <div className="modal-overlay fade-scale" onClick={() => setConfirmDelete(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <p className="modal-title">Delete this trip?</p>
-            <p className="modal-sub">All photos will be permanently deleted from storage.</p>
+            <p className="modal-title">{T.deleteTripQuestion}</p>
+            <p className="modal-sub">{T.deleteTripWarn}</p>
             <div className="modal-actions">
-              <button className="btn btn-sm" onClick={() => setConfirmDelete(null)}>Cancel</button>
-              <button className="btn btn-danger" onClick={() => deleteTrip(confirmDelete)}>Delete</button>
+              <button className="btn btn-sm" onClick={() => setConfirmDelete(null)}>{T.cancel}</button>
+              <button className="btn btn-danger" onClick={() => deleteTrip(confirmDelete)}>{T.deleteBtn}</button>
             </div>
           </div>
         </div>
@@ -2278,36 +2493,36 @@ export default function App() {
       {editTrip && (
         <div className="modal-overlay fade-scale" onClick={() => setEditTrip(null)}>
           <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
-            <p className="modal-title" style={{ marginBottom: 16 }}>Edit Trip</p>
+            <p className="modal-title" style={{ marginBottom: 16 }}>{T.editTripHeading}</p>
             <div className="edit-modal-fields">
               <div className="form-group">
-                <label>Name</label>
+                <label>{T.nameLabel}</label>
                 <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveEditTrip()} className="input" autoFocus />
               </div>
               <div className="form-group" style={{ flex: '0 0 150px' }}>
-                <label>Date</label>
+                <label>{T.dateLabel}</label>
                 <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="input" />
               </div>
               <div className="form-group" style={{ flex: '0 0 160px' }}>
-                <label>Country</label>
-                <input list="countries-list-edit" value={editCountry} onChange={e => setEditCountry(e.target.value)} placeholder="e.g. Italy" className="input" />
+                <label>{T.countryLabel}</label>
+                <input list="countries-list-edit" value={editCountry} onChange={e => setEditCountry(e.target.value)} placeholder={T.countryPlaceholder} className="input" />
                 <datalist id="countries-list-edit">{WORLD_COUNTRIES.map(c => <option key={c} value={c} />)}</datalist>
               </div>
               <div className="form-group" style={{ flex: '0 0 400px' }}>
-                <label>Miro link</label>
+                <label>{T.miroLink}</label>
                 <input value={editMiro} onChange={e => setEditMiro(e.target.value)} placeholder="https://miro.com/…" className="input" />
               </div>
               <div className="form-group" style={{ flex: '0 0 auto' }}>
-                <label>Visibility</label>
+                <label>{T.visibilityLabel}</label>
                 <div className="vis-toggle">
-                  <button className={`vis-btn${editVisibility === 'shared' ? ' active' : ''}`} onClick={() => setEditVisibility('shared')}>🌍 Shared</button>
-                  <button className={`vis-btn${editVisibility === 'private' ? ' active' : ''}`} onClick={() => setEditVisibility('private')}>🔒 Private</button>
+                  <button className={`vis-btn${editVisibility === 'shared' ? ' active' : ''}`} onClick={() => setEditVisibility('shared')}>{T.visShared}</button>
+                  <button className={`vis-btn${editVisibility === 'private' ? ' active' : ''}`} onClick={() => setEditVisibility('private')}>{T.visPrivate}</button>
                 </div>
               </div>
             </div>
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => setEditTrip(null)}>Cancel</button>
-              <button className="btn btn-accent" onClick={saveEditTrip} disabled={editSaving || !editName.trim()}>{editSaving ? 'Saving…' : 'Save'}</button>
+              <button className="btn btn-sm" onClick={() => setEditTrip(null)}>{T.cancel}</button>
+              <button className="btn btn-accent" onClick={saveEditTrip} disabled={editSaving || !editName.trim()}>{editSaving ? T.saving : T.save}</button>
             </div>
           </div>
         </div>
@@ -2317,28 +2532,28 @@ export default function App() {
       {editCity && (
         <div className="modal-overlay fade-scale" onClick={() => setEditCity(null)}>
           <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
-            <p className="modal-title" style={{ marginBottom: 16 }}>Edit Sub-Album</p>
+            <p className="modal-title" style={{ marginBottom: 16 }}>{T.editSubAlbumHeading}</p>
             <div className="edit-modal-fields">
               <div className="form-group">
-                <label>Name</label>
+                <label>{T.nameLabel}</label>
                 <input value={editCityName} onChange={e => setEditCityName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && saveEditCity()} className="input" autoFocus />
               </div>
               <div className="form-group" style={{ flex: '0 0 auto' }}>
-                <label>Visibility</label>
+                <label>{T.visibilityLabel}</label>
                 <div className="vis-toggle">
                   <button className={`vis-btn${editCityVisibility === 'shared' ? ' active' : ''}`}
-                    onClick={() => setEditCityVisibility('shared')}>🌍 Shared</button>
+                    onClick={() => setEditCityVisibility('shared')}>{T.visShared}</button>
                   <button className={`vis-btn${editCityVisibility === 'private' ? ' active' : ''}`}
-                    onClick={() => setEditCityVisibility('private')}>🔒 Private</button>
+                    onClick={() => setEditCityVisibility('private')}>{T.visPrivate}</button>
                 </div>
               </div>
             </div>
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => setEditCity(null)}>Cancel</button>
+              <button className="btn btn-sm" onClick={() => setEditCity(null)}>{T.cancel}</button>
               <button className="btn btn-accent" onClick={saveEditCity}
                 disabled={editCitySaving || !editCityName.trim()}>
-                {editCitySaving ? 'Saving…' : 'Save'}
+                {editCitySaving ? T.saving : T.save}
               </button>
             </div>
           </div>
@@ -2349,19 +2564,19 @@ export default function App() {
       {cityModal && (
         <div className="modal-overlay fade-scale" onClick={() => setCityModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <p className="modal-title">Assign city</p>
-            <p className="modal-sub">{selectedPhotos.size} photo{selectedPhotos.size !== 1 ? 's' : ''} selected</p>
+            <p className="modal-title">{T.assignCityHeading}</p>
+            <p className="modal-sub">{T.photosSelected(selectedPhotos.size)}</p>
             <input
               className="input"
               value={cityInput}
               onChange={e => setCityInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && saveCityToPhotos()}
-              placeholder="e.g. Beijing"
+              placeholder={T.cityPlaceholder}
               autoFocus
             />
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => setCityModal(false)}>Cancel</button>
-              <button className="btn btn-accent" onClick={saveCityToPhotos}>Save</button>
+              <button className="btn btn-sm" onClick={() => setCityModal(false)}>{T.cancel}</button>
+              <button className="btn btn-accent" onClick={saveCityToPhotos}>{T.save}</button>
             </div>
           </div>
         </div>
@@ -2373,23 +2588,23 @@ export default function App() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             {autoDateModal === 'running' && (
               <>
-                <p className="modal-title">Setting travel dates…</p>
+                <p className="modal-title">{T.settingDates}</p>
                 <div style={{ textAlign: 'center', padding: '20px 0' }}><span className="spinner" /></div>
-                <p className="modal-sub">Scanning Facebook albums for photo dates.</p>
+                <p className="modal-sub">{T.scanningFbAlbums}</p>
               </>
             )}
             {autoDateModal === 'done' && (
               <>
-                <p className="modal-title">Done</p>
+                <p className="modal-title">{T.doneBtn}</p>
                 <p className="modal-sub">
                   {autoDateUpdated > 0
-                    ? `Updated ${autoDateUpdated} trip${autoDateUpdated !== 1 ? 's' : ''} from ${autoDateScanned} album${autoDateScanned !== 1 ? 's' : ''} scanned.`
+                    ? T.autoDateUpdated(autoDateUpdated, autoDateScanned)
                     : autoDateScanned === 0
-                      ? 'No Facebook albums could be read. Check that you selected the correct folder.'
-                      : `Scanned ${autoDateScanned} album${autoDateScanned !== 1 ? 's' : ''} but no dates were found in the photos. The export format may not include "taken" dates.`}
+                      ? T.autoDateNoAlbums
+                      : T.autoDateNoDates(autoDateScanned)}
                 </p>
                 <div className="modal-actions" style={{ marginTop: 16 }}>
-                  <button className="btn btn-accent" onClick={() => setAutoDateModal(false)}>Close</button>
+                  <button className="btn btn-accent" onClick={() => setAutoDateModal(false)}>{T.close}</button>
                 </div>
               </>
             )}
@@ -2404,12 +2619,12 @@ export default function App() {
 
             {fbStep === 'folder' && (
               <>
-                <p className="modal-title">Import from Facebook</p>
-                <p className="modal-sub">Select your <code>your_facebook_activity</code> folder (or its parent) from your Facebook data export. Chrome/Edge only.</p>
+                <p className="modal-title">{T.importFbTitle}</p>
+                <p className="modal-sub">{T.fbFolderNote}</p>
                 {fbError && <p className="fb-error">{fbError}</p>}
                 <div className="modal-actions" style={{ marginTop: 20 }}>
-                  <button className="btn btn-sm" onClick={() => setFbModal(false)}>Cancel</button>
-                  <button className="btn btn-accent" onClick={scanFbFolder}>Scan folder…</button>
+                  <button className="btn btn-sm" onClick={() => setFbModal(false)}>{T.cancel}</button>
+                  <button className="btn btn-accent" onClick={scanFbFolder}>{T.scanFolder}</button>
                 </div>
               </>
             )}
@@ -2430,21 +2645,21 @@ export default function App() {
               const uniqueAlbums = new Set(availableRows.filter(r => fbSelected.has(r.id)).map(r => (fbAlbumNames[r.id] || r.rawTitle).trim())).size;
               return (
                 <>
-                  <p className="modal-title">Select cities to import</p>
+                  <p className="modal-title">{T.selectCitiesToImport}</p>
                   <p className="modal-sub">
-                    {availableRows.length} cities available · {selectedCount} selected · {uniqueAlbums} album{uniqueAlbums !== 1 ? 's' : ''}
-                    {hiddenCount > 0 && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>· {hiddenCount} already imported</span>}
+                    {availableRows.length} {T.citiesAvail} · {selectedCount} {T.selectedLabel} · {T.albumsLabel(uniqueAlbums)}
+                    {hiddenCount > 0 && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>· {hiddenCount} {T.alreadyImported}</span>}
                   </p>
                   <div className="fb-filter-bar">
-                    <input className="input" value={fbFilter} onChange={e => setFbFilter(e.target.value)} placeholder="Filter by city or album…" />
-                    <button className="btn btn-sm" onClick={() => setFbSelected(new Set(availableRows.map(r => r.id)))}>All</button>
-                    <button className="btn btn-sm" onClick={() => setFbSelected(new Set())}>None</button>
+                    <input className="input" value={fbFilter} onChange={e => setFbFilter(e.target.value)} placeholder={T.filterByCityOrAlbum} />
+                    <button className="btn btn-sm" onClick={() => setFbSelected(new Set(availableRows.map(r => r.id)))}>{T.all}</button>
+                    <button className="btn btn-sm" onClick={() => setFbSelected(new Set())}>{T.none}</button>
                   </div>
                   <div className="fb-list-header">
                     <span className="fb-lh-check" />
-                    <span className="fb-lh-city">City</span>
-                    <span className="fb-lh-album">Album</span>
-                    <span className="fb-lh-photos">Photos</span>
+                    <span className="fb-lh-city">{T.cityCol}</span>
+                    <span className="fb-lh-album">{T.albumCol}</span>
+                    <span className="fb-lh-photos">{T.photosCol}</span>
                   </div>
                   <div className="fb-album-list">
                     {filtered.map(r => (
@@ -2461,16 +2676,16 @@ export default function App() {
                           value={fbAlbumNames[r.id] || ''}
                           onChange={e => setFbAlbumNames(prev => ({ ...prev, [r.id]: e.target.value }))}
                           onClick={e => e.preventDefault()}
-                          placeholder="Album name"
+                          placeholder={T.albumName}
                         />
                         <span className="fb-row-photos">{r.photoCount || '–'}</span>
                       </label>
                     ))}
                   </div>
                   <div className="modal-actions" style={{ marginTop: 12 }}>
-                    <button className="btn btn-sm" onClick={() => setFbModal(false)}>Cancel</button>
+                    <button className="btn btn-sm" onClick={() => setFbModal(false)}>{T.cancel}</button>
                     <button className="btn btn-accent" onClick={handleFbImportClick} disabled={selectedCount === 0}>
-                      Import {selectedCount} cit{selectedCount !== 1 ? 'ies' : 'y'}
+                      {T.importNCities(selectedCount)}
                     </button>
                   </div>
                 </>
@@ -2493,15 +2708,15 @@ export default function App() {
               };
               return (
                 <>
-                  <p className="modal-title">Importing…</p>
+                  <p className="modal-title">{T.importing}</p>
                   <div className="fb-eta-bar">
-                    <span>{fbTotalDone} / {totalPhotos || '?'} photos</span>
-                    {isScanning && <span className="fb-eta-scanning">Scanning albums…</span>}
+                    <span>{fbTotalDone} / {totalPhotos || '?'} {T.photosCol.toLowerCase()}</span>
+                    {isScanning && <span className="fb-eta-scanning">{T.scanningAlbums}</span>}
                     {!isScanning && etaMs > 0 && (
-                      <span className="fb-eta-time">~{formatTime(etaMs)} remaining</span>
+                      <span className="fb-eta-time">~{formatTime(etaMs)} {T.remaining}</span>
                     )}
                     {!isScanning && fbTotalDone > 0 && elapsed > 0 && (
-                      <span className="fb-eta-elapsed">Elapsed: {formatTime(elapsed)}</span>
+                      <span className="fb-eta-elapsed">{T.elapsed} {formatTime(elapsed)}</span>
                     )}
                   </div>
                   <div className="fb-eta-total-bar-wrap">
@@ -2514,19 +2729,19 @@ export default function App() {
                         <div key={name} className="fb-progress-item">
                           <div className="fb-progress-name">{name}</div>
                           {prog.scanning
-                            ? <div className="fb-progress-waiting">Scanning…</div>
+                            ? <div className="fb-progress-waiting">{T.scanningEllipsis}</div>
                             : prog.total > 0 ? (
                               <div className="fb-progress-bar-wrap">
                                 <div className="fb-progress-bar" style={{ width: `${pct}%` }} />
                                 <span className="fb-progress-label">{prog.done} / {prog.total}</span>
                               </div>
-                            ) : <div className="fb-progress-waiting">Waiting…</div>}
+                            ) : <div className="fb-progress-waiting">{T.waiting}</div>}
                         </div>
                       );
                     })}
                   </div>
                   <div className="modal-actions" style={{ marginTop: 12 }}>
-                    <button className="btn btn-sm btn-danger" onClick={() => { fbCancelRef.current = true; }}>Stop import</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => { fbCancelRef.current = true; }}>{T.stopImport}</button>
                   </div>
                 </>
               );
@@ -2534,10 +2749,10 @@ export default function App() {
 
             {fbStep === 'done' && (
               <>
-                <p className="modal-title">Import complete</p>
-                <p className="modal-sub">{fbTotalDone} photos imported into {fbSelected.size} trip{fbSelected.size !== 1 ? 's' : ''}.</p>
+                <p className="modal-title">{T.importComplete}</p>
+                <p className="modal-sub">{T.importedPhotos(fbTotalDone, fbSelected.size)}</p>
                 <div className="modal-actions" style={{ marginTop: 20 }}>
-                  <button className="btn btn-accent" onClick={() => { setFbModal(false); loadTrips(); }}>Done</button>
+                  <button className="btn btn-accent" onClick={() => { setFbModal(false); loadTrips(); }}>{T.doneBtn}</button>
                 </div>
               </>
             )}
@@ -2550,15 +2765,15 @@ export default function App() {
       {shareModal && (
         <div className="modal-overlay fade-scale" onClick={() => setShareModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
-            <p className="modal-title">Share Trip</p>
-            <p className="modal-sub">Anyone with this link can view the photos — no login required.</p>
+            <p className="modal-title">{T.shareTripTitle}</p>
+            <p className="modal-sub">{T.shareLinkNote}</p>
             <div className="share-url-box">
               <span className="share-url-text">{shareModal.url}</span>
-              <button className="btn btn-sm btn-accent" onClick={() => navigator.clipboard.writeText(shareModal.url)}>Copy</button>
+              <button className="btn btn-sm btn-accent" onClick={() => navigator.clipboard.writeText(shareModal.url)}>{T.copy}</button>
             </div>
             <div className="modal-actions" style={{ marginTop: 20 }}>
-              <button className="btn btn-sm btn-danger" onClick={() => { const trip = trips.find(t => t.id === shareModal.tripId); if (trip?.shareToken) revokeShareLink(trip.id, trip.shareToken); }}>Revoke link</button>
-              <button className="btn btn-sm" onClick={() => setShareModal(null)}>Close</button>
+              <button className="btn btn-sm btn-danger" onClick={() => { const trip = trips.find(t => t.id === shareModal.tripId); if (trip?.shareToken) revokeShareLink(trip.id, trip.shareToken); }}>{T.revokeLink}</button>
+              <button className="btn btn-sm" onClick={() => setShareModal(null)}>{T.close}</button>
             </div>
           </div>
         </div>
@@ -2568,10 +2783,8 @@ export default function App() {
       {shareAlbumsModal && (
         <div className="modal-overlay fade-scale" onClick={() => setShareAlbumsModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <p className="modal-title">Compartir álbumes</p>
-            <p className="modal-sub">
-              {selectedTrips.size} álbum{selectedTrips.size !== 1 ? 'es' : ''} seleccionado{selectedTrips.size !== 1 ? 's' : ''}:
-            </p>
+            <p className="modal-title">{T.shareAlbumsTitle}</p>
+            <p className="modal-sub">{T.albumSelected(selectedTrips.size)}</p>
             <ul className="share-albums-list">
               {[...selectedTrips].map(id => {
                 const trip = trips.find(t => t.id === id);
@@ -2581,20 +2794,20 @@ export default function App() {
               })}
             </ul>
             <div className="form-group" style={{ marginTop: 16 }}>
-              <label>Direcciones de email</label>
+              <label>{T.emailAddressesLabel}</label>
               <input
                 className="input"
                 value={shareEmailsInput}
                 onChange={e => setShareEmailsInput(e.target.value)}
-                placeholder="email1@ejemplo.com, email2@ejemplo.com"
+                placeholder={T.emailPlaceholder}
                 autoFocus
               />
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                Separa múltiples direcciones con comas. Al confirmar, se abrirá tu cliente de correo con la notificación lista para enviar.
+                {T.emailNote}
               </p>
             </div>
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => setShareAlbumsModal(false)}>Cancelar</button>
+              <button className="btn btn-sm" onClick={() => setShareAlbumsModal(false)}>{T.cancel}</button>
               <button
                 className="btn btn-accent"
                 onClick={() => {
@@ -2603,7 +2816,7 @@ export default function App() {
                 }}
                 disabled={sharingAlbums || !shareEmailsInput.trim()}
               >
-                {sharingAlbums ? 'Compartiendo…' : 'Compartir y notificar'}
+                {sharingAlbums ? T.sharing : T.shareAndNotify}
               </button>
             </div>
           </div>
@@ -2615,17 +2828,17 @@ export default function App() {
         <div className="modal-overlay fade-scale" onClick={() => setShareSuccess(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, textAlign: 'center' }}>
             <p style={{ fontSize: 32, marginBottom: 8 }}>✓</p>
-            <p className="modal-title">¡Álbumes compartidos!</p>
+            <p className="modal-title">{T.albumsSharedTitle}</p>
             <p className="modal-sub" style={{ marginBottom: 12 }}>
-              Se otorgó acceso a {shareSuccess.emails.join(', ')} para:
+              {T.accessGrantedTo(shareSuccess.emails.join(', '))}
             </p>
             <ul className="share-albums-list" style={{ textAlign: 'left', marginBottom: 16 }}>
               {shareSuccess.tripNames.map(name => <li key={name}>{name}</li>)}
             </ul>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Se abrió tu cliente de correo para enviar la notificación. Si no se abrió, revisa que tengas un cliente de correo configurado.
+              {T.emailClientNote}
             </p>
-            <button className="btn btn-accent" onClick={() => setShareSuccess(null)}>Aceptar</button>
+            <button className="btn btn-accent" onClick={() => setShareSuccess(null)}>{T.accept}</button>
           </div>
         </div>
       )}
@@ -2634,11 +2847,11 @@ export default function App() {
       {manageAccessesModal && (
         <div className="modal-overlay fade-scale" onClick={() => setManageAccessesModal(false)}>
           <div className="modal manage-accesses-modal" onClick={e => e.stopPropagation()}>
-            <p className="modal-title">Gestionar accesos</p>
+            <p className="modal-title">{T.manageAccessesTitle}</p>
             {loadingShares ? (
               <div style={{ textAlign: 'center', padding: '32px 0' }}><span className="spinner" /></div>
             ) : albumShares.length === 0 ? (
-              <p className="modal-sub">Aún no se han compartido álbumes con nadie.</p>
+              <p className="modal-sub">{T.noAlbumsSharedYet}</p>
             ) : (
               <div className="manage-shares-list">
                 {albumShares.map(share => (
@@ -2660,7 +2873,7 @@ export default function App() {
                           className="btn btn-sm btn-danger"
                           onClick={() => revokeAlbumAccess(share.id, share.tripIds || [], email)}
                         >
-                          Revocar
+                          {T.revoke}
                         </button>
                       </div>
                     ))}
@@ -2669,7 +2882,7 @@ export default function App() {
               </div>
             )}
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => setManageAccessesModal(false)}>Cerrar</button>
+              <button className="btn btn-sm" onClick={() => setManageAccessesModal(false)}>{T.close}</button>
             </div>
           </div>
         </div>

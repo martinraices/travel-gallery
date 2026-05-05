@@ -11,7 +11,10 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -File)",
       "Bash(Select-Object -First 50)",
       "Bash(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -Directory)",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Recurse -Directory | Select-Object -First 50 | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Dev\\\\Git\\\\Personal\\\\travel-gallery\" -Force | Where-Object { $_.PSIsContainer } | ForEach-Object { $_.Name })",
+      "Bash(grep -v '^\\\\s*$')"
     ]
   }
 }
