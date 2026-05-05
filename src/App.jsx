@@ -164,199 +164,7 @@ const CONTINENT_ORDER = ['Europe', 'North America', 'South America', 'Asia', 'Af
 
 const ALLOWED_EMAILS = ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];
 
-// ─── Language detection & i18n ───
-const isSpanish = (navigator.language || '').startsWith('es');
-const T = {
-  // Header
-  adminTools: isSpanish ? '⚙ Herramientas' : '⚙ Admin Tools',
-  importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
-  manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
-  newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
-  addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
-  uploading: (d, t) => isSpanish ? `Subiendo ${d}/${t}…` : `Uploading ${d}/${t}…`,
-  lightMode: isSpanish ? 'Modo claro' : 'Light mode',
-  darkMode: isSpanish ? 'Modo oscuro' : 'Dark mode',
-  signOut: isSpanish ? 'Cerrar sesión' : 'Sign out',
-  // Stats panel
-  selectAll: isSpanish ? 'Seleccionar todo' : 'Select all',
-  allTrips: isSpanish ? 'Todos los viajes' : 'All Trips',
-  shareAlbumsBtn: (n) => isSpanish ? `Compartir álbumes (${n})` : `Share Albums (${n})`,
-  tripsLabel: isSpanish ? 'Viajes' : 'Trips',
-  photosLabel: isSpanish ? 'Fotos' : 'Photos',
-  countriesLabel: isSpanish ? 'Países' : 'Countries',
-  wishlistLabel: isSpanish ? 'Lista de deseos' : 'Wishlist',
-  countriesVisited: isSpanish ? 'Países visitados' : 'Countries Visited',
-  // Migration
-  migrateNow: isSpanish ? 'Migrar ahora' : 'Migrate now',
-  migratingAlbums: isSpanish ? 'Migrando álbumes… no cierres esta pestaña.' : 'Migrating albums… do not close this tab.',
-  migrationComplete: isSpanish ? '✓ Migración completa — todos los álbumes están ahora en la galería compartida.' : '✓ Migration complete — all albums are now in the shared gallery.',
-  migrationFailed: isSpanish ? 'La migración falló:' : 'Migration failed:',
-  retry: isSpanish ? 'Reintentar' : 'Retry',
-  // New trip form
-  tripNameLabel: isSpanish ? 'Nombre del viaje' : 'Trip Name',
-  dateOptional: isSpanish ? 'Fecha (opcional)' : 'Date (optional)',
-  countryOptional: isSpanish ? 'País (opcional)' : 'Country (optional)',
-  miroLinkOptional: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
-  visibilityLabel: isSpanish ? 'Visibilidad' : 'Visibility',
-  visShared: isSpanish ? '🌍 Compartido' : '🌍 Shared',
-  visPrivate: isSpanish ? '🔒 Privado' : '🔒 Private',
-  create: isSpanish ? 'Crear' : 'Create',
-  cancel: isSpanish ? 'Cancelar' : 'Cancel',
-  tripNamePlaceholder: isSpanish ? 'ej. Patagonia 2024' : 'e.g. Patagonia 2024',
-  countryPlaceholder: isSpanish ? 'ej. Italia' : 'e.g. Italy',
-  // Empty state
-  noTripsYet: isSpanish ? 'Aún no hay viajes' : 'No trips yet',
-  noTripsYetSub: isSpanish ? 'Crea tu primer viaje para empezar a subir fotos.' : 'Create your first trip to start uploading photos.',
-  // Map
-  wishlistTooltip: isSpanish ? '★ Lista de deseos' : '★ Wishlist',
-  // Trip cards
-  gridView: isSpanish ? 'Vista de cuadrícula' : 'Grid view',
-  privateTitle: isSpanish ? 'Privado' : 'Private',
-  sharedTitle: isSpanish ? 'Compartido' : 'Shared',
-  editTripBtn: isSpanish ? 'Editar viaje' : 'Edit trip',
-  sharedSeeLink: isSpanish ? 'Compartido — clic para ver enlace' : 'Shared — click to see link',
-  shareThisTrip: isSpanish ? 'Compartir este viaje' : 'Share this trip',
-  createdBy: (u) => isSpanish ? `Creado por ${u}` : `Created by ${u}`,
-  setCreator: isSpanish ? '+ Establecer creador' : '+ Set creator',
-  whoCreated: isSpanish ? '¿Quién creó este álbum? (ingresa su usuario o email de Gmail)' : 'Who created this album? (enter their Gmail username or email)',
-  couldNotSave: isSpanish ? 'No se pudo guardar: ' : 'Could not save: ',
-  photoCount: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''}` : `${n} photo${n !== 1 ? 's' : ''}`,
-  // Gallery header
-  backToTrips: isSpanish ? '← Viajes' : '← Trips',
-  noCityAssigned: isSpanish ? 'Sin ciudad asignada' : 'No city assigned',
-  openInMiro: isSpanish ? 'Abrir en Miro' : 'Open in Miro',
-  generating: isSpanish ? 'Generando…' : 'Generating…',
-  sharedBtn: isSpanish ? '↗ Compartido' : '↗ Shared',
-  shareBtn: isSpanish ? '↗ Compartir' : '↗ Share',
-  saveChanges: (n) => isSpanish ? `Guardar cambios (${n})` : `Save Changes (${n})`,
-  grid: isSpanish ? 'Cuadrícula' : 'Grid',
-  list: isSpanish ? 'Lista' : 'List',
-  editSubAlbumBtn: isSpanish ? 'Editar subálbum' : 'Edit sub-album',
-  // Photo area
-  dragDropPhotos: isSpanish ? 'Arrastra y suelta fotos aquí' : 'Drag & drop photos here',
-  orClickToBrowse: isSpanish ? 'o haz clic para buscar' : 'or click to browse',
-  uploadingPhotos: (d, t) => isSpanish ? `Subiendo ${d} de ${t} fotos…` : `Uploading ${d} of ${t} photos…`,
-  clickToEditName: isSpanish ? 'Clic para editar el nombre' : 'Click to edit the name',
-  insertEmoji: isSpanish ? 'Insertar emoji' : 'Insert emoji',
-  miroLinkOptionalPh: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
-  // Context menu
-  useAsAlbumCover: isSpanish ? 'Usar como portada del álbum' : 'Use as album cover',
-  deletePhotoMenu: isSpanish ? 'Eliminar foto' : 'Delete photo',
-  // Lightbox
-  addDescriptionPh: isSpanish ? 'Añadir una descripción…' : 'Add a description…',
-  setAsAlbumCoverTitle: isSpanish ? 'Usar como portada del álbum' : 'Set as album cover',
-  deletePhotoTitle: isSpanish ? 'Eliminar foto' : 'Delete photo',
-  // Delete trip modal
-  deleteTripQuestion: isSpanish ? '¿Eliminar este viaje?' : 'Delete this trip?',
-  deleteTripWarn: isSpanish ? 'Todas las fotos serán eliminadas permanentemente del almacenamiento.' : 'All photos will be permanently deleted from storage.',
-  deleteBtn: isSpanish ? 'Eliminar' : 'Delete',
-  // Edit trip / sub-album modals
-  editTripHeading: isSpanish ? 'Editar viaje' : 'Edit Trip',
-  nameLabel: isSpanish ? 'Nombre' : 'Name',
-  dateLabel: isSpanish ? 'Fecha' : 'Date',
-  countryLabel: isSpanish ? 'País' : 'Country',
-  miroLink: isSpanish ? 'Enlace de Miro' : 'Miro link',
-  saving: isSpanish ? 'Guardando…' : 'Saving…',
-  save: isSpanish ? 'Guardar' : 'Save',
-  editSubAlbumHeading: isSpanish ? 'Editar subálbum' : 'Edit Sub-Album',
-  // Assign city modal
-  assignCityHeading: isSpanish ? 'Asignar ciudad' : 'Assign city',
-  photosSelected: (n) => isSpanish
-    ? `${n} foto${n !== 1 ? 's' : ''} seleccionada${n !== 1 ? 's' : ''}`
-    : `${n} photo${n !== 1 ? 's' : ''} selected`,
-  cityPlaceholder: isSpanish ? 'ej. Pekín' : 'e.g. Beijing',
-  // Auto-date modal
-  settingDates: isSpanish ? 'Estableciendo fechas de viaje…' : 'Setting travel dates…',
-  scanningFbAlbums: isSpanish ? 'Escaneando álbumes de Facebook para fechas de fotos.' : 'Scanning Facebook albums for photo dates.',
-  doneBtn: isSpanish ? 'Listo' : 'Done',
-  autoDateUpdated: (u, s) => isSpanish
-    ? `Se actualizaron ${u} viaje${u !== 1 ? 's' : ''} de ${s} álbum${s !== 1 ? 'es' : ''} escaneados.`
-    : `Updated ${u} trip${u !== 1 ? 's' : ''} from ${s} album${s !== 1 ? 's' : ''} scanned.`,
-  autoDateNoAlbums: isSpanish
-    ? 'No se pudieron leer álbumes de Facebook. Verifica que hayas seleccionado la carpeta correcta.'
-    : 'No Facebook albums could be read. Check that you selected the correct folder.',
-  autoDateNoDates: (s) => isSpanish
-    ? `Se escanearon ${s} álbum${s !== 1 ? 'es' : ''} pero no se encontraron fechas. El formato de exportación puede no incluir fechas de toma.`
-    : `Scanned ${s} album${s !== 1 ? 's' : ''} but no dates were found in the photos. The export format may not include "taken" dates.`,
-  close: isSpanish ? 'Cerrar' : 'Close',
-  // Facebook import modal
-  importFbTitle: isSpanish ? 'Importar desde Facebook' : 'Import from Facebook',
-  fbFolderNote: isSpanish
-    ? 'Selecciona tu carpeta your_facebook_activity (o su directorio padre) de tu exportación de datos de Facebook. Solo Chrome/Edge.'
-    : 'Select your your_facebook_activity folder (or its parent) from your Facebook data export. Chrome/Edge only.',
-  scanFolder: isSpanish ? 'Escanear carpeta…' : 'Scan folder…',
-  selectCitiesToImport: isSpanish ? 'Seleccionar ciudades para importar' : 'Select cities to import',
-  citiesAvail: isSpanish ? 'ciudades disponibles' : 'cities available',
-  selectedLabel: isSpanish ? 'seleccionadas' : 'selected',
-  albumsLabel: (n) => isSpanish ? `${n} álbum${n !== 1 ? 'es' : ''}` : `${n} album${n !== 1 ? 's' : ''}`,
-  alreadyImported: isSpanish ? 'ya importadas' : 'already imported',
-  filterByCityOrAlbum: isSpanish ? 'Filtrar por ciudad o álbum…' : 'Filter by city or album…',
-  all: isSpanish ? 'Todos' : 'All',
-  none: isSpanish ? 'Ninguno' : 'None',
-  cityCol: isSpanish ? 'Ciudad' : 'City',
-  albumCol: isSpanish ? 'Álbum' : 'Album',
-  photosCol: isSpanish ? 'Fotos' : 'Photos',
-  albumName: isSpanish ? 'Nombre del álbum' : 'Album name',
-  importNCities: (n) => isSpanish
-    ? `Importar ${n} ciudad${n !== 1 ? 'es' : ''}`
-    : `Import ${n} cit${n !== 1 ? 'ies' : 'y'}`,
-  importing: isSpanish ? 'Importando…' : 'Importing…',
-  scanningAlbums: isSpanish ? 'Escaneando álbumes…' : 'Scanning albums…',
-  remaining: isSpanish ? 'restante' : 'remaining',
-  elapsed: isSpanish ? 'Transcurrido:' : 'Elapsed:',
-  scanningEllipsis: isSpanish ? 'Escaneando…' : 'Scanning…',
-  waiting: isSpanish ? 'Esperando…' : 'Waiting…',
-  stopImport: isSpanish ? 'Detener importación' : 'Stop import',
-  importComplete: isSpanish ? 'Importación completa' : 'Import complete',
-  importedPhotos: (p, t) => isSpanish
-    ? `${p} foto${p !== 1 ? 's' : ''} importada${p !== 1 ? 's' : ''} en ${t} viaje${t !== 1 ? 's' : ''}.`
-    : `${p} photos imported into ${t} trip${t !== 1 ? 's' : ''}.`,
-  // Share trip modal
-  shareTripTitle: isSpanish ? 'Compartir viaje' : 'Share Trip',
-  shareLinkNote: isSpanish
-    ? 'Cualquiera con este enlace puede ver las fotos — sin necesidad de iniciar sesión.'
-    : 'Anyone with this link can view the photos — no login required.',
-  copy: isSpanish ? 'Copiar' : 'Copy',
-  revokeLink: isSpanish ? 'Revocar enlace' : 'Revoke link',
-  // Share albums modal
-  shareAlbumsTitle: isSpanish ? 'Compartir álbumes' : 'Share Albums',
-  albumSelected: (n) => isSpanish
-    ? `${n} álbum${n !== 1 ? 'es' : ''} seleccionado${n !== 1 ? 's' : ''}:`
-    : `${n} album${n !== 1 ? 's' : ''} selected:`,
-  emailAddressesLabel: isSpanish ? 'Direcciones de email' : 'Email addresses',
-  emailPlaceholder: isSpanish ? 'email1@ejemplo.com, email2@ejemplo.com' : 'email1@example.com, email2@example.com',
-  emailNote: isSpanish
-    ? 'Separa múltiples direcciones con comas. Al confirmar, se abrirá tu cliente de correo con la notificación lista para enviar.'
-    : 'Separate multiple addresses with commas. Confirming will open your mail client with the notification ready to send.',
-  sharing: isSpanish ? 'Compartiendo…' : 'Sharing…',
-  shareAndNotify: isSpanish ? 'Compartir y notificar' : 'Share and notify',
-  // Share success modal
-  albumsSharedTitle: isSpanish ? '¡Álbumes compartidos!' : 'Albums shared!',
-  accessGrantedTo: (emails) => isSpanish
-    ? `Se otorgó acceso a ${emails} para:`
-    : `Access granted to ${emails} for:`,
-  emailClientNote: isSpanish
-    ? 'Se abrió tu cliente de correo para enviar la notificación. Si no se abrió, revisa que tengas un cliente de correo configurado.'
-    : 'Your mail client was opened to send the notification. If it did not open, check that you have a mail client configured.',
-  accept: isSpanish ? 'Aceptar' : 'Accept',
-  // Manage accesses modal
-  manageAccessesTitle: isSpanish ? 'Gestionar accesos' : 'Manage Accesses',
-  noAlbumsSharedYet: isSpanish ? 'Aún no se han compartido álbumes con nadie.' : 'No albums have been shared yet.',
-  revoke: isSpanish ? 'Revocar' : 'Revoke',
-  // Public share view
-  sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
-  sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',
-  // Login
-  signInSub: isSpanish ? 'Inicia sesión para acceder a tu galería privada' : 'Sign in to access your private gallery',
-  continueWithGoogle: isSpanish ? 'Continuar con Google' : 'Continue with Google',
-  signingIn: isSpanish ? 'Iniciando sesión…' : 'Signing in…',
-  signInFailed: isSpanish ? 'Error al iniciar sesión — inténtalo de nuevo' : 'Sign-in failed — please try again',
-  // Access denied
-  accessDenied: isSpanish ? 'Acceso denegado' : 'Access denied',
-  appIsPrivate: isSpanish ? 'Esta aplicación es privada y solo accesible por invitación.' : 'This application is private and accessible by invitation only.',
-  contactAdmin: isSpanish ? 'Si crees que deberías tener acceso, contacta al administrador.' : 'If you believe you should have access, contact the administrator.',
-  backToLogin: isSpanish ? '← Volver al login' : '← Back to login',
-};
+const SPANISH_COUNTRIES = new Set(['ES','MX','AR','CO','CL','PE','VE','EC','GT','CU','BO','DO','HN','PY','SV','NI','CR','PA','UY','GQ','PR']);
 
 // ─── Facebook import helpers ───
 const FB_SKIP_EXACT = new Set(['Photos', 'Cover photos', 'TANIA!', 'Timeline Photos']);
@@ -441,6 +249,205 @@ function compressImage(file, maxDim = 2000, quality = 0.82) {
 }
 
 export default function App() {
+  // ─── Language (IP-based, falls back to browser language) ───
+  const [isSpanish, setIsSpanish] = useState(() => (navigator.language || '').startsWith('es'));
+  useEffect(() => {
+    fetch('https://ipapi.co/json/')
+      .then(r => r.json())
+      .then(data => { if (data.country_code) setIsSpanish(SPANISH_COUNTRIES.has(data.country_code)); })
+      .catch(() => {});
+  }, []);
+  const T = {
+    // Header
+    adminTools: isSpanish ? '⚙ Herramientas' : '⚙ Admin Tools',
+    importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
+    manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
+    newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
+    addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
+    uploading: (d, t) => isSpanish ? `Subiendo ${d}/${t}…` : `Uploading ${d}/${t}…`,
+    lightMode: isSpanish ? 'Modo claro' : 'Light mode',
+    darkMode: isSpanish ? 'Modo oscuro' : 'Dark mode',
+    signOut: isSpanish ? 'Cerrar sesión' : 'Sign out',
+    // Stats panel
+    selectAll: isSpanish ? 'Seleccionar todo' : 'Select all',
+    allTrips: isSpanish ? 'Todos los viajes' : 'All Trips',
+    shareAlbumsBtn: (n) => isSpanish ? `Compartir álbumes (${n})` : `Share Albums (${n})`,
+    tripsLabel: isSpanish ? 'Viajes' : 'Trips',
+    photosLabel: isSpanish ? 'Fotos' : 'Photos',
+    countriesLabel: isSpanish ? 'Países' : 'Countries',
+    wishlistLabel: isSpanish ? 'Lista de deseos' : 'Wishlist',
+    countriesVisited: isSpanish ? 'Países visitados' : 'Countries Visited',
+    // Migration
+    migrateNow: isSpanish ? 'Migrar ahora' : 'Migrate now',
+    migratingAlbums: isSpanish ? 'Migrando álbumes… no cierres esta pestaña.' : 'Migrating albums… do not close this tab.',
+    migrationComplete: isSpanish ? '✓ Migración completa — todos los álbumes están ahora en la galería compartida.' : '✓ Migration complete — all albums are now in the shared gallery.',
+    migrationFailed: isSpanish ? 'La migración falló:' : 'Migration failed:',
+    retry: isSpanish ? 'Reintentar' : 'Retry',
+    // New trip form
+    tripNameLabel: isSpanish ? 'Nombre del viaje' : 'Trip Name',
+    dateOptional: isSpanish ? 'Fecha (opcional)' : 'Date (optional)',
+    countryOptional: isSpanish ? 'País (opcional)' : 'Country (optional)',
+    miroLinkOptional: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
+    visibilityLabel: isSpanish ? 'Visibilidad' : 'Visibility',
+    visShared: isSpanish ? '🌍 Compartido' : '🌍 Shared',
+    visPrivate: isSpanish ? '🔒 Privado' : '🔒 Private',
+    create: isSpanish ? 'Crear' : 'Create',
+    cancel: isSpanish ? 'Cancelar' : 'Cancel',
+    tripNamePlaceholder: isSpanish ? 'ej. Patagonia 2024' : 'e.g. Patagonia 2024',
+    countryPlaceholder: isSpanish ? 'ej. Italia' : 'e.g. Italy',
+    // Empty state
+    noTripsYet: isSpanish ? 'Aún no hay viajes' : 'No trips yet',
+    noTripsYetSub: isSpanish ? 'Crea tu primer viaje para empezar a subir fotos.' : 'Create your first trip to start uploading photos.',
+    // Map
+    wishlistTooltip: isSpanish ? '★ Lista de deseos' : '★ Wishlist',
+    // Trip cards
+    gridView: isSpanish ? 'Vista de cuadrícula' : 'Grid view',
+    privateTitle: isSpanish ? 'Privado' : 'Private',
+    sharedTitle: isSpanish ? 'Compartido' : 'Shared',
+    editTripBtn: isSpanish ? 'Editar viaje' : 'Edit trip',
+    sharedSeeLink: isSpanish ? 'Compartido — clic para ver enlace' : 'Shared — click to see link',
+    shareThisTrip: isSpanish ? 'Compartir este viaje' : 'Share this trip',
+    createdBy: (u) => isSpanish ? `Creado por ${u}` : `Created by ${u}`,
+    setCreator: isSpanish ? '+ Establecer creador' : '+ Set creator',
+    whoCreated: isSpanish ? '¿Quién creó este álbum? (ingresa su usuario o email de Gmail)' : 'Who created this album? (enter their Gmail username or email)',
+    couldNotSave: isSpanish ? 'No se pudo guardar: ' : 'Could not save: ',
+    photoCount: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''}` : `${n} photo${n !== 1 ? 's' : ''}`,
+    // Gallery header
+    backToTrips: isSpanish ? '← Viajes' : '← Trips',
+    noCityAssigned: isSpanish ? 'Sin ciudad asignada' : 'No city assigned',
+    openInMiro: isSpanish ? 'Abrir en Miro' : 'Open in Miro',
+    generating: isSpanish ? 'Generando…' : 'Generating…',
+    sharedBtn: isSpanish ? '↗ Compartido' : '↗ Shared',
+    shareBtn: isSpanish ? '↗ Compartir' : '↗ Share',
+    saveChanges: (n) => isSpanish ? `Guardar cambios (${n})` : `Save Changes (${n})`,
+    grid: isSpanish ? 'Cuadrícula' : 'Grid',
+    list: isSpanish ? 'Lista' : 'List',
+    editSubAlbumBtn: isSpanish ? 'Editar subálbum' : 'Edit sub-album',
+    // Photo area
+    dragDropPhotos: isSpanish ? 'Arrastra y suelta fotos aquí' : 'Drag & drop photos here',
+    orClickToBrowse: isSpanish ? 'o haz clic para buscar' : 'or click to browse',
+    uploadingPhotos: (d, t) => isSpanish ? `Subiendo ${d} de ${t} fotos…` : `Uploading ${d} of ${t} photos…`,
+    clickToEditName: isSpanish ? 'Clic para editar el nombre' : 'Click to edit the name',
+    insertEmoji: isSpanish ? 'Insertar emoji' : 'Insert emoji',
+    miroLinkOptionalPh: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
+    // Context menu
+    useAsAlbumCover: isSpanish ? 'Usar como portada del álbum' : 'Use as album cover',
+    deletePhotoMenu: isSpanish ? 'Eliminar foto' : 'Delete photo',
+    // Lightbox
+    addDescriptionPh: isSpanish ? 'Añadir una descripción…' : 'Add a description…',
+    setAsAlbumCoverTitle: isSpanish ? 'Usar como portada del álbum' : 'Set as album cover',
+    deletePhotoTitle: isSpanish ? 'Eliminar foto' : 'Delete photo',
+    // Delete trip modal
+    deleteTripQuestion: isSpanish ? '¿Eliminar este viaje?' : 'Delete this trip?',
+    deleteTripWarn: isSpanish ? 'Todas las fotos serán eliminadas permanentemente del almacenamiento.' : 'All photos will be permanently deleted from storage.',
+    deleteBtn: isSpanish ? 'Eliminar' : 'Delete',
+    // Edit trip / sub-album modals
+    editTripHeading: isSpanish ? 'Editar viaje' : 'Edit Trip',
+    nameLabel: isSpanish ? 'Nombre' : 'Name',
+    dateLabel: isSpanish ? 'Fecha' : 'Date',
+    countryLabel: isSpanish ? 'País' : 'Country',
+    miroLink: isSpanish ? 'Enlace de Miro' : 'Miro link',
+    saving: isSpanish ? 'Guardando…' : 'Saving…',
+    save: isSpanish ? 'Guardar' : 'Save',
+    editSubAlbumHeading: isSpanish ? 'Editar subálbum' : 'Edit Sub-Album',
+    // Assign city modal
+    assignCityHeading: isSpanish ? 'Asignar ciudad' : 'Assign city',
+    photosSelected: (n) => isSpanish
+      ? `${n} foto${n !== 1 ? 's' : ''} seleccionada${n !== 1 ? 's' : ''}`
+      : `${n} photo${n !== 1 ? 's' : ''} selected`,
+    cityPlaceholder: isSpanish ? 'ej. Pekín' : 'e.g. Beijing',
+    // Auto-date modal
+    settingDates: isSpanish ? 'Estableciendo fechas de viaje…' : 'Setting travel dates…',
+    scanningFbAlbums: isSpanish ? 'Escaneando álbumes de Facebook para fechas de fotos.' : 'Scanning Facebook albums for photo dates.',
+    doneBtn: isSpanish ? 'Listo' : 'Done',
+    autoDateUpdated: (u, s) => isSpanish
+      ? `Se actualizaron ${u} viaje${u !== 1 ? 's' : ''} de ${s} álbum${s !== 1 ? 'es' : ''} escaneados.`
+      : `Updated ${u} trip${u !== 1 ? 's' : ''} from ${s} album${s !== 1 ? 's' : ''} scanned.`,
+    autoDateNoAlbums: isSpanish
+      ? 'No se pudieron leer álbumes de Facebook. Verifica que hayas seleccionado la carpeta correcta.'
+      : 'No Facebook albums could be read. Check that you selected the correct folder.',
+    autoDateNoDates: (s) => isSpanish
+      ? `Se escanearon ${s} álbum${s !== 1 ? 'es' : ''} pero no se encontraron fechas. El formato de exportación puede no incluir fechas de toma.`
+      : `Scanned ${s} album${s !== 1 ? 's' : ''} but no dates were found in the photos. The export format may not include "taken" dates.`,
+    close: isSpanish ? 'Cerrar' : 'Close',
+    // Facebook import modal
+    importFbTitle: isSpanish ? 'Importar desde Facebook' : 'Import from Facebook',
+    fbFolderNote: isSpanish
+      ? 'Selecciona tu carpeta your_facebook_activity (o su directorio padre) de tu exportación de datos de Facebook. Solo Chrome/Edge.'
+      : 'Select your your_facebook_activity folder (or its parent) from your Facebook data export. Chrome/Edge only.',
+    scanFolder: isSpanish ? 'Escanear carpeta…' : 'Scan folder…',
+    selectCitiesToImport: isSpanish ? 'Seleccionar ciudades para importar' : 'Select cities to import',
+    citiesAvail: isSpanish ? 'ciudades disponibles' : 'cities available',
+    selectedLabel: isSpanish ? 'seleccionadas' : 'selected',
+    albumsLabel: (n) => isSpanish ? `${n} álbum${n !== 1 ? 'es' : ''}` : `${n} album${n !== 1 ? 's' : ''}`,
+    alreadyImported: isSpanish ? 'ya importadas' : 'already imported',
+    filterByCityOrAlbum: isSpanish ? 'Filtrar por ciudad o álbum…' : 'Filter by city or album…',
+    all: isSpanish ? 'Todos' : 'All',
+    none: isSpanish ? 'Ninguno' : 'None',
+    cityCol: isSpanish ? 'Ciudad' : 'City',
+    albumCol: isSpanish ? 'Álbum' : 'Album',
+    photosCol: isSpanish ? 'Fotos' : 'Photos',
+    albumName: isSpanish ? 'Nombre del álbum' : 'Album name',
+    importNCities: (n) => isSpanish
+      ? `Importar ${n} ciudad${n !== 1 ? 'es' : ''}`
+      : `Import ${n} cit${n !== 1 ? 'ies' : 'y'}`,
+    importing: isSpanish ? 'Importando…' : 'Importing…',
+    scanningAlbums: isSpanish ? 'Escaneando álbumes…' : 'Scanning albums…',
+    remaining: isSpanish ? 'restante' : 'remaining',
+    elapsed: isSpanish ? 'Transcurrido:' : 'Elapsed:',
+    scanningEllipsis: isSpanish ? 'Escaneando…' : 'Scanning…',
+    waiting: isSpanish ? 'Esperando…' : 'Waiting…',
+    stopImport: isSpanish ? 'Detener importación' : 'Stop import',
+    importComplete: isSpanish ? 'Importación completa' : 'Import complete',
+    importedPhotos: (p, t) => isSpanish
+      ? `${p} foto${p !== 1 ? 's' : ''} importada${p !== 1 ? 's' : ''} en ${t} viaje${t !== 1 ? 's' : ''}.`
+      : `${p} photos imported into ${t} trip${t !== 1 ? 's' : ''}.`,
+    // Share trip modal
+    shareTripTitle: isSpanish ? 'Compartir viaje' : 'Share Trip',
+    shareLinkNote: isSpanish
+      ? 'Cualquiera con este enlace puede ver las fotos — sin necesidad de iniciar sesión.'
+      : 'Anyone with this link can view the photos — no login required.',
+    copy: isSpanish ? 'Copiar' : 'Copy',
+    revokeLink: isSpanish ? 'Revocar enlace' : 'Revoke link',
+    // Share albums modal
+    shareAlbumsTitle: isSpanish ? 'Compartir álbumes' : 'Share Albums',
+    albumSelected: (n) => isSpanish
+      ? `${n} álbum${n !== 1 ? 'es' : ''} seleccionado${n !== 1 ? 's' : ''}:`
+      : `${n} album${n !== 1 ? 's' : ''} selected:`,
+    emailAddressesLabel: isSpanish ? 'Direcciones de email' : 'Email addresses',
+    emailPlaceholder: isSpanish ? 'email1@ejemplo.com, email2@ejemplo.com' : 'email1@example.com, email2@example.com',
+    emailNote: isSpanish
+      ? 'Separa múltiples direcciones con comas. Al confirmar, se abrirá tu cliente de correo con la notificación lista para enviar.'
+      : 'Separate multiple addresses with commas. Confirming will open your mail client with the notification ready to send.',
+    sharing: isSpanish ? 'Compartiendo…' : 'Sharing…',
+    shareAndNotify: isSpanish ? 'Compartir y notificar' : 'Share and notify',
+    // Share success modal
+    albumsSharedTitle: isSpanish ? '¡Álbumes compartidos!' : 'Albums shared!',
+    accessGrantedTo: (emails) => isSpanish
+      ? `Se otorgó acceso a ${emails} para:`
+      : `Access granted to ${emails} for:`,
+    emailClientNote: isSpanish
+      ? 'Se abrió tu cliente de correo para enviar la notificación. Si no se abrió, revisa que tengas un cliente de correo configurado.'
+      : 'Your mail client was opened to send the notification. If it did not open, check that you have a mail client configured.',
+    accept: isSpanish ? 'Aceptar' : 'Accept',
+    // Manage accesses modal
+    manageAccessesTitle: isSpanish ? 'Gestionar accesos' : 'Manage Accesses',
+    noAlbumsSharedYet: isSpanish ? 'Aún no se han compartido álbumes con nadie.' : 'No albums have been shared yet.',
+    revoke: isSpanish ? 'Revocar' : 'Revoke',
+    // Public share view
+    sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
+    sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',
+    // Login
+    signInSub: isSpanish ? 'Inicia sesión para acceder a tu galería privada' : 'Sign in to access your private gallery',
+    continueWithGoogle: isSpanish ? 'Continuar con Google' : 'Continue with Google',
+    signingIn: isSpanish ? 'Iniciando sesión…' : 'Signing in…',
+    signInFailed: isSpanish ? 'Error al iniciar sesión — inténtalo de nuevo' : 'Sign-in failed — please try again',
+    // Access denied
+    accessDenied: isSpanish ? 'Acceso denegado' : 'Access denied',
+    appIsPrivate: isSpanish ? 'Esta aplicación es privada y solo accesible por invitación.' : 'This application is private and accessible by invitation only.',
+    contactAdmin: isSpanish ? 'Si crees que deberías tener acceso, contacta al administrador.' : 'If you believe you should have access, contact the administrator.',
+    backToLogin: isSpanish ? '← Volver al login' : '← Back to login',
+  };
   // ─── Auth ───
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
