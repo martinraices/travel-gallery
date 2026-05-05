@@ -11,7 +11,7 @@ import {
   query, where, orderBy, limit, serverTimestamp, getDoc, setDoc, writeBatch,
 } from 'firebase/firestore';
 import {
-  ref, uploadBytes, getDownloadURL, deleteObject, listAll,
+  ref, uploadBytes, getDownloadURL, deleteObject, listAll, getBlob,
 } from 'firebase/storage';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 
@@ -232,6 +232,7 @@ function parseFbAlbum(rawTitle) {
 function compressImage(file, maxDim = 2000, quality = 0.82) {
   return new Promise((resolve) => {
     const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
       let { width, height } = img;
       if (width > maxDim || height > maxDim) {
@@ -242,10 +243,41 @@ function compressImage(file, maxDim = 2000, quality = 0.82) {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(blob);
+      }, 'image/jpeg', quality);
     };
-    img.src = URL.createObjectURL(file);
+    img.src = objectUrl;
   });
+}
+
+async function uploadPhotoVariants(file, basePath, safeName) {
+  const fullBlob = await compressImage(file);
+  const thumbBlob = await compressImage(file, 520, 0.72);
+  const storagePath = `${basePath}/${safeName}`;
+  const thumbStoragePath = `${basePath}/thumbs/${safeName}`;
+  const storageRef = ref(storage, storagePath);
+  const thumbStorageRef = ref(storage, thumbStoragePath);
+  await Promise.all([
+    uploadBytes(storageRef, fullBlob),
+    uploadBytes(thumbStorageRef, thumbBlob),
+  ]);
+  const [url, thumbUrl] = await Promise.all([
+    getDownloadURL(storageRef),
+    getDownloadURL(thumbStorageRef),
+  ]);
+  return { url, storagePath, thumbUrl, thumbStoragePath };
+}
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return '';
+  const totalMinutes = Math.max(1, Math.round(ms / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
 }
 
 export default function App() {
@@ -261,6 +293,7 @@ export default function App() {
     // Header
     adminTools: isSpanish ? '⚙ Herramientas' : '⚙ Admin Tools',
     importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
+    generateThumbsMenu: isSpanish ? 'Generar miniaturas' : 'Generate thumbnails',
     manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
     newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
     addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
@@ -283,6 +316,13 @@ export default function App() {
     migrationComplete: isSpanish ? '✓ Migración completa — todos los álbumes están ahora en la galería compartida.' : '✓ Migration complete — all albums are now in the shared gallery.',
     migrationFailed: isSpanish ? 'La migración falló:' : 'Migration failed:',
     retry: isSpanish ? 'Reintentar' : 'Retry',
+    thumbMigrationTitle: isSpanish ? 'Generando miniaturas' : 'Generating thumbnails',
+    thumbMigrationScanning: isSpanish ? 'Buscando fotos sin miniatura…' : 'Finding photos without thumbnails…',
+    thumbMigrationProgress: (d, t) => isSpanish ? `${d} de ${t} miniaturas generadas` : `${d} of ${t} thumbnails generated`,
+    thumbMigrationDone: (n) => isSpanish ? `Listo: ${n} miniatura${n !== 1 ? 's' : ''} generada${n !== 1 ? 's' : ''}.` : `Done: ${n} thumbnail${n !== 1 ? 's' : ''} generated.`,
+    thumbMigrationNone: isSpanish ? 'Todas las fotos ya tienen miniatura.' : 'Every photo already has a thumbnail.',
+    thumbMigrationEta: (eta, rate) => isSpanish ? `Tiempo estimado: ${eta} · ${rate}/min` : `ETA: ${eta} · ${rate}/min`,
+    calculatingEta: isSpanish ? 'Calculando tiempo…' : 'Calculating time…',
     // New trip form
     tripNameLabel: isSpanish ? 'Nombre del viaje' : 'Trip Name',
     dateOptional: isSpanish ? 'Fecha (opcional)' : 'Date (optional)',
@@ -335,6 +375,7 @@ export default function App() {
     miroLinkOptionalPh: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
     // Context menu
     useAsAlbumCover: isSpanish ? 'Usar como portada del álbum' : 'Use as album cover',
+    useAsAppWallpaper: isSpanish ? 'Usar como fondo de pantalla' : 'Use as app wallpaper',
     deletePhotoMenu: isSpanish ? 'Eliminar foto' : 'Delete photo',
     // Lightbox
     addDescriptionPh: isSpanish ? 'Añadir una descripción…' : 'Add a description…',
@@ -488,6 +529,7 @@ export default function App() {
   const [view, setView] = useState('grid');
   const [tripsView, setTripsView] = useState('grid');
   const [tripSort, setTripSort] = useState(null);
+  const [appWallpaperUrl, setAppWallpaperUrl] = useState('');
   const [scrollFade, setScrollFade] = useState('');
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef();
@@ -570,6 +612,7 @@ export default function App() {
   const [migration, setMigration] = useState(null); // null | 'needed' | 'running' | 'done' | 'error'
   const [migrationCount, setMigrationCount] = useState(0);
   const [migrationError, setMigrationError] = useState('');
+  const [thumbMigration, setThumbMigration] = useState(null); // null | { status, done, total, error }
 
   // ─── Photo city selection ───
   const [selectedPhotos, setSelectedPhotos] = useState(new Set());
@@ -699,9 +742,14 @@ export default function App() {
 
   // ─── Load wishlist from Firestore ───
   useEffect(() => {
-    if (!user || isReadOnly) { setWishlist(new Set()); return; }
+    if (!user || isReadOnly) { setWishlist(new Set()); setAppWallpaperUrl(''); return; }
     getDoc(doc(db, 'users', user.uid, 'profile', 'map'))
-      .then(snap => { if (snap.exists()) setWishlist(new Set(snap.data().wishlist || [])); })
+      .then(snap => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        setWishlist(new Set(data.wishlist || []));
+        setAppWallpaperUrl(data.appWallpaperUrl || '');
+      })
       .catch(() => {});
   }, [user, isReadOnly]);
 
@@ -734,6 +782,7 @@ export default function App() {
       if (e.key === 'Escape') {
         if (shareSuccess) { setShareSuccess(null); }
         else if (manageAccessesModal) { setManageAccessesModal(false); }
+        else if (thumbMigration && thumbMigration.status !== 'running' && thumbMigration.status !== 'scanning') { setThumbMigration(null); }
         else if (shareAlbumsModal) { setShareAlbumsModal(false); }
         else if (adminDropdown) { setAdminDropdown(false); }
         else if (editTrip) { setEditTrip(null); }
@@ -891,13 +940,9 @@ export default function App() {
     for (let i = 0; i < imageFiles.length; i++) {
       const file = imageFiles[i];
       try {
-        const compressed = await compressImage(file);
         const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const storagePath = `users/${user.uid}/trips/${activeTrip}/${fileName}`;
-        const storageRef = ref(storage, storagePath);
-        await uploadBytes(storageRef, compressed);
-        const url = await getDownloadURL(storageRef);
-        const photoData = { name: file.name, url, storagePath, createdAt: serverTimestamp() };
+        const uploaded = await uploadPhotoVariants(file, `users/${user.uid}/trips/${activeTrip}`, fileName);
+        const photoData = { name: file.name, ...uploaded, createdAt: serverTimestamp() };
         const docRef = await addDoc(photosCol(activeTrip), photoData);
         newPhotos.push({ id: docRef.id, ...photoData });
       } catch (err) { console.error('Upload error:', err); }
@@ -917,6 +962,7 @@ export default function App() {
   const deletePhoto = async (photo) => {
     if (isReadOnly) return;
     if (photo.storagePath) { try { await deleteObject(ref(storage, photo.storagePath)); } catch {} }
+    if (photo.thumbStoragePath) { try { await deleteObject(ref(storage, photo.thumbStoragePath)); } catch {} }
     await deleteDoc(doc(db, 'trips', activeTrip, 'photos', photo.id));
     setPhotos(prev => prev.filter(p => p.id !== photo.id));
     const trip = trips.find(t => t.id === activeTrip);
@@ -947,6 +993,28 @@ export default function App() {
       await updateDoc(doc(db, 'trips', activeTrip), { cover: photoUrl });
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, cover: photoUrl } : t));
     } catch (err) { console.error('Set cover error:', err); }
+  };
+
+  const setPhotoAsAppWallpaper = async (photo) => {
+    if (!user || isReadOnly) return;
+    const wallpaperUrl = photo.thumbUrl || photo.url;
+    setAppWallpaperUrl(wallpaperUrl);
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'profile', 'map'), { appWallpaperUrl: wallpaperUrl }, { merge: true });
+    } catch (err) { console.error('Set wallpaper error:', err); }
+  };
+
+  const openPhotoContextMenu = (e, photo, options = {}) => {
+    if (isReadOnly) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: Math.min(e.clientX, window.innerWidth - 220),
+      y: Math.min(e.clientY, window.innerHeight - 120),
+      photo,
+      canSetAlbumCover: !!options.canSetAlbumCover,
+      canManagePhoto: !!options.canManagePhoto,
+    });
   };
 
   const saveCityToPhotos = async () => {
@@ -1393,15 +1461,12 @@ export default function App() {
           const fileHandle = await handle.getFileHandle(pathParts[pathParts.length - 1]);
           const file = await fileHandle.getFile();
 
-          const compressed = await compressImage(file);
           const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          const storagePath = `users/${user.uid}/trips/${tripId}/${safeName}`;
-          const storageRef = ref(storage, storagePath);
-          await uploadBytes(storageRef, compressed);
-          const url = await getDownloadURL(storageRef);
+          const uploaded = await uploadPhotoVariants(file, `users/${user.uid}/trips/${tripId}`, safeName);
+          const { url } = uploaded;
           if (!coverUrl) coverUrl = url;
 
-          await addDoc(photosCol(tripId), { name: file.name, url, storagePath, city: city || null, createdAt: serverTimestamp() });
+          await addDoc(photosCol(tripId), { name: file.name, ...uploaded, city: city || null, createdAt: serverTimestamp() });
           doneCount++;
           totalUploaded++;
         } catch (err) {
@@ -1609,6 +1674,102 @@ export default function App() {
     }
   };
 
+  const getPhotoBlobForThumbnail = async (photo) => {
+    if (photo.storagePath) return getBlob(ref(storage, photo.storagePath));
+    const res = await fetch(photo.url);
+    if (!res.ok) throw new Error(`Could not download ${photo.name || photo.id}`);
+    return res.blob();
+  };
+
+  const getThumbStoragePath = (trip, photo) => {
+    if (photo.storagePath && photo.storagePath.startsWith(`users/${user.uid}/`)) {
+      const parts = photo.storagePath.split('/');
+      const fileName = parts.pop();
+      return `${parts.join('/')}/thumbs/${fileName}`;
+    }
+    return `users/${user.uid}/thumb-migrations/${trip.id}/${photo.id}.jpg`;
+  };
+
+  const runThumbnailMigration = async () => {
+    if (!user || isReadOnly) return;
+    setAdminDropdown(false);
+    setThumbMigration({ status: 'scanning', done: 0, total: 0, error: '' });
+    try {
+      const jobs = [];
+      for (const trip of trips) {
+        const snap = await getDocs(photosCol(trip.id));
+        snap.docs.forEach(photoDoc => {
+          const photo = { id: photoDoc.id, ...photoDoc.data() };
+          if (!photo.thumbUrl && (photo.storagePath || photo.url)) jobs.push({ trip, photoDoc, photo });
+        });
+      }
+
+      if (jobs.length === 0) {
+        setThumbMigration({ status: 'done', done: 0, total: 0, error: '' });
+        return;
+      }
+
+      const startedAt = Date.now();
+      setThumbMigration({ status: 'running', done: 0, total: jobs.length, error: '', startedAt, etaMs: null, ratePerMin: 0 });
+      let failed = 0;
+      let done = 0;
+      let nextJob = 0;
+      const concurrency = Math.min(8, Math.max(2, navigator.hardwareConcurrency ? Math.floor(navigator.hardwareConcurrency / 2) : 4));
+      const reportProgress = () => {
+        setThumbMigration({
+          status: 'running',
+          done,
+          total: jobs.length,
+          error: failed ? `${failed} ${failed === 1 ? 'photo failed' : 'photos failed'}` : '',
+          startedAt,
+          etaMs: done > 0 ? ((Date.now() - startedAt) / done) * (jobs.length - done) : null,
+          ratePerMin: done > 0 ? Math.round(done / Math.max((Date.now() - startedAt) / 60000, 1 / 60)) : 0,
+        });
+      };
+
+      const processJob = async ({ trip, photoDoc, photo }) => {
+        try {
+          const sourceBlob = await getPhotoBlobForThumbnail(photo);
+          const thumbBlob = await compressImage(sourceBlob, 420, 0.68);
+          const thumbStoragePath = getThumbStoragePath(trip, photo);
+          const thumbStorageRef = ref(storage, thumbStoragePath);
+          await uploadBytes(thumbStorageRef, thumbBlob);
+          const thumbUrl = await getDownloadURL(thumbStorageRef);
+          await updateDoc(photoDoc.ref, { thumbUrl, thumbStoragePath });
+          if (activeTrip === trip.id) {
+            setPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, thumbUrl, thumbStoragePath } : p));
+          }
+        } catch (err) {
+          failed++;
+          console.warn('Thumbnail migration failed:', photo.id, err);
+        }
+        done++;
+        reportProgress();
+      };
+
+      const worker = async () => {
+        while (nextJob < jobs.length) {
+          const job = jobs[nextJob++];
+          await processJob(job);
+        }
+      };
+
+      await Promise.all(Array.from({ length: concurrency }, worker));
+      setThumbMigration({
+        status: 'done',
+        done: jobs.length - failed,
+        total: jobs.length,
+        error: failed ? `${failed} ${failed === 1 ? 'photo failed' : 'photos failed'}` : '',
+        startedAt,
+        etaMs: 0,
+        ratePerMin: Math.round(jobs.length / Math.max((Date.now() - startedAt) / 60000, 1 / 60)),
+      });
+    } catch (err) {
+      console.error('Thumbnail migration error:', err);
+      setThumbMigration({ status: 'error', done: 0, total: 0, error: err.message || String(err) });
+    }
+  };
+
   // ═══════════════════════════════════════
   // ALBUM SHARING
   // ═══════════════════════════════════════
@@ -1806,32 +1967,34 @@ export default function App() {
               <button className="stat-panel-close" onClick={() => { setStatPanel(null); setSelectedTrips(new Set()); }}>✕</button>
             </div>
           </div>
-          {sortedTrips.map(trip => (
-            <div
-              key={trip.id}
-              className={`stat-panel-row${selectedTrips.has(trip.id) ? ' stat-panel-row-selected' : ''}`}
-              onClick={() => { setActiveTrip(trip.id); setStatPanel(null); setSelectedTrips(new Set()); }}
-            >
-              {!isReadOnly && (
-                <input
-                  type="checkbox"
-                  className="trip-select-check"
-                  checked={selectedTrips.has(trip.id)}
-                  onChange={e => {
-                    e.stopPropagation();
-                    setSelectedTrips(prev => {
-                      const next = new Set(prev);
-                      next.has(trip.id) ? next.delete(trip.id) : next.add(trip.id);
-                      return next;
-                    });
-                  }}
-                  onClick={e => e.stopPropagation()}
-                />
-              )}
-              <span className="stat-panel-name">{trip.name}</span>
-              {trip.date && <span className="stat-panel-meta">{trip.date}</span>}
-            </div>
-          ))}
+          <div className="stat-panel-body">
+            {sortedTrips.map(trip => (
+              <div
+                key={trip.id}
+                className={`stat-panel-row${selectedTrips.has(trip.id) ? ' stat-panel-row-selected' : ''}`}
+                onClick={() => { setActiveTrip(trip.id); setStatPanel(null); setSelectedTrips(new Set()); }}
+              >
+                {!isReadOnly && (
+                  <input
+                    type="checkbox"
+                    className="trip-select-check"
+                    checked={selectedTrips.has(trip.id)}
+                    onChange={e => {
+                      e.stopPropagation();
+                      setSelectedTrips(prev => {
+                        const next = new Set(prev);
+                        next.has(trip.id) ? next.delete(trip.id) : next.add(trip.id);
+                        return next;
+                      });
+                    }}
+                    onClick={e => e.stopPropagation()}
+                  />
+                )}
+                <span className="stat-panel-name">{trip.name}</span>
+                {trip.date && <span className="stat-panel-meta">{trip.date}</span>}
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
@@ -1849,6 +2012,7 @@ export default function App() {
           <span>{statPanel === 'countries' ? T.countriesVisited : T.wishlistLabel}</span>
           <button className="stat-panel-close" onClick={() => setStatPanel(null)}>✕</button>
         </div>
+        <div className="stat-panel-body">
         {CONTINENT_ORDER.filter(c => byContinent[c]).map(continent => {
           const isExpanded = expandedContinents.has(continent);
           return (
@@ -1889,6 +2053,7 @@ export default function App() {
             </div>
           );
         })}
+        </div>
       </div>
     );
   };
@@ -1994,11 +2159,15 @@ export default function App() {
   // MAIN APP
   // ═══════════════════════════════════════
   const activeTripData = trips.find(t => t.id === activeTrip);
+  const canManageActiveTrip = !isReadOnly && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid);
   const { groups: cityGroups, uncategorized: cityUncategorized, hasCities } = groupPhotosByCity(photos);
   const showCityCards = hasCities && activeCity === null;
 
   return (
-    <div className={`app-shell${scrollFade ? ` scroll-fade-${scrollFade}` : ''}`}>
+    <div
+      className={`app-shell${appWallpaperUrl ? ' has-app-wallpaper' : ''}${scrollFade ? ` scroll-fade-${scrollFade}` : ''}`}
+      style={appWallpaperUrl ? { '--app-wallpaper': `url(${appWallpaperUrl})` } : undefined}
+    >
       {/* ─── Header ─── */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -2018,6 +2187,9 @@ export default function App() {
                   <div className="admin-dropdown">
                     <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); setFbStep('folder'); setFbError(''); setFbModal(true); }}>
                       {T.importFbMenu}
+                    </button>
+                    <button className="admin-dropdown-item" onClick={runThumbnailMigration}>
+                      {T.generateThumbsMenu}
                     </button>
                     <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); loadAlbumShares(); setManageAccessesModal(true); }}>
                       {T.manageAccessesMenu}
@@ -2050,6 +2222,7 @@ export default function App() {
         <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
           onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
       </header>
+      {appWallpaperUrl && <div className="app-wallpaper" aria-hidden="true" />}
 
       <div className="content">
 
@@ -2238,6 +2411,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                {renderStatPanel()}
                 <div className="trips-view-header">
                   <div className="sort-toggle" aria-label="Album sorting">
                     <button
@@ -2264,8 +2438,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
-            {trips.length > 0 && renderStatPanel()}
 
             {loadingTrips && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
 
@@ -2522,8 +2694,8 @@ export default function App() {
                             onDragLeave={canDrag ? () => setDragOverIdx(null) : undefined}
                             onDrop={canDrag ? e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(flatIdx); setDragOverIdx(null); } : undefined}
                             onClick={() => setLightbox(p)}
-                            onContextMenu={activeCity && !isReadOnly && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid) ? e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, photo: p }); } : undefined}>
-                            <img src={p.url} alt={p.name} loading="lazy" />
+                            onContextMenu={!isReadOnly ? e => openPhotoContextMenu(e, p, { canSetAlbumCover: activeCity && canManageActiveTrip, canManagePhoto: canManageActiveTrip }) : undefined}>
+                            <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" decoding="async" />
                             {canDrag && <div className="photo-drag-handle">⠿</div>}
                             {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
                           </div>
@@ -2539,14 +2711,15 @@ export default function App() {
                     {displayPhotos.map((p, i) => (
                       <div key={p.id}
                         className={`photo-list-item fade-in${selectedPhotos.has(p.id) ? ' selected' : ''}`}
-                        style={{ animationDelay: `${i * 25}ms` }}>
+                        style={{ animationDelay: `${i * 25}ms` }}
+                        onContextMenu={!isReadOnly ? e => openPhotoContextMenu(e, p, { canSetAlbumCover: activeCity && canManageActiveTrip, canManagePhoto: canManageActiveTrip }) : undefined}>
                         {!isReadOnly && (
                           <input type="checkbox" className="photo-list-check"
                             checked={selectedPhotos.has(p.id)}
                             onChange={() => togglePhotoSelection(p.id)}
                             onClick={e => e.stopPropagation()} />
                         )}
-                        <img src={p.url} alt={p.name} loading="lazy" onClick={() => setLightbox(p)} style={{ cursor: 'pointer' }} />
+                        <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" decoding="async" onClick={() => setLightbox(p)} style={{ cursor: 'pointer' }} />
                         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setLightbox(p)}>
                           <div className="photo-list-name">{p.name}</div>
                           {p.description && <div className="photo-list-desc">{p.description}</div>}
@@ -2613,14 +2786,22 @@ export default function App() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 1099 }} onClick={() => setContextMenu(null)} onContextMenu={e => { e.preventDefault(); setContextMenu(null); }} />
           <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={e => e.stopPropagation()}>
-            <button onClick={async () => { await setPhotoAsAlbumCover(contextMenu.photo.url); setContextMenu(null); }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              {T.useAsAlbumCover}
+            {contextMenu.canSetAlbumCover && (
+              <button onClick={async () => { await setPhotoAsAlbumCover(contextMenu.photo.url); setContextMenu(null); }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                {T.useAsAlbumCover}
+              </button>
+            )}
+            <button onClick={async () => { await setPhotoAsAppWallpaper(contextMenu.photo); setContextMenu(null); }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 18v3"/><circle cx="8.5" cy="9" r="1.5"/><path d="M21 15l-5-5-4 4-2-2-5 5"/></svg>
+              {T.useAsAppWallpaper}
             </button>
-            <button className="context-menu-danger" onClick={async () => { await deletePhoto(contextMenu.photo); setContextMenu(null); }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-              {T.deletePhotoMenu}
-            </button>
+            {contextMenu.canManagePhoto && (
+              <button className="context-menu-danger" onClick={async () => { await deletePhoto(contextMenu.photo); setContextMenu(null); }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                {T.deletePhotoMenu}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -2757,6 +2938,42 @@ export default function App() {
                   <button className="btn btn-accent" onClick={() => setAutoDateModal(false)}>{T.close}</button>
                 </div>
               </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ THUMBNAIL MIGRATION ═══ */}
+      {!isReadOnly && thumbMigration && (
+        <div className="modal-overlay fade-scale" onClick={() => thumbMigration.status !== 'running' && thumbMigration.status !== 'scanning' && setThumbMigration(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.thumbMigrationTitle}</p>
+            <p className="modal-sub">
+              {thumbMigration.status === 'scanning' && T.thumbMigrationScanning}
+              {thumbMigration.status === 'running' && T.thumbMigrationProgress(thumbMigration.done, thumbMigration.total)}
+              {thumbMigration.status === 'done' && (thumbMigration.total === 0 ? T.thumbMigrationNone : T.thumbMigrationDone(thumbMigration.done))}
+              {thumbMigration.status === 'error' && `${T.migrationFailed} ${thumbMigration.error}`}
+            </p>
+            {thumbMigration.status === 'running' && (
+              <p className="thumb-migration-eta">
+                {thumbMigration.done > 0 && thumbMigration.etaMs
+                  ? T.thumbMigrationEta(formatDuration(thumbMigration.etaMs), thumbMigration.ratePerMin || 0)
+                  : T.calculatingEta}
+              </p>
+            )}
+            {(thumbMigration.status === 'running' || thumbMigration.status === 'done') && thumbMigration.total > 0 && (
+              <div className="thumb-migration-bar-wrap">
+                <div className="thumb-migration-bar" style={{ width: `${Math.round((thumbMigration.done / thumbMigration.total) * 100)}%` }} />
+              </div>
+            )}
+            {thumbMigration.error && thumbMigration.status === 'done' && (
+              <p className="thumb-migration-note">{thumbMigration.error}</p>
+            )}
+            {(thumbMigration.status === 'done' || thumbMigration.status === 'error') && (
+              <div className="modal-actions">
+                {thumbMigration.status === 'error' && <button className="btn btn-sm" onClick={runThumbnailMigration}>{T.retry}</button>}
+                <button className="btn btn-accent btn-sm" onClick={() => setThumbMigration(null)}>{T.doneBtn}</button>
+              </div>
             )}
           </div>
         </div>
