@@ -89,10 +89,7 @@ input, button { font-family: inherit; }
   opacity: .92;
 }
 
-.has-app-wallpaper .sticky-header-zone {
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(10px);
-}
+.has-app-wallpaper .sticky-header-zone { background: transparent; }
 
 .has-app-wallpaper .header { background: var(--bg); }
 
@@ -251,7 +248,7 @@ input, button { font-family: inherit; }
 .upload-progress { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
 
 /* ─── Stats bar ─── */
-.sticky-header-zone { position: sticky; top: 63px; z-index: 50; background: var(--bg); padding: 10px 0 0; margin-top: -10px; }
+.sticky-header-zone { position: sticky; top: 63px; z-index: 50; background: transparent; padding: 10px 0 0; margin-top: -10px; }
 .stats-bar { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; position: relative; z-index: 1; }
 .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 22px; box-shadow: 0 2px 8px rgba(42,37,32,.05); }
 .stat-card-wide { flex: 1; min-width: 160px; }
@@ -449,15 +446,32 @@ input, button { font-family: inherit; }
 .manage-share-email-row + .manage-share-email-row { border-top: 1px solid var(--border); }
 
 @media (max-width: 640px) {
-  .content { padding: 16px; }
-  .header { padding: 14px 16px; }
+  .app-wallpaper { top: 0; background-attachment: scroll; }
+  .content { padding: 14px 12px; }
+  .header { padding: 10px 12px; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  .header-logo-wrap { gap: 8px; }
+  .header-logo-img { width: 34px; }
+  .header-logo { font-size: 19px; line-height: 1.05; }
+  .header-actions { flex: 1 1 100%; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+  .btn { padding: 8px 12px; font-size: 12px; }
+  .btn-icon { width: 32px; height: 32px; }
+  .sticky-header-zone { position: static; padding-top: 0; margin-top: 0; }
   .trips-grid { grid-template-columns: 1fr; }
-  .photo-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
   .gallery-title { font-size: 22px; }
   .new-trip-form { flex-direction: column; }
-  .stats-bar { gap: 8px; }
-  .stat-card { padding: 12px 16px; }
+  .stats-bar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .stat-card { padding: 12px 14px; min-width: 0; }
+  .stat-card-wide { grid-column: 1 / -1; }
   .stat-value { font-size: 22px; }
+  .stat-value-sm { font-size: 16px; line-height: 1.25; }
+  .stat-label { font-size: 9px; letter-spacing: .9px; }
+  .trips-view-header { align-items: center; gap: 8px; }
+  .sort-toggle { gap: 6px; }
+  .sort-btn { padding: 8px 12px; font-size: 12px; }
+  .view-toggle { margin-left: auto; }
+  .stat-panel { max-height: none; }
+  .map-wrap { border-radius: var(--radius); }
 }
 
 /* ─── Dark mode (must come after :root to override variables) ─── */
