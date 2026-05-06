@@ -237,10 +237,10 @@ a:focus-visible {
 .gallery-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
 .gallery-title { font-size: 30px; }
 .gallery-date { font-size: 13px; color: var(--text-muted); margin-left: 12px; font-weight: 300; }
-.view-toggle { display: flex; gap: 4px; }
-.view-btn { padding: 5px 10px; font-size: 12px; border-radius: 20px; border: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 74%, transparent); color: var(--text-muted); cursor: pointer; transition: all .2s; display: flex; align-items: center; }
+.view-toggle { display: flex; gap: 6px; }
+.view-btn { padding: 8px 12px; min-height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; box-shadow: 0 1px 4px rgba(42,37,32,.04); display: flex; align-items: center; justify-content: center; }
 .view-btn:hover { border-color: var(--border-hover); background: var(--surface-2); color: var(--text); }
-.view-btn.active { background: var(--accent-dim); color: var(--accent); border-color: transparent; font-weight: 500; }
+.view-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(42,37,32,.12); }
 
 .photo-display-wrap { position: relative; min-height: 220px; }
 .photo-image-loader { position: absolute; inset: 0; z-index: 3; display: flex; align-items: flex-start; justify-content: center; padding-top: 18px; pointer-events: none; background: color-mix(in srgb, var(--bg) 34%, transparent); backdrop-filter: blur(2px); border-radius: var(--radius-lg); }
@@ -570,7 +570,7 @@ a:focus-visible {
   .header-actions { flex: 1 1 100%; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
   .btn { padding: 8px 12px; font-size: 12px; }
   .btn-icon { width: 32px; height: 32px; }
-  .sticky-header-zone { position: static; padding-top: 0; margin-top: 0; }
+  .sticky-header-zone { position: sticky; top: 97px; z-index: 50; margin: -10px -12px 12px; padding: 10px 12px 0; background: rgba(248,245,239,.9); backdrop-filter: blur(12px); }
   .trips-grid { grid-template-columns: 1fr; }
   .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
   .trip-slider-btn,
@@ -594,6 +594,7 @@ a:focus-visible {
   .trips-view-header { align-items: center; gap: 8px; }
   .sort-toggle { gap: 6px; }
   .sort-btn { padding: 8px 12px; font-size: 12px; }
+  .view-btn { min-width: 38px; padding: 8px 12px; font-size: 12px; }
   .view-toggle { margin-left: auto; }
   .stat-panel { max-height: none; }
   .map-wrap { border-radius: var(--radius); }
@@ -626,9 +627,13 @@ a:focus-visible {
 [data-theme="dark"] .login-logo-img { filter: drop-shadow(0 12px 24px rgba(0,0,0,.34)) drop-shadow(0 0 14px rgba(232,226,216,.08)); }
 [data-theme="dark"] .btn-icon { background: rgba(255,255,255,.06); border-color: #5d5548; color: #d8d0c4; box-shadow: 0 1px 0 rgba(255,255,255,.04) inset; }
 [data-theme="dark"] .btn-icon:hover { background: rgba(255,255,255,.11); border-color: #776d5d; color: #fff5e8; }
-[data-theme="dark"] .view-btn { background: rgba(255,255,255,.055); border-color: #5d5548; color: #c9c0b4; }
-[data-theme="dark"] .view-btn:hover { background: rgba(255,255,255,.1); border-color: #776d5d; color: #f2eadf; }
-[data-theme="dark"] .view-btn.active { background: rgba(94,138,82,.28); border-color: rgba(126,174,113,.55); color: #bde0b5; }
+[data-theme="dark"] .view-btn { background: var(--surface); border-color: var(--border); color: var(--text); }
+[data-theme="dark"] .view-btn:hover { background: var(--surface-2); border-color: var(--border-hover); color: var(--text); }
+[data-theme="dark"] .view-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 [data-theme="dark"] .signout-icon { background: rgba(94,138,82,.18); border-color: rgba(126,174,113,.38); color: #bde0b5; }
 [data-theme="dark"] .btn-google { background: #2b271f; border-color: #3a352c; color: #e8e2d8; }
 [data-theme="dark"] .btn-google:hover { background: #33302a; }
+
+@media (max-width: 640px) {
+  [data-theme="dark"] .sticky-header-zone { background: rgba(28,26,22,.9); }
+}
