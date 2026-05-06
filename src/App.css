@@ -643,6 +643,18 @@ a:focus-visible {
 .pending-request-row strong { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pending-request-row small { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pending-request-all { margin: 14px 0 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.users-modal { max-width: 840px; width: min(840px, calc(100vw - 32px)); }
+.users-list { max-height: 520px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.user-admin-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(150px, .7fr) auto; gap: 14px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.user-admin-row:last-child { border-bottom: none; }
+.user-admin-row-paused { background: rgba(180,68,68,.08); }
+.user-admin-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.user-admin-main strong { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-admin-main span,
+.user-admin-main small { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-admin-main small { color: var(--danger); font-weight: 700; }
+.user-admin-stats { display: flex; gap: 12px; color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.user-admin-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
 @media (max-width: 640px) {
   .app-wallpaper { top: 0; background-attachment: scroll; }

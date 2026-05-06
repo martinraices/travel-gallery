@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import {
   collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
-  query, where, orderBy, limit, serverTimestamp, getDoc, setDoc, writeBatch, arrayUnion,
+  query, where, orderBy, limit, serverTimestamp, getDoc, setDoc, writeBatch, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject, listAll,
@@ -108,6 +108,7 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [loginInfo, setLoginInfo] = useState('');
   const [pendingAccessUser, setPendingAccessUser] = useState(null);
+  const [pausedAccessEmail, setPausedAccessEmail] = useState('');
   const [submittingAccessRequest, setSubmittingAccessRequest] = useState(false);
   const [appNotice, setAppNotice] = useState(null); // { type: 'success' | 'error', message }
   const [loggingIn, setLoggingIn] = useState(false);
@@ -198,6 +199,11 @@ export default function App() {
   const [selectedPendingRequests, setSelectedPendingRequests] = useState(new Set());
   const [loadingPendingRequests, setLoadingPendingRequests] = useState(false);
   const [savingPendingRequests, setSavingPendingRequests] = useState(false);
+  const [usersModal, setUsersModal] = useState(false);
+  const [appUsers, setAppUsers] = useState([]);
+  const [loadingAppUsers, setLoadingAppUsers] = useState(false);
+  const [savingAppUser, setSavingAppUser] = useState(null);
+  const [confirmUserAction, setConfirmUserAction] = useState(null); // { type, user }
 
   // ─── Access denied (non-whitelisted users) ───
   const [accessDenied, setAccessDenied] = useState(false);
@@ -349,22 +355,37 @@ export default function App() {
       if (u && !u.isAnonymous) {
         const email = (u.email || '').toLowerCase();
         let approvedEmails = [];
+        let pausedEmails = [];
         try {
           const approvedSnap = await getDoc(doc(db, 'globalSettings', 'approvedUsers'));
           approvedEmails = approvedSnap.exists() ? (approvedSnap.data().emails || []).map(e => e.toLowerCase()) : [];
+          pausedEmails = approvedSnap.exists() ? (approvedSnap.data().pausedUsers || []).map(e => e.toLowerCase()) : [];
         } catch {}
+
+        if (pausedEmails.includes(email)) {
+          setUser(null);
+          setGuestMode(false);
+          setAccessDenied(false);
+          setPendingAccessUser(null);
+          setPausedAccessEmail(email);
+          setAuthLoading(false);
+          await signOut(auth).catch(() => {});
+          return;
+        }
 
         if (![...ALLOWED_EMAILS.map(e => e.toLowerCase()), ...approvedEmails].includes(email)) {
           setUser(null);
           setGuestMode(false);
           setAccessDenied(false);
           setPendingAccessUser({ uid: u.uid, email, displayName: u.displayName || '' });
+          setPausedAccessEmail('');
           setAuthLoading(false);
           return;
         }
       }
 
       setPendingAccessUser(null);
+      setPausedAccessEmail('');
       setAccessDenied(false);
       setUser(u);
       setAuthLoading(false);
@@ -565,6 +586,8 @@ export default function App() {
       }
       if (e.key === 'Escape') {
         if (shareSuccess) { setShareSuccess(null); }
+        else if (confirmUserAction) { setConfirmUserAction(null); }
+        else if (usersModal) { setUsersModal(false); }
         else if (pendingRequestsModal) { setPendingRequestsModal(false); }
         else if (manageAccessesModal) { setManageAccessesModal(false); }
         else if (thumbMigration && thumbMigration.status !== 'running' && thumbMigration.status !== 'scanning') { setThumbMigration(null); }
@@ -592,6 +615,7 @@ export default function App() {
   const handleGoogleLogin = async () => {
     setLoginError('');
     setLoginInfo('');
+    setPausedAccessEmail('');
     setGuestMode(false);
     setLoggingIn(true);
     try {
@@ -605,6 +629,7 @@ export default function App() {
   const handleGuestLogin = async () => {
     setLoginError('');
     setLoginInfo('');
+    setPausedAccessEmail('');
     setGuestLoggingIn(true);
     setGuestMode(true);
     setAccessDenied(false);
@@ -638,6 +663,11 @@ export default function App() {
   const cancelAccessRequest = async () => {
     await signOut(auth).catch(() => {});
     setPendingAccessUser(null);
+  };
+
+  const closePausedAccessMessage = async () => {
+    await signOut(auth).catch(() => {});
+    setPausedAccessEmail('');
   };
 
   // ═══════════════════════════════════════
@@ -2036,6 +2066,86 @@ export default function App() {
     setSavingPendingRequests(false);
   };
 
+  const loadAppUsers = async () => {
+    if (isReadOnly) return;
+    setLoadingAppUsers(true);
+    try {
+      const [profilesSnap, settingsSnap, tripsSnap] = await Promise.all([
+        getDocs(collection(db, 'profiles')),
+        getDoc(doc(db, 'globalSettings', 'approvedUsers')),
+        getDocs(tripsCol()),
+      ]);
+      const approvedEmails = settingsSnap.exists() ? (settingsSnap.data().emails || []).map(e => e.toLowerCase()) : [];
+      const pausedEmails = settingsSnap.exists() ? (settingsSnap.data().pausedUsers || []).map(e => e.toLowerCase()) : [];
+      const profileRows = profilesSnap.docs.map(d => ({ id: d.id, ...d.data(), email: (d.data().email || '').toLowerCase() })).filter(p => p.email);
+      const profileByEmail = Object.fromEntries(profileRows.map(p => [p.email, p]));
+      const stats = {};
+      tripsSnap.docs.forEach(d => {
+        const trip = d.data();
+        const email = (trip.ownerEmail || profileRows.find(p => p.id === trip.ownerId)?.email || '').toLowerCase();
+        if (!email) return;
+        stats[email] = stats[email] || { albums: 0, photos: 0 };
+        stats[email].albums += 1;
+        stats[email].photos += trip.photoCount || 0;
+      });
+      const emails = [...new Set([...ALLOWED_EMAILS.map(e => e.toLowerCase()), ...approvedEmails, ...profileRows.map(p => p.email), ...Object.keys(stats)])]
+        .sort((a, b) => a.localeCompare(b));
+      setAppUsers(emails.map(email => ({
+        email,
+        uid: profileByEmail[email]?.id || null,
+        displayName: profileByEmail[email]?.displayName || email.split('@')[0],
+        isAdmin: ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(email),
+        isPaused: pausedEmails.includes(email),
+        albums: stats[email]?.albums || 0,
+        photos: stats[email]?.photos || 0,
+      })));
+    } catch (err) {
+      console.error('Error loading users:', err);
+      showNotice('error', validationText('accessLoadFailed'));
+    }
+    setLoadingAppUsers(false);
+  };
+
+  const togglePauseUser = async (appUser) => {
+    if (isReadOnly || appUser.isAdmin) return;
+    setSavingAppUser(appUser.email);
+    try {
+      await setDoc(doc(db, 'globalSettings', 'approvedUsers'), {
+        pausedUsers: appUser.isPaused ? arrayRemove(appUser.email) : arrayUnion(appUser.email),
+        updatedAt: serverTimestamp(),
+        updatedBy: user.email,
+      }, { merge: true });
+      setAppUsers(prev => prev.map(u => u.email === appUser.email ? { ...u, isPaused: !u.isPaused } : u));
+    } catch (err) {
+      console.error('Error pausing user:', err);
+      showNotice('error', validationText('saveFailed'));
+    }
+    setSavingAppUser(null);
+  };
+
+  const removeAppUser = async (appUser) => {
+    if (isReadOnly || appUser.isAdmin) return;
+    setSavingAppUser(appUser.email);
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'globalSettings', 'approvedUsers'), {
+        emails: arrayRemove(appUser.email),
+        pausedUsers: arrayRemove(appUser.email),
+        updatedAt: serverTimestamp(),
+        updatedBy: user.email,
+      }, { merge: true });
+      batch.delete(doc(db, 'accessRequests', appUser.email));
+      if (appUser.uid) batch.delete(doc(db, 'profiles', appUser.uid));
+      await batch.commit();
+      setAppUsers(prev => prev.filter(u => u.email !== appUser.email));
+      setConfirmUserAction(null);
+    } catch (err) {
+      console.error('Error removing user:', err);
+      showNotice('error', validationText('saveFailed'));
+    }
+    setSavingAppUser(null);
+  };
+
   // ═══════════════════════════════════════
   // STATS
   // ═══════════════════════════════════════
@@ -2340,6 +2450,17 @@ export default function App() {
             </div>
           </div>
         )}
+        {pausedAccessEmail && (
+          <div className="modal-overlay fade-scale" onClick={closePausedAccessMessage}>
+            <div {...modalProps} className="modal access-request-modal" onClick={e => e.stopPropagation()}>
+              <p className="modal-title">{T.accessPausedTitle}</p>
+              <p className="modal-sub">{T.accessPausedMessage(pausedAccessEmail)}</p>
+              <div className="modal-actions" style={{ marginTop: 18 }}>
+                <button className="btn btn-accent" onClick={closePausedAccessMessage}>{T.accept}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2384,6 +2505,13 @@ export default function App() {
                       setPendingRequestsModal(true);
                     }}>
                       {T.pendingRequestsMenu}
+                    </button>
+                    <button className="admin-dropdown-item" onClick={() => {
+                      setAdminDropdown(false);
+                      loadAppUsers();
+                      setUsersModal(true);
+                    }}>
+                      {T.usersMenu}
                     </button>
                     <button className="admin-dropdown-item" onClick={() => {
                       setAdminDropdown(false);
@@ -3686,6 +3814,88 @@ export default function App() {
               </button>
               <button className="btn btn-accent" onClick={() => resolvePendingRequests('approved')} disabled={savingPendingRequests || selectedPendingRequests.size === 0}>
                 {savingPendingRequests ? T.saving : T.approveAccess}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isReadOnly && usersModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setUsersModal(false)}>
+          <div {...modalProps} className="modal users-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.usersTitle}</p>
+            {loadingAppUsers ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}><span className="spinner" /></div>
+            ) : appUsers.length === 0 ? (
+              <p className="modal-sub">{T.noUsers}</p>
+            ) : (
+              <div className="users-list">
+                {appUsers.map(appUser => (
+                  <div key={appUser.email} className={`user-admin-row${appUser.isPaused ? ' user-admin-row-paused' : ''}`}>
+                    <div className="user-admin-main">
+                      <strong>{appUser.displayName}</strong>
+                      <span>{appUser.email}</span>
+                      {appUser.isPaused && <small>{T.userPaused}</small>}
+                    </div>
+                    <div className="user-admin-stats">
+                      <span>{T.userAlbumCount(appUser.albums)}</span>
+                      <span>{T.userPhotoCount(appUser.photos)}</span>
+                    </div>
+                    <div className="user-admin-actions">
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => setConfirmUserAction({ type: appUser.isPaused ? 'resume' : 'pause', user: appUser })}
+                        disabled={savingAppUser === appUser.email || appUser.isAdmin}
+                      >
+                        {appUser.isPaused ? T.resumeAccess : T.pauseAccess}
+                      </button>
+                      <button
+                        className="btn btn-sm btn-danger"
+                        onClick={() => setConfirmUserAction({ type: 'remove', user: appUser })}
+                        disabled={savingAppUser === appUser.email || appUser.isAdmin}
+                      >
+                        {T.removeUser}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setUsersModal(false)}>{T.close}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isReadOnly && confirmUserAction && (
+        <div className="modal-overlay fade-scale" onClick={() => setConfirmUserAction(null)}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, textAlign: 'center' }}>
+            <p className="modal-title">
+              {confirmUserAction.type === 'remove' ? T.confirmRemoveUserTitle : confirmUserAction.type === 'pause' ? T.confirmPauseUserTitle : T.confirmResumeUserTitle}
+            </p>
+            <p className="modal-sub">
+              {confirmUserAction.type === 'remove'
+                ? T.confirmRemoveUserText(confirmUserAction.user.email)
+                : confirmUserAction.type === 'pause'
+                  ? T.confirmPauseUserText(confirmUserAction.user.email)
+                  : T.confirmResumeUserText(confirmUserAction.user.email)}
+            </p>
+            <div className="modal-actions" style={{ marginTop: 18 }}>
+              <button className="btn btn-sm" onClick={() => setConfirmUserAction(null)} disabled={savingAppUser === confirmUserAction.user.email}>{T.cancel}</button>
+              <button
+                className={`btn ${confirmUserAction.type === 'remove' ? 'btn-danger' : 'btn-accent'}`}
+                onClick={async () => {
+                  if (confirmUserAction.type === 'remove') {
+                    await removeAppUser(confirmUserAction.user);
+                  } else {
+                    await togglePauseUser(confirmUserAction.user);
+                    setConfirmUserAction(null);
+                  }
+                }}
+                disabled={savingAppUser === confirmUserAction.user.email}
+              >
+                {savingAppUser === confirmUserAction.user.email ? T.saving : T.confirm}
               </button>
             </div>
           </div>

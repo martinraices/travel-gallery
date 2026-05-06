@@ -61,7 +61,7 @@ service cloud.firestore {
     // Public profiles: authenticated users can read email/displayName for creator attribution.
     match /profiles/{userId} {
       allow read: if request.auth != null;
-      allow write: if isAdmin() && request.auth.uid == userId;
+      allow write: if isAdmin();
     }
 
     // Shared links are intentionally public by token; only admins can create/update/delete them.

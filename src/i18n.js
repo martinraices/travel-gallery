@@ -7,6 +7,7 @@ export function getTranslations(isSpanish) {
     manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
     firebaseBillsUsageMenu: isSpanish ? 'Firebase Bills and Usage' : 'Firebase Bills and Usage',
     pendingRequestsMenu: isSpanish ? 'Pending Requests' : 'Pending Requests',
+    usersMenu: isSpanish ? 'Users' : 'Users',
     newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
     addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
     uploading: (d, t) => isSpanish ? `Subiendo ${d}/${t}…` : `Uploading ${d}/${t}…`,
@@ -225,6 +226,27 @@ export function getTranslations(isSpanish) {
     noPendingRequests: isSpanish ? 'No hay requests pendientes.' : 'There are no pending requests.',
     approveAccess: isSpanish ? 'Aprobar acceso' : 'Approve access',
     denyAccess: isSpanish ? 'Denegar acceso' : 'Deny access',
+    usersTitle: isSpanish ? 'Users' : 'Users',
+    noUsers: isSpanish ? 'No hay usuarios.' : 'There are no users.',
+    userAlbumCount: (n) => isSpanish ? `${n} álbum${n !== 1 ? 'es' : ''}` : `${n} album${n !== 1 ? 's' : ''}`,
+    userPhotoCount: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''}` : `${n} photo${n !== 1 ? 's' : ''}`,
+    userPaused: isSpanish ? 'Acceso pausado' : 'Access paused',
+    pauseAccess: isSpanish ? 'Pausar acceso' : 'Pause access',
+    resumeAccess: isSpanish ? 'Reactivar acceso' : 'Resume access',
+    removeUser: isSpanish ? 'Remover usuario' : 'Remove user',
+    confirm: isSpanish ? 'Confirmar' : 'Confirm',
+    confirmPauseUserTitle: isSpanish ? 'Pausar acceso' : 'Pause access',
+    confirmPauseUserText: (email) => isSpanish
+      ? `¿Seguro que quieres pausar el acceso de ${email}? No podrá entrar hasta que lo reactives.`
+      : `Are you sure you want to pause access for ${email}? They will not be able to sign in until resumed.`,
+    confirmResumeUserTitle: isSpanish ? 'Reactivar acceso' : 'Resume access',
+    confirmResumeUserText: (email) => isSpanish
+      ? `¿Seguro que quieres reactivar el acceso de ${email}?`
+      : `Are you sure you want to resume access for ${email}?`,
+    confirmRemoveUserTitle: isSpanish ? 'Remover usuario' : 'Remove user',
+    confirmRemoveUserText: (email) => isSpanish
+      ? `¿Seguro que quieres remover ${email}? Se borrarán sus datos de perfil y requests, y se quitará su acceso aprobado.`
+      : `Are you sure you want to remove ${email}? Their profile data and requests will be deleted, and approved access will be removed.`,
     // Public share view
     sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
     sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',
@@ -244,6 +266,10 @@ export function getTranslations(isSpanish) {
     sendingRequest: isSpanish ? 'Enviando solicitud…' : 'Sending request…',
     accessRequestSent: isSpanish ? 'Solicitud enviada. El Admin deberá aprobar tu acceso.' : 'Request sent. The Admin must approve your access.',
     accessRequestFailed: isSpanish ? 'No se pudo enviar la solicitud.' : 'Could not send the request.',
+    accessPausedTitle: isSpanish ? 'Acceso pausado' : 'Access paused',
+    accessPausedMessage: (email) => isSpanish
+      ? `El acceso de ${email} está pausado. Contacta al Admin del sitio si necesitas reactivarlo.`
+      : `Access for ${email} is paused. Contact the site Admin if you need it restored.`,
     guestSignInFailed: isSpanish ? 'No se pudo entrar como invitado' : 'Guest access failed',
     guestModeLabel: isSpanish ? 'Invitado' : 'Guest',
     guestBannerTitle: isSpanish ? 'Has entrado como invitado' : 'You are browsing as a Guest',
