@@ -371,6 +371,8 @@ export default function App() {
     orClickToBrowse: isSpanish ? 'o haz clic para buscar' : 'or click to browse',
     noPhotosYet: isSpanish ? 'Aún no hay fotos en este álbum' : 'No photos in this album yet',
     uploadingPhotos: (d, t) => isSpanish ? `Subiendo ${d} de ${t} fotos…` : `Uploading ${d} of ${t} photos…`,
+    loadingTrips: isSpanish ? 'Cargando viajes' : 'Loading trips',
+    loadingPhotos: isSpanish ? 'Cargando fotos' : 'Loading photos',
     clickToEditName: isSpanish ? 'Clic para editar el nombre' : 'Click to edit the name',
     insertEmoji: isSpanish ? 'Insertar emoji' : 'Insert emoji',
     miroLinkOptionalPh: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
@@ -517,6 +519,7 @@ export default function App() {
   const [photos, setPhotos] = useState([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [loadedPhotoImages, setLoadedPhotoImages] = useState(new Set());
   const [uploading, setUploading] = useState(false);
   const [uploadCount, setUploadCount] = useState({ done: 0, total: 0 });
   const [showNewTrip, setShowNewTrip] = useState(false);
@@ -998,7 +1001,8 @@ export default function App() {
 
   const setPhotoAsAppWallpaper = async (photo) => {
     if (!user || isReadOnly) return;
-    const wallpaperUrl = photo.thumbUrl || photo.url;
+    const wallpaperUrl = photo.url;
+    if (!wallpaperUrl) return;
     setAppWallpaperUrl(wallpaperUrl);
     try {
       await setDoc(doc(db, 'users', user.uid, 'profile', 'map'), { appWallpaperUrl: wallpaperUrl }, { merge: true });
@@ -1513,8 +1517,24 @@ export default function App() {
   const displayPhotos = activeCity === null ? photos
     : activeCity === '__uncategorized__' ? photos.filter(p => !p.city)
     : photos.filter(p => p.city === activeCity);
+  const visiblePhotoLoadTarget = displayPhotos.slice(0, Math.min(displayPhotos.length, view === 'list' ? 8 : 12));
+  const visiblePhotosLoaded = visiblePhotoLoadTarget.length === 0 ||
+    visiblePhotoLoadTarget.every(p => loadedPhotoImages.has(p.id));
   const lbIndex = lightbox ? displayPhotos.findIndex(p => p.id === lightbox.id) : -1;
   const navLightbox = (dir) => { const next = lbIndex + dir; if (next >= 0 && next < displayPhotos.length) setLightbox(displayPhotos[next]); };
+
+  useEffect(() => {
+    setLoadedPhotoImages(new Set());
+  }, [activeTrip, activeCity, view, photos.length]);
+
+  const markPhotoImageLoaded = (photoId) => {
+    setLoadedPhotoImages(prev => {
+      if (prev.has(photoId)) return prev;
+      const next = new Set(prev);
+      next.add(photoId);
+      return next;
+    });
+  };
 
   // ─── File drag & drop (grid background) ───
   const onDragOver = (e) => { e.preventDefault(); if (draggingIdx.current === null) setDragging(true); };
@@ -2207,6 +2227,15 @@ export default function App() {
   const canManageActiveTrip = !isReadOnly && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid);
   const { groups: cityGroups, uncategorized: cityUncategorized, hasCities } = groupPhotosByCity(photos);
   const showCityCards = hasCities && activeCity === null;
+  const TravelLoader = ({ label }) => (
+    <div className="travel-loader" role="status" aria-live="polite">
+      <div className="travel-globe" aria-hidden="true">
+        <div className="travel-globe-lines" />
+        <div className="travel-orbit"><span /></div>
+      </div>
+      <div className="travel-loader-label">{label}</div>
+    </div>
+  );
 
   return (
     <div
@@ -2484,7 +2513,7 @@ export default function App() {
               </div>
             )}
 
-            {loadingTrips && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
+            {loadingTrips && <TravelLoader label={T.loadingTrips} />}
 
             {!loadingTrips && trips.length === 0 && !showNewTrip && (
               <div className="empty">
@@ -2712,7 +2741,7 @@ export default function App() {
             {!showCityCards && (
               <>
                 {uploading && <div className="upload-progress"><span className="spinner" />{T.uploadingPhotos(uploadCount.done, uploadCount.total)}</div>}
-                {loadingPhotos && <div style={{ textAlign: 'center', padding: 60 }}><span className="spinner" /></div>}
+                {loadingPhotos && <TravelLoader label={T.loadingPhotos} />}
                 {!loadingPhotos && displayPhotos.length === 0 && !uploading && (
                   <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onClick={() => !isReadOnly && fileRef.current?.click()}
                     onDragOver={!isReadOnly ? onDragOver : undefined} onDragLeave={!isReadOnly ? onDragLeave : undefined} onDrop={!isReadOnly ? onDrop : undefined}>
@@ -2725,7 +2754,9 @@ export default function App() {
                 {displayPhotos.length > 0 && view === 'grid' && (() => {
                   const canDrag = !isReadOnly && activeCity === null;
                   return (
-                    <div className="photo-grid" onDragOver={canDrag ? onDragOver : undefined} onDragLeave={canDrag ? onDragLeave : undefined} onDrop={canDrag ? onDrop : undefined}>
+                    <div className="photo-display-wrap">
+                      {!visiblePhotosLoaded && <div className="photo-image-loader"><TravelLoader label={T.loadingPhotos} /></div>}
+                      <div className={`photo-grid${!visiblePhotosLoaded ? ' photos-loading' : ''}`} onDragOver={canDrag ? onDragOver : undefined} onDragLeave={canDrag ? onDragLeave : undefined} onDrop={canDrag ? onDrop : undefined}>
                       {displayPhotos.map((p, i) => {
                         const flatIdx = photos.findIndex(x => x.id === p.id);
                         return (
@@ -2740,19 +2771,22 @@ export default function App() {
                             onDrop={canDrag ? e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(flatIdx); setDragOverIdx(null); } : undefined}
                             onClick={() => setLightbox(p)}
                             onContextMenu={!isReadOnly ? e => openPhotoContextMenu(e, p, { canSetAlbumCover: activeCity && canManageActiveTrip, canManagePhoto: canManageActiveTrip }) : undefined}>
-                            <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" decoding="async" />
+                            <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" decoding="async" onLoad={() => markPhotoImageLoaded(p.id)} onError={() => markPhotoImageLoaded(p.id)} />
                             {canDrag && <div className="photo-drag-handle">⠿</div>}
                             {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
                           </div>
                         );
                       })}
                       {canDrag && <div className="add-tile" onClick={() => fileRef.current?.click()}>+</div>}
+                      </div>
                     </div>
                   );
                 })()}
 
                 {displayPhotos.length > 0 && view === 'list' && (
-                  <div className="photo-list">
+                  <div className="photo-display-wrap">
+                    {!visiblePhotosLoaded && <div className="photo-image-loader"><TravelLoader label={T.loadingPhotos} /></div>}
+                    <div className={`photo-list${!visiblePhotosLoaded ? ' photos-loading' : ''}`}>
                     {displayPhotos.map((p, i) => (
                       <div key={p.id}
                         className={`photo-list-item fade-in${selectedPhotos.has(p.id) ? ' selected' : ''}`}
@@ -2764,7 +2798,7 @@ export default function App() {
                             onChange={() => togglePhotoSelection(p.id)}
                             onClick={e => e.stopPropagation()} />
                         )}
-                        <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" decoding="async" onClick={() => setLightbox(p)} style={{ cursor: 'pointer' }} />
+                        <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" decoding="async" onLoad={() => markPhotoImageLoaded(p.id)} onError={() => markPhotoImageLoaded(p.id)} onClick={() => setLightbox(p)} style={{ cursor: 'pointer' }} />
                         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setLightbox(p)}>
                           <div className="photo-list-name">{p.name}</div>
                           {p.description && <div className="photo-list-desc">{p.description}</div>}
@@ -2772,6 +2806,7 @@ export default function App() {
                         </div>
                       </div>
                     ))}
+                    </div>
                   </div>
                 )}
               </>
