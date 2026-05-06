@@ -99,6 +99,7 @@ input, button { font-family: inherit; }
 @keyframes globeSpin { to { background-position: 80px 0, 0 0; } }
 @keyframes orbitSpin { to { transform: rotate(360deg); } }
 @keyframes loaderPulse { 50% { opacity: .55; } }
+@keyframes coverFade { from { opacity: .38; transform: scale(1.018); } to { opacity: 1; transform: scale(1); } }
 .fade-in { animation: fadeIn .45s ease both; }
 .fade-scale { animation: fadeScale .35s ease both; }
 
@@ -122,6 +123,7 @@ input, button { font-family: inherit; }
 .login-card { text-align: center; max-width: 400px; padding: 48px 36px; position: relative; }
 .login-logo { font-size: 36px; color: var(--gold); margin-bottom: 8px; }
 .login-logo-img { width: 240px; height: auto; margin-bottom: 32px; filter: drop-shadow(0 4px 12px rgba(0,0,0,.08)); }
+.login-theme-toggle { position: fixed; top: 22px; right: 24px; z-index: 2; }
 .login-sub { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; letter-spacing: .5px; }
 .login-error { color: var(--danger); font-size: 12px; margin-top: 12px; }
 
@@ -146,22 +148,90 @@ input, button { font-family: inherit; }
 .trips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
 .trip-card { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden; cursor: pointer; transition: all .3s; position: relative; box-shadow: 0 2px 12px rgba(42,37,32,.06); }
 .trip-card:hover { border-color: var(--border-hover); transform: translateY(-3px); box-shadow: 0 8px 30px rgba(42,37,32,.12); }
-.trip-cover { height: 180px; background-size: cover; background-position: center; position: relative; }
+.trip-cover { height: 180px; background-size: cover; background-position: center; position: relative; overflow: hidden; }
 .trip-cover::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(transparent, rgba(0,0,0,.3)); }
+.trip-cover:not(.trip-cover-empty) > span { display: none; }
+.trip-cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  animation: coverFade .34s ease both;
+}
+.trip-slider-btn {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(20,20,20,.36);
+  color: rgba(255,255,255,.92);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%) scale(.96);
+  transition: opacity .18s ease, background .18s ease, transform .18s ease;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 22px rgba(0,0,0,.18);
+}
+.trip-slider-prev { left: 12px; }
+.trip-slider-next { right: 12px; }
+.trip-card:hover .trip-slider-btn,
+.trip-slider-btn:focus-visible {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+.trip-slider-btn:hover { background: rgba(74,103,65,.88); }
+.trip-slider-indicator {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 2;
+  min-width: 42px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(20,20,20,.42);
+  color: rgba(255,255,255,.9);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity .18s ease;
+  backdrop-filter: blur(8px);
+}
+.trip-card:hover .trip-slider-indicator { opacity: 1; }
+.trip-slider-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,.34);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: -2px;
+}
 .trip-cover-empty { background: linear-gradient(135deg, var(--surface), var(--surface-2)); display: flex; align-items: center; justify-content: center; }
 .trip-cover-empty span { font-size: 44px; opacity: .12; }
 .trip-info { padding: 14px 18px; }
 .trip-name { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; margin-bottom: 4px; }
 .trip-meta { font-size: 12px; color: var(--text-muted); }
 .trip-creator { font-size: 11px; color: var(--text-muted); opacity: .65; margin-top: 3px; }
-.trip-delete { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.35); border: none; color: rgba(255,255,255,.7); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; transition: all .2s; backdrop-filter: blur(4px); z-index: 1; }
+.trip-delete { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.35); border: none; color: rgba(255,255,255,.7); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; transition: all .2s; backdrop-filter: blur(4px); z-index: 3; }
 .trip-delete:hover { background: var(--danger); color: #fff; }
 
 .gallery-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
 .gallery-title { font-size: 30px; }
 .gallery-date { font-size: 13px; color: var(--text-muted); margin-left: 12px; font-weight: 300; }
 .view-toggle { display: flex; gap: 4px; }
-.view-btn { padding: 5px 10px; font-size: 12px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; transition: all .2s; display: flex; align-items: center; }
+.view-btn { padding: 5px 10px; font-size: 12px; border-radius: 20px; border: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 74%, transparent); color: var(--text-muted); cursor: pointer; transition: all .2s; display: flex; align-items: center; }
+.view-btn:hover { border-color: var(--border-hover); background: var(--surface-2); color: var(--text); }
 .view-btn.active { background: var(--accent-dim); color: var(--accent); border-color: transparent; font-weight: 500; }
 
 .photo-display-wrap { position: relative; min-height: 220px; }
@@ -239,6 +309,10 @@ input, button { font-family: inherit; }
 .modal-title { font-size: 16px; margin-bottom: 6px; }
 .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 .modal-actions { display: flex; gap: 10px; justify-content: center; }
+.signout-modal { width: min(420px, calc(100vw - 32px)); padding: 30px 30px 28px; }
+.signout-icon { width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--accent-dim); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border)); }
+.signout-message { font-size: 14px; line-height: 1.5; max-width: 340px; margin-left: auto; margin-right: auto; }
+.signout-modal .modal-actions { margin-top: 4px; }
 .thumb-migration-bar-wrap { height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; margin: 4px 0 16px; }
 .thumb-migration-bar { height: 100%; background: var(--accent); border-radius: inherit; transition: width .3s ease; }
 .thumb-migration-eta { font-size: 12px; color: var(--text-muted); margin: -14px 0 14px; }
@@ -354,7 +428,7 @@ input, button { font-family: inherit; }
 .edit-modal-fields { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 
 /* ─── Share button on trip card ─── */
-.trip-share { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,.35); border: none; color: rgba(255,255,255,.75); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; transition: all .2s; backdrop-filter: blur(4px); z-index: 1; }
+.trip-share { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,.35); border: none; color: rgba(255,255,255,.75); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; transition: all .2s; backdrop-filter: blur(4px); z-index: 3; }
 .trip-share:hover { background: var(--accent); color: #fff; }
 .trip-share-active { background: var(--accent) !important; color: #fff !important; }
 .trip-share:disabled { opacity: .5; cursor: default; }
@@ -458,6 +532,11 @@ input, button { font-family: inherit; }
   .sticky-header-zone { position: static; padding-top: 0; margin-top: 0; }
   .trips-grid { grid-template-columns: 1fr; }
   .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .trip-slider-btn,
+  .trip-slider-indicator { opacity: 1; }
+  .trip-slider-btn { width: 32px; height: 40px; }
+  .trip-slider-prev { left: 10px; }
+  .trip-slider-next { right: 10px; }
   .gallery-title { font-size: 22px; }
   .new-trip-form { flex-direction: column; }
   .stats-bar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -498,5 +577,12 @@ input, button { font-family: inherit; }
 [data-theme="dark"] .has-app-wallpaper .header { background: var(--bg); }
 [data-theme="dark"] .login-page { background: linear-gradient(170deg, #1c1a16 0%, #201d18 50%, #24211a 100%); }
 [data-theme="dark"] .login-page::before { background: radial-gradient(circle, rgba(107,92,62,.04) 0%, transparent 70%); }
+[data-theme="dark"] .login-logo-img { filter: drop-shadow(0 12px 24px rgba(0,0,0,.34)) drop-shadow(0 0 14px rgba(232,226,216,.08)); }
+[data-theme="dark"] .btn-icon { background: rgba(255,255,255,.06); border-color: #5d5548; color: #d8d0c4; box-shadow: 0 1px 0 rgba(255,255,255,.04) inset; }
+[data-theme="dark"] .btn-icon:hover { background: rgba(255,255,255,.11); border-color: #776d5d; color: #fff5e8; }
+[data-theme="dark"] .view-btn { background: rgba(255,255,255,.055); border-color: #5d5548; color: #c9c0b4; }
+[data-theme="dark"] .view-btn:hover { background: rgba(255,255,255,.1); border-color: #776d5d; color: #f2eadf; }
+[data-theme="dark"] .view-btn.active { background: rgba(94,138,82,.28); border-color: rgba(126,174,113,.55); color: #bde0b5; }
+[data-theme="dark"] .signout-icon { background: rgba(94,138,82,.18); border-color: rgba(126,174,113,.38); color: #bde0b5; }
 [data-theme="dark"] .btn-google { background: #2b271f; border-color: #3a352c; color: #e8e2d8; }
 [data-theme="dark"] .btn-google:hover { background: #33302a; }

@@ -530,8 +530,13 @@ export default function App() {
   const [newTripVisibility, setNewTripVisibility] = useState('shared');
   const [lightbox, setLightbox] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [signOutConfirm, setSignOutConfirm] = useState(null);
   const [view, setView] = useState('grid');
   const [tripsView, setTripsView] = useState('grid');
+  const [tripPreviewPhotos, setTripPreviewPhotos] = useState({});
+  const [tripPreviewIndexes, setTripPreviewIndexes] = useState({});
+  const [cityPreviewIndexes, setCityPreviewIndexes] = useState({});
+  const [loadingTripPreviews, setLoadingTripPreviews] = useState(new Set());
   const [tripSort, setTripSort] = useState(null);
   const [appWallpaperUrl, setAppWallpaperUrl] = useState('');
   const [scrollFade, setScrollFade] = useState('');
@@ -677,6 +682,32 @@ export default function App() {
   }, []);
 
   // ─── Load panel label from per-user settings ───
+  const handleSignOut = useCallback(() => {
+    const messages = isSpanish
+      ? [
+          'Seguro que quieres cerrar sesion? Tus fotos prometen no montar una fiesta mientras no estas.',
+          'Ultima llamada: si sales ahora, el mapa se queda mirando dramaticamente al horizonte. Continuar?',
+          'Cerrar sesion? Los pepini viajeros haran guardia, pero no saben mucho de seguridad digital.',
+          'Confirmemos esto con solemnidad absurda: abandonas la galeria por ahora?',
+          'Te vas? Perfecto, pero que conste que el boton de logout empezo esto.',
+        ]
+      : [
+          'Are you sure you want to sign out? Your photos promise not to throw a party while you are gone.',
+          'Last call: if you leave now, the map will stare dramatically into the distance. Continue?',
+          'Sign out? The traveling pepini will stand guard, but they are not cybersecurity experts.',
+          'Let us confirm this with absurd solemnity: are you leaving the gallery for now?',
+          'Leaving? Fine, but for the record, the logout button started it.',
+        ];
+    const message = messages[Math.floor(Math.random() * messages.length)];
+    setSignOutConfirm(message);
+  }, [isSpanish]);
+
+  const confirmSignOut = useCallback(() => {
+    setSignOutConfirm(null);
+    setGuestMode(false);
+    signOut(auth).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!user) { setCustomPanelLabel(''); setCustomPanelMiro(''); return; }
     if (isReadOnly) { setCustomPanelLabel(''); setCustomPanelMiro(''); return; }
@@ -792,6 +823,7 @@ export default function App() {
         else if (editTrip) { setEditTrip(null); }
         else if (editCity) { setEditCity(null); }
         else if (shareModal) { setShareModal(null); }
+        else if (signOutConfirm) { setSignOutConfirm(null); }
         else if (confirmDelete) { setConfirmDelete(null); }
         else if (cityModal) { setCityModal(false); }
         else if (fbModal && fbStep !== 'import') { setFbModal(false); }
@@ -932,6 +964,52 @@ export default function App() {
     } catch (err) { console.error('Load photos error:', err); }
     setLoadingPhotos(false);
   };
+
+  const loadTripPreviewPhotos = useCallback(async (tripId) => {
+    if (tripPreviewPhotos[tripId]) return tripPreviewPhotos[tripId];
+    setLoadingTripPreviews(prev => new Set(prev).add(tripId));
+    try {
+      const snap = await getDocs(query(photosCol(tripId), orderBy('createdAt', 'asc')));
+      const loaded = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const trip = trips.find(t => t.id === tripId);
+      if (trip?.photoOrder?.length) {
+        const orderMap = new Map(trip.photoOrder.map((id, i) => [id, i]));
+        loaded.sort((a, b) => (orderMap.has(a.id) ? orderMap.get(a.id) : 9999) - (orderMap.has(b.id) ? orderMap.get(b.id) : 9999));
+      }
+      setTripPreviewPhotos(prev => ({ ...prev, [tripId]: loaded }));
+      return loaded;
+    } catch (err) {
+      console.error('Load trip preview photos error:', err);
+      return [];
+    } finally {
+      setLoadingTripPreviews(prev => {
+        const next = new Set(prev);
+        next.delete(tripId);
+        return next;
+      });
+    }
+  }, [tripPreviewPhotos, trips]);
+
+  const navigateTripPreview = useCallback(async (e, trip, dir) => {
+    e.stopPropagation();
+    if ((trip.photoCount || 0) < 2) return;
+    const loaded = tripPreviewPhotos[trip.id] || await loadTripPreviewPhotos(trip.id);
+    if (!loaded.length) return;
+    setTripPreviewIndexes(prev => {
+      const coverIdx = loaded.findIndex(p => p.url === trip.cover || p.thumbUrl === trip.cover);
+      const current = prev[trip.id] ?? (coverIdx >= 0 ? coverIdx : 0);
+      return { ...prev, [trip.id]: (current + dir + loaded.length) % loaded.length };
+    });
+  }, [loadTripPreviewPhotos, tripPreviewPhotos]);
+
+  const navigateCityPreview = useCallback((e, key, count, dir) => {
+    e.stopPropagation();
+    if (count < 2) return;
+    setCityPreviewIndexes(prev => {
+      const current = prev[key] ?? 0;
+      return { ...prev, [key]: (current + dir + count) % count };
+    });
+  }, []);
 
   const handleFiles = useCallback(async (files) => {
     if (isReadOnly) return;
@@ -2126,12 +2204,28 @@ export default function App() {
   // ═══════════════════════════════════════
   // PUBLIC SHARE VIEW
   // ═══════════════════════════════════════
+  const logoSrc = darkMode ? '/logo-dark.png' : '/logo.png';
+  const ThemeToggle = ({ className = '' }) => (
+    <button
+      className={`btn-icon${className ? ` ${className}` : ''}`}
+      onClick={() => setDarkMode(d => !d)}
+      title={darkMode ? T.lightMode : T.darkMode}
+      aria-label={darkMode ? T.lightMode : T.darkMode}
+    >
+      {darkMode
+        ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      }
+    </button>
+  );
+
   if (publicShareLoading) return <div className="login-page"><span className="spinner" style={{ width: 28, height: 28 }} /></div>;
 
   if (publicShareData) {
     if (publicShareData.error) return (
       <div className="login-page"><div className="login-card">
-        <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
+        <ThemeToggle className="login-theme-toggle" />
+        <img src={logoSrc} alt="Pepini per il mondo" className="login-logo-img" />
         <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{T.sharedLinkInvalid}</p>
       </div></div>
     );
@@ -2140,7 +2234,7 @@ export default function App() {
       <div>
         <header className="header">
           <div className="header-logo-wrap">
-            <img src="/logo.png" alt="Pepini per il mondo" className="header-logo-img" />
+            <img src={logoSrc} alt="Pepini per il mondo" className="header-logo-img" />
             <span className="header-logo heading">Pepini per il mondo</span>
           </div>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{T.sharedGallery}</span>
@@ -2184,7 +2278,8 @@ export default function App() {
     return (
       <div className="login-page">
         <div className="login-card fade-scale">
-          <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
+          <ThemeToggle className="login-theme-toggle" />
+          <img src={logoSrc} alt="Pepini per il mondo" className="login-logo-img" />
           <p className="login-sub" style={{ fontSize: 18, fontWeight: 600, color: 'var(--danger)', marginBottom: 8 }}>{T.accessDenied}</p>
           <p className="login-sub">{T.appIsPrivate}</p>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{T.contactAdmin}</p>
@@ -2201,7 +2296,8 @@ export default function App() {
     return (
       <div className="login-page">
         <div className="login-card fade-scale">
-          <img src="/logo.png" alt="Pepini per il mondo" className="login-logo-img" />
+          <ThemeToggle className="login-theme-toggle" />
+          <img src={logoSrc} alt="Pepini per il mondo" className="login-logo-img" />
           <p className="login-sub">{T.signInSub}</p>
           <button onClick={handleGoogleLogin} className="btn-google" disabled={loggingIn}>
             {loggingIn
@@ -2246,7 +2342,7 @@ export default function App() {
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div className="header-logo-wrap" onClick={() => setActiveTrip(null)}>
-            <img src="/logo.png" alt="Pepini per il mondo" className="header-logo-img" />
+            <img src={logoSrc} alt="Pepini per il mondo" className="header-logo-img" />
             <span className="header-logo heading">Pepini per il mondo</span>
           </div>
         </div>
@@ -2279,13 +2375,8 @@ export default function App() {
               {uploading ? T.uploading(uploadCount.done, uploadCount.total) : T.addPhotos}
             </button>
           )}
-          <button className="btn-icon" onClick={() => setDarkMode(d => !d)} title={darkMode ? T.lightMode : T.darkMode}>
-            {darkMode
-              ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-              : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            }
-          </button>
-          <button className="btn-icon" onClick={() => { setGuestMode(false); signOut(auth).catch(() => {}); }} title={T.signOut}>
+          <ThemeToggle />
+          <button className="btn-icon" onClick={handleSignOut} title={T.signOut}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
@@ -2583,12 +2674,43 @@ export default function App() {
                     || creatorMap[trip.ownerId]
                     || (isOwner ? user.email : null);
                   const creatorUsername = creatorEmail ? creatorEmail.split('@')[0] : null;
+                  const previewPhotos = tripPreviewPhotos[trip.id] || [];
+                  const previewIndex = tripPreviewIndexes[trip.id] ?? 0;
+                  const previewPhoto = previewPhotos[previewIndex];
+                  const previewUrl = previewPhoto?.thumbUrl || previewPhoto?.url || trip.cover;
+                  const canSlide = (trip.photoCount || 0) > 1;
+                  const previewLoading = loadingTripPreviews.has(trip.id);
                   return (
                   <div key={trip.id} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }} onClick={() => setActiveTrip(trip.id)}>
-                    <div className={`trip-cover ${trip.cover ? '' : 'trip-cover-empty'}`}
-                      style={trip.cover ? { backgroundImage: `url(${trip.cover})` } : {}}>
-                      {!trip.cover && <span>🗺</span>}
+                    <div className={`trip-cover ${previewUrl ? '' : 'trip-cover-empty'}`}>
+                      {previewUrl && <img key={previewUrl} className="trip-cover-img" src={previewUrl} alt="" loading="lazy" decoding="async" />}
+                      {!previewUrl && <span>🗺</span>}
                       {isOwner && <button className="trip-delete" onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>}
+                      {canSlide && (
+                        <>
+                          <button
+                            className="trip-slider-btn trip-slider-prev"
+                            onClick={e => navigateTripPreview(e, trip, -1)}
+                            title={isSpanish ? 'Foto anterior' : 'Previous photo'}
+                            aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                          </button>
+                          <button
+                            className="trip-slider-btn trip-slider-next"
+                            onClick={e => navigateTripPreview(e, trip, 1)}
+                            title={isSpanish ? 'Foto siguiente' : 'Next photo'}
+                            aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                          </button>
+                          <div className="trip-slider-indicator">
+                            {previewLoading
+                              ? <span className="trip-slider-spinner" />
+                              : `${previewPhotos.length ? previewIndex + 1 : 1}/${trip.photoCount || previewPhotos.length}`}
+                          </div>
+                        </>
+                      )}
                       {isOwner && (
                         <button className={`trip-share ${trip.shareToken ? 'trip-share-active' : ''}`}
                           title={trip.shareToken ? T.sharedSeeLink : T.shareThisTrip}
@@ -2690,14 +2812,39 @@ export default function App() {
             {showCityCards && (
               <div className="trips-grid">
                 {Object.keys(cityGroups).sort().map((city, i) => {
-                  const coverUrl = cityGroups[city][0]?.url;
+                  const cityPhotos = cityGroups[city];
+                  const cityPreviewKey = `${activeTripData.id}::${city}`;
+                  const cityPreviewIndex = cityPreviewIndexes[cityPreviewKey] ?? 0;
+                  const cityPreviewPhoto = cityPhotos[cityPreviewIndex] || cityPhotos[0];
+                  const coverUrl = cityPreviewPhoto?.thumbUrl || cityPreviewPhoto?.url;
                   const isOwner = !isReadOnly && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid);
                   const cityVis = activeTripData?.cityMetadata?.[city]?.visibility || activeTripData?.visibility || 'shared';
                   return (
                     <div key={city} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }}
                       onClick={() => setActiveCity(city)}>
-                      <div className={`trip-cover ${coverUrl ? '' : 'trip-cover-empty'}`}
-                        style={coverUrl ? { backgroundImage: `url(${coverUrl})` } : {}}>
+                      <div className={`trip-cover ${coverUrl ? '' : 'trip-cover-empty'}`}>
+                        {coverUrl && <img key={coverUrl} className="trip-cover-img" src={coverUrl} alt="" loading="lazy" decoding="async" />}
+                        {cityPhotos.length > 1 && (
+                          <>
+                            <button
+                              className="trip-slider-btn trip-slider-prev"
+                              onClick={e => navigateCityPreview(e, cityPreviewKey, cityPhotos.length, -1)}
+                              title={isSpanish ? 'Foto anterior' : 'Previous photo'}
+                              aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                            <button
+                              className="trip-slider-btn trip-slider-next"
+                              onClick={e => navigateCityPreview(e, cityPreviewKey, cityPhotos.length, 1)}
+                              title={isSpanish ? 'Foto siguiente' : 'Next photo'}
+                              aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <div className="trip-slider-indicator">{`${cityPreviewIndex + 1}/${cityPhotos.length}`}</div>
+                          </>
+                        )}
                         {!coverUrl && <span>🏙</span>}
                       </div>
                       <div className="trip-info">
@@ -2719,12 +2866,36 @@ export default function App() {
                   );
                 })}
                 {cityUncategorized.length > 0 && (() => {
-                  const coverUrl = cityUncategorized[0]?.url;
+                  const cityPreviewKey = `${activeTripData.id}::__uncategorized__`;
+                  const cityPreviewIndex = cityPreviewIndexes[cityPreviewKey] ?? 0;
+                  const cityPreviewPhoto = cityUncategorized[cityPreviewIndex] || cityUncategorized[0];
+                  const coverUrl = cityPreviewPhoto?.thumbUrl || cityPreviewPhoto?.url;
                   return (
                     <div className="trip-card fade-in" style={{ animationDelay: `${Object.keys(cityGroups).length * 60}ms` }}
                       onClick={() => setActiveCity('__uncategorized__')}>
-                      <div className={`trip-cover ${coverUrl ? '' : 'trip-cover-empty'}`}
-                        style={coverUrl ? { backgroundImage: `url(${coverUrl})` } : {}}>
+                      <div className={`trip-cover ${coverUrl ? '' : 'trip-cover-empty'}`}>
+                        {coverUrl && <img key={coverUrl} className="trip-cover-img" src={coverUrl} alt="" loading="lazy" decoding="async" />}
+                        {cityUncategorized.length > 1 && (
+                          <>
+                            <button
+                              className="trip-slider-btn trip-slider-prev"
+                              onClick={e => navigateCityPreview(e, cityPreviewKey, cityUncategorized.length, -1)}
+                              title={isSpanish ? 'Foto anterior' : 'Previous photo'}
+                              aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                            <button
+                              className="trip-slider-btn trip-slider-next"
+                              onClick={e => navigateCityPreview(e, cityPreviewKey, cityUncategorized.length, 1)}
+                              title={isSpanish ? 'Foto siguiente' : 'Next photo'}
+                              aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <div className="trip-slider-indicator">{`${cityPreviewIndex + 1}/${cityUncategorized.length}`}</div>
+                          </>
+                        )}
                         {!coverUrl && <span>🏙</span>}
                       </div>
                       <div className="trip-info">
@@ -2887,6 +3058,26 @@ export default function App() {
       )}
 
       {/* ═══ DELETE TRIP ═══ */}
+      {signOutConfirm && (
+        <div className="modal-overlay fade-scale" onClick={() => setSignOutConfirm(null)}>
+          <div className="modal signout-modal" onClick={e => e.stopPropagation()}>
+            <div className="signout-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </div>
+            <p className="modal-title">{isSpanish ? 'Antes de salir...' : 'Before you go...'}</p>
+            <p className="modal-sub signout-message">{signOutConfirm}</p>
+            <div className="modal-actions">
+              <button className="btn btn-sm" onClick={() => setSignOutConfirm(null)}>{T.cancel}</button>
+              <button className="btn btn-accent" onClick={confirmSignOut}>{T.signOut}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!isReadOnly && confirmDelete && (
         <div className="modal-overlay fade-scale" onClick={() => setConfirmDelete(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
