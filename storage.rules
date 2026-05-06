@@ -7,9 +7,13 @@ service firebase.storage {
         request.auth.token.email in ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];
     }
 
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
     match /users/{userId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isAdmin() && request.auth.uid == userId;
+      allow read: if isAdmin() || isOwner(userId);
+      allow write: if isAdmin() && isOwner(userId);
     }
   }
 }

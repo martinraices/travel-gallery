@@ -14,271 +14,17 @@ import {
   ref, uploadBytes, getDownloadURL, deleteObject, listAll,
 } from 'firebase/storage';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
-
-// ─── Country name → ISO 3166-1 numeric (for choropleth map) ───
-const COUNTRY_ISO = {
-  'Afghanistan': 4, 'Albania': 8, 'Algeria': 12, 'Andorra': 20, 'Angola': 24,
-  'Antigua and Barbuda': 28, 'Argentina': 32, 'Armenia': 51, 'Australia': 36,
-  'Austria': 40, 'Azerbaijan': 31, 'Bahamas': 44, 'Bahrain': 48, 'Bangladesh': 50,
-  'Barbados': 52, 'Belarus': 112, 'Belgium': 56, 'Belize': 84, 'Benin': 204,
-  'Bhutan': 64, 'Bolivia': 68, 'Bosnia and Herzegovina': 70, 'Botswana': 72,
-  'Brazil': 76, 'Brunei': 96, 'Bulgaria': 100, 'Burkina Faso': 854, 'Burundi': 108,
-  'Cabo Verde': 132, 'Cambodia': 116, 'Cameroon': 120, 'Canada': 124,
-  'Central African Republic': 140, 'Chad': 148, 'Chile': 152, 'China': 156,
-  'Colombia': 170, 'Comoros': 174, 'Congo': 178, 'Costa Rica': 188, 'Croatia': 191,
-  'Cuba': 192, 'Cyprus': 196, 'Czech Republic': 203, 'Denmark': 208, 'Djibouti': 262,
-  'Dominica': 212, 'Dominican Republic': 214, 'DR Congo': 180, 'Ecuador': 218,
-  'Egypt': 818, 'El Salvador': 222, 'Equatorial Guinea': 226, 'Eritrea': 232,
-  'Estonia': 233, 'Eswatini': 748, 'Ethiopia': 231, 'Fiji': 242, 'Finland': 246,
-  'France': 250, 'Gabon': 266, 'Gambia': 270, 'Georgia': 268, 'Germany': 276,
-  'Ghana': 288, 'Greece': 300, 'Grenada': 308, 'Guatemala': 320, 'Guinea': 324,
-  'Guinea-Bissau': 624, 'Guyana': 328, 'Haiti': 332, 'Honduras': 340,
-  'Hungary': 348, 'Iceland': 352, 'India': 356, 'Indonesia': 360, 'Iran': 364,
-  'Iraq': 368, 'Ireland': 372, 'Israel': 376, 'Italy': 380, 'Jamaica': 388,
-  'Japan': 392, 'Jordan': 400, 'Kazakhstan': 398, 'Kenya': 404, 'Kiribati': 296,
-  'Kuwait': 414, 'Kyrgyzstan': 417, 'Laos': 418, 'Latvia': 428, 'Lebanon': 422,
-  'Lesotho': 426, 'Liberia': 430, 'Libya': 434, 'Liechtenstein': 438,
-  'Lithuania': 440, 'Luxembourg': 442, 'Madagascar': 450, 'Malawi': 454,
-  'Malaysia': 458, 'Maldives': 462, 'Mali': 466, 'Malta': 470,
-  'Marshall Islands': 584, 'Mauritania': 478, 'Mauritius': 480, 'Mexico': 484,
-  'Micronesia': 583, 'Moldova': 498, 'Monaco': 492, 'Mongolia': 496,
-  'Montenegro': 499, 'Morocco': 504, 'Mozambique': 508, 'Myanmar': 104,
-  'Namibia': 516, 'Nauru': 520, 'Nepal': 524, 'Netherlands': 528,
-  'New Zealand': 554, 'Nicaragua': 558, 'Niger': 562, 'Nigeria': 566,
-  'North Korea': 408, 'North Macedonia': 807, 'Norway': 578, 'Oman': 512,
-  'Pakistan': 586, 'Palau': 585, 'Palestine': 275, 'Panama': 591,
-  'Papua New Guinea': 598, 'Paraguay': 600, 'Peru': 604, 'Philippines': 608,
-  'Poland': 616, 'Portugal': 620, 'Qatar': 634, 'Romania': 642, 'Russia': 643,
-  'Rwanda': 646, 'Saint Kitts and Nevis': 659, 'Saint Lucia': 662,
-  'Saint Vincent and the Grenadines': 670, 'Samoa': 882, 'San Marino': 674,
-  'Sao Tome and Principe': 678, 'Saudi Arabia': 682, 'Senegal': 686,
-  'Serbia': 688, 'Seychelles': 690, 'Sierra Leone': 694, 'Singapore': 702,
-  'Slovakia': 703, 'Slovenia': 705, 'Solomon Islands': 90, 'Somalia': 706,
-  'South Africa': 710, 'South Korea': 410, 'South Sudan': 728, 'Spain': 724,
-  'Sri Lanka': 144, 'Sudan': 729, 'Suriname': 740, 'Sweden': 752,
-  'Switzerland': 756, 'Syria': 760, 'Taiwan': 158, 'Tajikistan': 762,
-  'Tanzania': 834, 'Thailand': 764, 'Timor-Leste': 626, 'Togo': 768,
-  'Tonga': 776, 'Trinidad and Tobago': 780, 'Tunisia': 788, 'Turkey': 792,
-  'Turkmenistan': 795, 'Tuvalu': 798, 'Uganda': 800, 'Ukraine': 804,
-  'United Arab Emirates': 784, 'United Kingdom': 826, 'United States': 840,
-  'Uruguay': 858, 'Uzbekistan': 860, 'Vanuatu': 548, 'Vatican City': 336,
-  'Venezuela': 862, 'Vietnam': 704, 'Yemen': 887, 'Zambia': 894, 'Zimbabwe': 716,
-  'Scotland': 826,
-};
-
-const COUNTRY_NAMES = Object.keys(COUNTRY_ISO);
-const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
-
-// ─── All world countries (for datalist autocomplete) ───
-const WORLD_COUNTRIES = [
-  'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina',
-  'Armenia','Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados',
-  'Belarus','Belgium','Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana',
-  'Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon',
-  'Canada','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo',
-  'Costa Rica','Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica',
-  'Dominican Republic','DR Congo','Ecuador','Egypt','El Salvador','Equatorial Guinea',
-  'Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia',
-  'Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau',
-  'Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq',
-  'Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati',
-  'Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Liechtenstein',
-  'Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta',
-  'Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco',
-  'Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal',
-  'Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia',
-  'Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea','Paraguay',
-  'Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda',
-  'Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa',
-  'San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles',
-  'Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia',
-  'South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname',
-  'Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste',
-  'Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu',
-  'Uganda','Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay',
-  'Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe',
-];
-
-// ─── ISO → country name reverse lookup ───
-const ISO_COUNTRY = Object.fromEntries(Object.entries(COUNTRY_ISO).map(([n, i]) => [i, n]));
-
-// ─── Country → continent mapping ───
-const COUNTRY_CONTINENT = {
-  'Antigua and Barbuda': 'North America', 'Bahamas': 'North America', 'Barbados': 'North America',
-  'Belize': 'North America', 'Canada': 'North America', 'Costa Rica': 'North America',
-  'Cuba': 'North America', 'Dominica': 'North America', 'Dominican Republic': 'North America',
-  'El Salvador': 'North America', 'Grenada': 'North America', 'Guatemala': 'North America',
-  'Haiti': 'North America', 'Honduras': 'North America', 'Jamaica': 'North America',
-  'Mexico': 'North America', 'Nicaragua': 'North America', 'Panama': 'North America',
-  'Saint Kitts and Nevis': 'North America', 'Saint Lucia': 'North America',
-  'Saint Vincent and the Grenadines': 'North America', 'Trinidad and Tobago': 'North America',
-  'United States': 'North America',
-  'Argentina': 'South America', 'Bolivia': 'South America', 'Brazil': 'South America',
-  'Chile': 'South America', 'Colombia': 'South America', 'Ecuador': 'South America',
-  'Guyana': 'South America', 'Paraguay': 'South America', 'Peru': 'South America',
-  'Suriname': 'South America', 'Uruguay': 'South America', 'Venezuela': 'South America',
-  'Albania': 'Europe', 'Andorra': 'Europe', 'Austria': 'Europe', 'Belarus': 'Europe',
-  'Belgium': 'Europe', 'Bosnia and Herzegovina': 'Europe', 'Bulgaria': 'Europe',
-  'Croatia': 'Europe', 'Cyprus': 'Europe', 'Czech Republic': 'Europe', 'Denmark': 'Europe',
-  'Estonia': 'Europe', 'Finland': 'Europe', 'France': 'Europe', 'Georgia': 'Europe',
-  'Germany': 'Europe', 'Greece': 'Europe', 'Hungary': 'Europe', 'Iceland': 'Europe',
-  'Ireland': 'Europe', 'Italy': 'Europe', 'Latvia': 'Europe', 'Liechtenstein': 'Europe',
-  'Lithuania': 'Europe', 'Luxembourg': 'Europe', 'Malta': 'Europe', 'Moldova': 'Europe',
-  'Monaco': 'Europe', 'Montenegro': 'Europe', 'Netherlands': 'Europe',
-  'North Macedonia': 'Europe', 'Norway': 'Europe', 'Poland': 'Europe', 'Portugal': 'Europe',
-  'Romania': 'Europe', 'Russia': 'Europe', 'San Marino': 'Europe', 'Scotland': 'Europe',
-  'Serbia': 'Europe', 'Slovakia': 'Europe', 'Slovenia': 'Europe', 'Spain': 'Europe',
-  'Sweden': 'Europe', 'Switzerland': 'Europe', 'Ukraine': 'Europe', 'United Kingdom': 'Europe',
-  'Vatican City': 'Europe',
-  'Afghanistan': 'Asia', 'Armenia': 'Asia', 'Azerbaijan': 'Asia', 'Bahrain': 'Asia',
-  'Bangladesh': 'Asia', 'Bhutan': 'Asia', 'Brunei': 'Asia', 'Cambodia': 'Asia',
-  'China': 'Asia', 'India': 'Asia', 'Indonesia': 'Asia', 'Iran': 'Asia', 'Iraq': 'Asia',
-  'Israel': 'Asia', 'Japan': 'Asia', 'Jordan': 'Asia', 'Kazakhstan': 'Asia',
-  'Kuwait': 'Asia', 'Kyrgyzstan': 'Asia', 'Laos': 'Asia', 'Lebanon': 'Asia',
-  'Malaysia': 'Asia', 'Maldives': 'Asia', 'Mongolia': 'Asia', 'Myanmar': 'Asia',
-  'Nepal': 'Asia', 'North Korea': 'Asia', 'Oman': 'Asia', 'Pakistan': 'Asia',
-  'Palestine': 'Asia', 'Philippines': 'Asia', 'Qatar': 'Asia', 'Saudi Arabia': 'Asia',
-  'Singapore': 'Asia', 'South Korea': 'Asia', 'Sri Lanka': 'Asia', 'Syria': 'Asia',
-  'Taiwan': 'Asia', 'Tajikistan': 'Asia', 'Thailand': 'Asia', 'Timor-Leste': 'Asia',
-  'Turkey': 'Asia', 'Turkmenistan': 'Asia', 'United Arab Emirates': 'Asia',
-  'Uzbekistan': 'Asia', 'Vietnam': 'Asia', 'Yemen': 'Asia',
-  'Algeria': 'Africa', 'Angola': 'Africa', 'Benin': 'Africa', 'Botswana': 'Africa',
-  'Burkina Faso': 'Africa', 'Burundi': 'Africa', 'Cabo Verde': 'Africa', 'Cameroon': 'Africa',
-  'Central African Republic': 'Africa', 'Chad': 'Africa', 'Comoros': 'Africa', 'Congo': 'Africa',
-  'Djibouti': 'Africa', 'DR Congo': 'Africa', 'Egypt': 'Africa', 'Equatorial Guinea': 'Africa',
-  'Eritrea': 'Africa', 'Eswatini': 'Africa', 'Ethiopia': 'Africa', 'Gabon': 'Africa',
-  'Gambia': 'Africa', 'Ghana': 'Africa', 'Guinea': 'Africa', 'Guinea-Bissau': 'Africa',
-  'Kenya': 'Africa', 'Lesotho': 'Africa', 'Liberia': 'Africa', 'Libya': 'Africa',
-  'Madagascar': 'Africa', 'Malawi': 'Africa', 'Mali': 'Africa', 'Mauritania': 'Africa',
-  'Mauritius': 'Africa', 'Morocco': 'Africa', 'Mozambique': 'Africa', 'Namibia': 'Africa',
-  'Niger': 'Africa', 'Nigeria': 'Africa', 'Rwanda': 'Africa', 'Sao Tome and Principe': 'Africa',
-  'Senegal': 'Africa', 'Seychelles': 'Africa', 'Sierra Leone': 'Africa', 'Somalia': 'Africa',
-  'South Africa': 'Africa', 'South Sudan': 'Africa', 'Sudan': 'Africa', 'Tanzania': 'Africa',
-  'Togo': 'Africa', 'Tunisia': 'Africa', 'Uganda': 'Africa', 'Zambia': 'Africa', 'Zimbabwe': 'Africa',
-  'Australia': 'Oceania', 'Fiji': 'Oceania', 'Kiribati': 'Oceania', 'Marshall Islands': 'Oceania',
-  'Micronesia': 'Oceania', 'Nauru': 'Oceania', 'New Zealand': 'Oceania', 'Palau': 'Oceania',
-  'Papua New Guinea': 'Oceania', 'Samoa': 'Oceania', 'Solomon Islands': 'Oceania',
-  'Tonga': 'Oceania', 'Tuvalu': 'Oceania', 'Vanuatu': 'Oceania',
-};
-const CONTINENT_ORDER = ['Europe', 'North America', 'South America', 'Asia', 'Africa', 'Oceania', 'Other'];
-
-const ALLOWED_EMAILS = ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];
-
-const SPANISH_COUNTRIES = new Set(['ES','MX','AR','CO','CL','PE','VE','EC','GT','CU','BO','DO','HN','PY','SV','NI','CR','PA','UY','GQ','PR']);
-
-// ─── Facebook import helpers ───
-const FB_SKIP_EXACT = new Set(['Photos', 'Cover photos', 'TANIA!', 'Timeline Photos']);
-const FB_SKIP_CONTAINS = [
-  'CamWow', 'InstaEdit', 'Instagram Photos', 'Mobile uploads',
-  'Profile pictures', 'INGENIERO', 'Tania conoce',
-];
-const FB_OVERRIDES = {
-  'Casablanca 2009': { trip: 'Marruecos 2009', city: 'Casablanca', country: 'Morocco' },
-  'Casablanca 2009  - Parte 2': { trip: 'Marruecos 2009', city: 'Casablanca', country: 'Morocco' },
-  'Fes 2009': { trip: 'Marruecos 2009', city: 'Fes', country: 'Morocco' },
-  'Fes 2009 - Parte 2': { trip: 'Marruecos 2009', city: 'Fes', country: 'Morocco' },
-  "D'Ozour 2009": { trip: 'Marruecos 2009', city: "D'Ozour", country: 'Morocco' },
-  "D'Ozour 2009 Parte 2": { trip: 'Marruecos 2009', city: "D'Ozour", country: 'Morocco' },
-  'Luxor 2007 - Parte 1': { trip: 'Egypt 2007', city: 'Luxor', country: 'Egypt' },
-  'Luxor 2007 - Parte 2': { trip: 'Egypt 2007', city: 'Luxor', country: 'Egypt' },
-  'Luxor 2007 - Parte 3': { trip: 'Egypt 2007', city: 'Luxor', country: 'Egypt' },
-  'USA 2013 Part 1': { trip: 'USA 2013', city: null, country: 'United States' },
-  'USA 2013 Part 2': { trip: 'USA 2013', city: null, country: 'United States' },
-  'USA 2013 Part 3': { trip: 'USA 2013', city: null, country: 'United States' },
-  'Panamá 2013 - daytrip': { trip: 'Panama 2013', city: null, country: 'Panama' },
-  'Rascafria 2010 - Madrid': { trip: 'Spain 2010', city: 'Rascafria', country: 'Spain' },
-  'Isla de San Andrés 2014 , Colombia': { trip: 'Colombia 2014', city: 'San Andres', country: 'Colombia' },
-  'Cusco, Machu Pichu y Lima 2016': { trip: 'Peru 2016', city: 'Cusco, Machu Pichu y Lima', country: 'Peru' },
-  'Copenhagen 2016,  Denmark': { trip: 'Denmark 2016', city: 'Copenhagen', country: 'Denmark' },
-  'Cinque terre, Portofino and Genova': { trip: 'Italy 2008', city: 'Cinque terre, Portofino and Genova', country: 'Italy' },
-};
-
-function parseFbAlbum(rawTitle) {
-  const title = rawTitle.trim();
-  if (FB_SKIP_EXACT.has(title)) return null;
-  if (FB_SKIP_CONTAINS.some(s => title.includes(s))) return null;
-  if (FB_OVERRIDES[title]) return { ...FB_OVERRIDES[title], rawTitle: title };
-
-  // "City Year (Country)"
-  const parenM = title.match(/^(.+?)\s+(\d{4})\s*\(([^)]+)\)$/);
-  if (parenM) {
-    const [, place, year, country] = parenM;
-    return { trip: `${country.trim()} ${year}`, city: place.trim(), country: country.trim(), rawTitle: title };
-  }
-
-  // "City, Country Year"
-  const commaM = title.match(/^(.+?),\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(\d{4})$/);
-  if (commaM) {
-    const [, place, country, year] = commaM;
-    if (WORLD_COUNTRIES.includes(country.trim())) {
-      return { trip: `${country.trim()} ${year}`, city: place.trim(), country: country.trim(), rawTitle: title };
-    }
-  }
-
-  // "Place Year" (optional suffix after year)
-  const yearM = title.match(/^(.+?)\s+(\d{4})(?:\s.*)?$/);
-  if (yearM) {
-    const place = yearM[1].trim(), year = yearM[2];
-    if (WORLD_COUNTRIES.includes(place)) {
-      return { trip: `${place} ${year}`, city: null, country: place, rawTitle: title };
-    }
-    return { trip: `${place} ${year}`, city: place, country: null, rawTitle: title };
-  }
-
-  return { trip: title, city: null, country: null, rawTitle: title };
-}
-
-// ─── Image compression ───
-function compressImage(file, maxDim = 2000, quality = 0.82) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      let { width, height } = img;
-      if (width > maxDim || height > maxDim) {
-        const ratio = Math.min(maxDim / width, maxDim / height);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width; canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      canvas.toBlob((blob) => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(blob);
-      }, 'image/jpeg', quality);
-    };
-    img.src = objectUrl;
-  });
-}
-
-async function uploadPhotoVariants(file, basePath, safeName) {
-  const fullBlob = await compressImage(file);
-  const thumbBlob = await compressImage(file, 520, 0.72);
-  const storagePath = `${basePath}/${safeName}`;
-  const thumbStoragePath = `${basePath}/thumbs/${safeName}`;
-  const storageRef = ref(storage, storagePath);
-  const thumbStorageRef = ref(storage, thumbStoragePath);
-  await Promise.all([
-    uploadBytes(storageRef, fullBlob),
-    uploadBytes(thumbStorageRef, thumbBlob),
-  ]);
-  const [url, thumbUrl] = await Promise.all([
-    getDownloadURL(storageRef),
-    getDownloadURL(thumbStorageRef),
-  ]);
-  return { url, storagePath, thumbUrl, thumbStoragePath };
-}
-
-function formatDuration(ms) {
-  if (!Number.isFinite(ms) || ms <= 0) return '';
-  const totalMinutes = Math.max(1, Math.round(ms / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}m`;
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
-}
+import { ThemeToggle } from './components/ThemeToggle';
+import { TravelLoader } from './components/TravelLoader';
+import { getTranslations } from './i18n';
+import {
+  ALLOWED_EMAILS, CONTINENT_ORDER, COUNTRY_CONTINENT, COUNTRY_ISO, COUNTRY_NAMES,
+  GEO_URL, ISO_COUNTRY, SPANISH_COUNTRIES, WORLD_COUNTRIES,
+} from './data/countries';
+import { parseFbAlbum } from './utils/facebookAlbums';
+import { compressImage, uploadPhotoVariants } from './utils/imageUtils';
+import { formatDuration } from './utils/format';
+import { isValidHttpUrl, parseEmailList } from './utils/validation';
 
 export default function App() {
   // ─── Language (IP-based, falls back to browser language) ───
@@ -289,223 +35,13 @@ export default function App() {
       .then(data => { if (data.country_code) setIsSpanish(SPANISH_COUNTRIES.has(data.country_code)); })
       .catch(() => {});
   }, []);
-  const T = {
-    // Header
-    adminTools: isSpanish ? '⚙ Herramientas' : '⚙ Admin Tools',
-    importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
-    generateThumbsMenu: isSpanish ? 'Generar miniaturas desde carpeta local' : 'Generate thumbnails from local folder',
-    manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
-    newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
-    addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
-    uploading: (d, t) => isSpanish ? `Subiendo ${d}/${t}…` : `Uploading ${d}/${t}…`,
-    lightMode: isSpanish ? 'Modo claro' : 'Light mode',
-    darkMode: isSpanish ? 'Modo oscuro' : 'Dark mode',
-    signOut: isSpanish ? 'Cerrar sesión' : 'Sign out',
-    // Stats panel
-    selectAll: isSpanish ? 'Seleccionar todo' : 'Select all',
-    allTrips: isSpanish ? 'Todos los viajes' : 'All Trips',
-    shareAlbumsBtn: (n) => isSpanish ? `Compartir álbumes (${n})` : `Share Albums (${n})`,
-    tripsLabel: isSpanish ? 'Viajes' : 'Trips',
-    photosLabel: isSpanish ? 'Fotos' : 'Photos',
-    countriesLabel: isSpanish ? 'Países' : 'Countries',
-    wishlistLabel: isSpanish ? 'Lista de deseos' : 'Wishlist',
-    countriesVisited: isSpanish ? 'Países visitados' : 'Countries Visited',
-    // Migration
-    migrateNow: isSpanish ? 'Migrar ahora' : 'Migrate now',
-    migratingAlbums: isSpanish ? 'Migrando álbumes… no cierres esta pestaña.' : 'Migrating albums… do not close this tab.',
-    migrationComplete: isSpanish ? '✓ Migración completa — todos los álbumes están ahora en la galería compartida.' : '✓ Migration complete — all albums are now in the shared gallery.',
-    migrationFailed: isSpanish ? 'La migración falló:' : 'Migration failed:',
-    retry: isSpanish ? 'Reintentar' : 'Retry',
-    thumbMigrationTitle: isSpanish ? 'Generando miniaturas' : 'Generating thumbnails',
-    thumbMigrationScanning: isSpanish ? 'Indexando carpeta local y buscando fotos sin miniatura…' : 'Indexing local folder and finding photos without thumbnails…',
-    thumbMigrationProgress: (d, t) => isSpanish ? `${d} de ${t} miniaturas generadas` : `${d} of ${t} thumbnails generated`,
-    thumbMigrationDone: (n) => isSpanish ? `Listo: ${n} miniatura${n !== 1 ? 's' : ''} generada${n !== 1 ? 's' : ''}.` : `Done: ${n} thumbnail${n !== 1 ? 's' : ''} generated.`,
-    thumbMigrationNone: isSpanish ? 'Todas las fotos ya tienen miniatura.' : 'Every photo already has a thumbnail.',
-    thumbMigrationMissing: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''} no encontrada${n !== 1 ? 's' : ''} en la carpeta local` : `${n} photo${n !== 1 ? 's' : ''} not found in the local folder`,
-    thumbMigrationEta: (eta, rate) => isSpanish ? `Tiempo estimado: ${eta} · ${rate}/min` : `ETA: ${eta} · ${rate}/min`,
-    calculatingEta: isSpanish ? 'Calculando tiempo…' : 'Calculating time…',
-    // New trip form
-    tripNameLabel: isSpanish ? 'Nombre del viaje' : 'Trip Name',
-    dateOptional: isSpanish ? 'Fecha (opcional)' : 'Date (optional)',
-    countryOptional: isSpanish ? 'País (opcional)' : 'Country (optional)',
-    miroLinkOptional: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
-    visibilityLabel: isSpanish ? 'Visibilidad' : 'Visibility',
-    visShared: isSpanish ? '🌍 Compartido' : '🌍 Shared',
-    visPrivate: isSpanish ? '🔒 Privado' : '🔒 Private',
-    create: isSpanish ? 'Crear' : 'Create',
-    cancel: isSpanish ? 'Cancelar' : 'Cancel',
-    tripNamePlaceholder: isSpanish ? 'ej. Patagonia 2024' : 'e.g. Patagonia 2024',
-    countryPlaceholder: isSpanish ? 'ej. Italia' : 'e.g. Italy',
-    // Empty state
-    noTripsYet: isSpanish ? 'Aún no hay viajes' : 'No trips yet',
-    noTripsYetSub: isSpanish ? 'Crea tu primer viaje para empezar a subir fotos.' : 'Create your first trip to start uploading photos.',
-    // Map
-    wishlistTooltip: isSpanish ? '★ Lista de deseos' : '★ Wishlist',
-    // Trip cards
-    gridView: isSpanish ? 'Vista de cuadrícula' : 'Grid view',
-    sortByDate: 'Sort by Date',
-    sortAZ: 'Sort A-Z',
-    privateTitle: isSpanish ? 'Privado' : 'Private',
-    sharedTitle: isSpanish ? 'Compartido' : 'Shared',
-    editTripBtn: isSpanish ? 'Editar viaje' : 'Edit trip',
-    sharedSeeLink: isSpanish ? 'Compartido — clic para ver enlace' : 'Shared — click to see link',
-    shareThisTrip: isSpanish ? 'Compartir este viaje' : 'Share this trip',
-    createdBy: (u) => isSpanish ? `Creado por ${u}` : `Created by ${u}`,
-    setCreator: isSpanish ? '+ Establecer creador' : '+ Set creator',
-    whoCreated: isSpanish ? '¿Quién creó este álbum? (ingresa su usuario o email de Gmail)' : 'Who created this album? (enter their Gmail username or email)',
-    couldNotSave: isSpanish ? 'No se pudo guardar: ' : 'Could not save: ',
-    photoCount: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''}` : `${n} photo${n !== 1 ? 's' : ''}`,
-    // Gallery header
-    backToTrips: isSpanish ? '← Viajes' : '← Trips',
-    noCityAssigned: isSpanish ? 'Sin ciudad asignada' : 'No city assigned',
-    openInMiro: isSpanish ? 'Abrir en Miro' : 'Open in Miro',
-    generating: isSpanish ? 'Generando…' : 'Generating…',
-    sharedBtn: isSpanish ? '↗ Compartido' : '↗ Shared',
-    shareBtn: isSpanish ? '↗ Compartir' : '↗ Share',
-    saveChanges: (n) => isSpanish ? `Guardar cambios (${n})` : `Save Changes (${n})`,
-    grid: isSpanish ? 'Cuadrícula' : 'Grid',
-    list: isSpanish ? 'Lista' : 'List',
-    editSubAlbumBtn: isSpanish ? 'Editar subálbum' : 'Edit sub-album',
-    // Photo area
-    dragDropPhotos: isSpanish ? 'Arrastra y suelta fotos aquí' : 'Drag & drop photos here',
-    orClickToBrowse: isSpanish ? 'o haz clic para buscar' : 'or click to browse',
-    noPhotosYet: isSpanish ? 'Aún no hay fotos en este álbum' : 'No photos in this album yet',
-    uploadingPhotos: (d, t) => isSpanish ? `Subiendo ${d} de ${t} fotos…` : `Uploading ${d} of ${t} photos…`,
-    loadingTrips: isSpanish ? 'Cargando viajes' : 'Loading trips',
-    loadingPhotos: isSpanish ? 'Cargando fotos' : 'Loading photos',
-    clickToEditName: isSpanish ? 'Clic para editar el nombre' : 'Click to edit the name',
-    insertEmoji: isSpanish ? 'Insertar emoji' : 'Insert emoji',
-    miroLinkOptionalPh: isSpanish ? 'Enlace de Miro (opcional)' : 'Miro link (optional)',
-    // Context menu
-    useAsAlbumCover: isSpanish ? 'Usar como portada del álbum' : 'Use as album cover',
-    useAsAppWallpaper: isSpanish ? 'Usar como fondo de pantalla' : 'Use as app wallpaper',
-    deletePhotoMenu: isSpanish ? 'Eliminar foto' : 'Delete photo',
-    // Lightbox
-    addDescriptionPh: isSpanish ? 'Añadir una descripción…' : 'Add a description…',
-    setAsAlbumCoverTitle: isSpanish ? 'Usar como portada del álbum' : 'Set as album cover',
-    deletePhotoTitle: isSpanish ? 'Eliminar foto' : 'Delete photo',
-    // Delete trip modal
-    deleteTripQuestion: isSpanish ? '¿Eliminar este viaje?' : 'Delete this trip?',
-    deleteTripWarn: isSpanish ? 'Todas las fotos serán eliminadas permanentemente del almacenamiento.' : 'All photos will be permanently deleted from storage.',
-    deleteBtn: isSpanish ? 'Eliminar' : 'Delete',
-    // Edit trip / sub-album modals
-    editTripHeading: isSpanish ? 'Editar viaje' : 'Edit Trip',
-    nameLabel: isSpanish ? 'Nombre' : 'Name',
-    dateLabel: isSpanish ? 'Fecha' : 'Date',
-    countryLabel: isSpanish ? 'País' : 'Country',
-    miroLink: isSpanish ? 'Enlace de Miro' : 'Miro link',
-    saving: isSpanish ? 'Guardando…' : 'Saving…',
-    save: isSpanish ? 'Guardar' : 'Save',
-    editSubAlbumHeading: isSpanish ? 'Editar subálbum' : 'Edit Sub-Album',
-    // Assign city modal
-    assignCityHeading: isSpanish ? 'Asignar ciudad' : 'Assign city',
-    photosSelected: (n) => isSpanish
-      ? `${n} foto${n !== 1 ? 's' : ''} seleccionada${n !== 1 ? 's' : ''}`
-      : `${n} photo${n !== 1 ? 's' : ''} selected`,
-    cityPlaceholder: isSpanish ? 'ej. Pekín' : 'e.g. Beijing',
-    // Auto-date modal
-    settingDates: isSpanish ? 'Estableciendo fechas de viaje…' : 'Setting travel dates…',
-    scanningFbAlbums: isSpanish ? 'Escaneando álbumes de Facebook para fechas de fotos.' : 'Scanning Facebook albums for photo dates.',
-    doneBtn: isSpanish ? 'Listo' : 'Done',
-    autoDateUpdated: (u, s) => isSpanish
-      ? `Se actualizaron ${u} viaje${u !== 1 ? 's' : ''} de ${s} álbum${s !== 1 ? 'es' : ''} escaneados.`
-      : `Updated ${u} trip${u !== 1 ? 's' : ''} from ${s} album${s !== 1 ? 's' : ''} scanned.`,
-    autoDateNoAlbums: isSpanish
-      ? 'No se pudieron leer álbumes de Facebook. Verifica que hayas seleccionado la carpeta correcta.'
-      : 'No Facebook albums could be read. Check that you selected the correct folder.',
-    autoDateNoDates: (s) => isSpanish
-      ? `Se escanearon ${s} álbum${s !== 1 ? 'es' : ''} pero no se encontraron fechas. El formato de exportación puede no incluir fechas de toma.`
-      : `Scanned ${s} album${s !== 1 ? 's' : ''} but no dates were found in the photos. The export format may not include "taken" dates.`,
-    close: isSpanish ? 'Cerrar' : 'Close',
-    // Facebook import modal
-    importFbTitle: isSpanish ? 'Importar desde Facebook' : 'Import from Facebook',
-    fbFolderNote: isSpanish
-      ? 'Selecciona tu carpeta your_facebook_activity (o su directorio padre) de tu exportación de datos de Facebook. Solo Chrome/Edge.'
-      : 'Select your your_facebook_activity folder (or its parent) from your Facebook data export. Chrome/Edge only.',
-    scanFolder: isSpanish ? 'Escanear carpeta…' : 'Scan folder…',
-    selectCitiesToImport: isSpanish ? 'Seleccionar ciudades para importar' : 'Select cities to import',
-    citiesAvail: isSpanish ? 'ciudades disponibles' : 'cities available',
-    selectedLabel: isSpanish ? 'seleccionadas' : 'selected',
-    albumsLabel: (n) => isSpanish ? `${n} álbum${n !== 1 ? 'es' : ''}` : `${n} album${n !== 1 ? 's' : ''}`,
-    alreadyImported: isSpanish ? 'ya importadas' : 'already imported',
-    filterByCityOrAlbum: isSpanish ? 'Filtrar por ciudad o álbum…' : 'Filter by city or album…',
-    all: isSpanish ? 'Todos' : 'All',
-    none: isSpanish ? 'Ninguno' : 'None',
-    cityCol: isSpanish ? 'Ciudad' : 'City',
-    albumCol: isSpanish ? 'Álbum' : 'Album',
-    photosCol: isSpanish ? 'Fotos' : 'Photos',
-    albumName: isSpanish ? 'Nombre del álbum' : 'Album name',
-    importNCities: (n) => isSpanish
-      ? `Importar ${n} ciudad${n !== 1 ? 'es' : ''}`
-      : `Import ${n} cit${n !== 1 ? 'ies' : 'y'}`,
-    importing: isSpanish ? 'Importando…' : 'Importing…',
-    scanningAlbums: isSpanish ? 'Escaneando álbumes…' : 'Scanning albums…',
-    remaining: isSpanish ? 'restante' : 'remaining',
-    elapsed: isSpanish ? 'Transcurrido:' : 'Elapsed:',
-    scanningEllipsis: isSpanish ? 'Escaneando…' : 'Scanning…',
-    waiting: isSpanish ? 'Esperando…' : 'Waiting…',
-    stopImport: isSpanish ? 'Detener importación' : 'Stop import',
-    importComplete: isSpanish ? 'Importación completa' : 'Import complete',
-    importedPhotos: (p, t) => isSpanish
-      ? `${p} foto${p !== 1 ? 's' : ''} importada${p !== 1 ? 's' : ''} en ${t} viaje${t !== 1 ? 's' : ''}.`
-      : `${p} photos imported into ${t} trip${t !== 1 ? 's' : ''}.`,
-    // Share trip modal
-    shareTripTitle: isSpanish ? 'Compartir viaje' : 'Share Trip',
-    shareLinkNote: isSpanish
-      ? 'Cualquiera con este enlace puede ver las fotos — sin necesidad de iniciar sesión.'
-      : 'Anyone with this link can view the photos — no login required.',
-    copy: isSpanish ? 'Copiar' : 'Copy',
-    revokeLink: isSpanish ? 'Revocar enlace' : 'Revoke link',
-    // Share albums modal
-    shareAlbumsTitle: isSpanish ? 'Compartir álbumes' : 'Share Albums',
-    albumSelected: (n) => isSpanish
-      ? `${n} álbum${n !== 1 ? 'es' : ''} seleccionado${n !== 1 ? 's' : ''}:`
-      : `${n} album${n !== 1 ? 's' : ''} selected:`,
-    emailAddressesLabel: isSpanish ? 'Direcciones de email' : 'Email addresses',
-    emailPlaceholder: isSpanish ? 'email1@ejemplo.com, email2@ejemplo.com' : 'email1@example.com, email2@example.com',
-    emailNote: isSpanish
-      ? 'Separa múltiples direcciones con comas. Al confirmar, se abrirá tu cliente de correo con la notificación lista para enviar.'
-      : 'Separate multiple addresses with commas. Confirming will open your mail client with the notification ready to send.',
-    sharing: isSpanish ? 'Compartiendo…' : 'Sharing…',
-    shareAndNotify: isSpanish ? 'Compartir y notificar' : 'Share and notify',
-    // Share success modal
-    albumsSharedTitle: isSpanish ? '¡Álbumes compartidos!' : 'Albums shared!',
-    accessGrantedTo: (emails) => isSpanish
-      ? `Se otorgó acceso a ${emails} para:`
-      : `Access granted to ${emails} for:`,
-    emailClientNote: isSpanish
-      ? 'Se abrió tu cliente de correo para enviar la notificación. Si no se abrió, revisa que tengas un cliente de correo configurado.'
-      : 'Your mail client was opened to send the notification. If it did not open, check that you have a mail client configured.',
-    accept: isSpanish ? 'Aceptar' : 'Accept',
-    // Manage accesses modal
-    manageAccessesTitle: isSpanish ? 'Gestionar accesos' : 'Manage Accesses',
-    noAlbumsSharedYet: isSpanish ? 'Aún no se han compartido álbumes con nadie.' : 'No albums have been shared yet.',
-    revoke: isSpanish ? 'Revocar' : 'Revoke',
-    // Public share view
-    sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
-    sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',
-    // Login
-    signInSub: isSpanish ? 'Inicia sesión para acceder a tu galería privada' : 'Sign in to access your private gallery',
-    continueWithGoogle: isSpanish ? 'Continuar con Google' : 'Continue with Google',
-    continueAsGuest: isSpanish ? 'Entrar como invitado' : 'Continue as Guest',
-    signingIn: isSpanish ? 'Iniciando sesión…' : 'Signing in…',
-    signInFailed: isSpanish ? 'Error al iniciar sesión — inténtalo de nuevo' : 'Sign-in failed — please try again',
-    guestSignInFailed: isSpanish ? 'No se pudo entrar como invitado' : 'Guest access failed',
-    guestModeLabel: isSpanish ? 'Invitado' : 'Guest',
-    guestBannerTitle: isSpanish ? 'Has entrado como invitado' : 'You are browsing as a Guest',
-    guestBannerText: isSpanish
-      ? 'Modo solo lectura: puedes ver álbumes compartidos, fotos y el mapa. No puedes crear, editar, borrar, subir fotos, compartir álbumes ni cambiar ajustes.'
-      : 'Read-only mode: you can view shared albums, photos, and the map. You cannot create, edit, delete, upload photos, share albums, or change settings.',
-    // Access denied
-    accessDenied: isSpanish ? 'Acceso denegado' : 'Access denied',
-    appIsPrivate: isSpanish ? 'Esta aplicación es privada y solo accesible por invitación.' : 'This application is private and accessible by invitation only.',
-    contactAdmin: isSpanish ? 'Si crees que deberías tener acceso, contacta al administrador.' : 'If you believe you should have access, contact the administrator.',
-    backToLogin: isSpanish ? '← Volver al login' : '← Back to login',
-  };
+  const T = useMemo(() => getTranslations(isSpanish), [isSpanish]);
+
   // ─── Auth ───
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
+  const [appNotice, setAppNotice] = useState(null); // { type: 'success' | 'error', message }
   const [loggingIn, setLoggingIn] = useState(false);
   const [guestLoggingIn, setGuestLoggingIn] = useState(false);
   const [guestMode, setGuestMode] = useState(false);
@@ -573,6 +109,7 @@ export default function App() {
   const [selectedTrips, setSelectedTrips] = useState(new Set());
   const [shareAlbumsModal, setShareAlbumsModal] = useState(false);
   const [shareEmailsInput, setShareEmailsInput] = useState('');
+  const [shareEmailError, setShareEmailError] = useState('');
   const [sharingAlbums, setSharingAlbums] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(null); // { emails, tripNames }
 
@@ -603,6 +140,7 @@ export default function App() {
   // ─── Share ───
   const [shareModal, setShareModal] = useState(null);
   const [shareGenerating, setShareGenerating] = useState(null);
+  const [shareCopyStatus, setShareCopyStatus] = useState('');
 
   // ─── Public share (for ?share=TOKEN URLs) ───
   const [publicShareData, setPublicShareData] = useState(null);
@@ -654,6 +192,44 @@ export default function App() {
   const [autoDateModal, setAutoDateModal] = useState(false); // false | 'running' | 'done'
   const [autoDateUpdated, setAutoDateUpdated] = useState(0);
   const [autoDateScanned, setAutoDateScanned] = useState(0);
+
+  const showNotice = useCallback((type, message) => {
+    setAppNotice({ type, message });
+  }, []);
+
+  const clearNotice = useCallback(() => setAppNotice(null), []);
+
+  const countryIsValid = useCallback((country) => {
+    const trimmed = country.trim();
+    return !trimmed || WORLD_COUNTRIES.includes(trimmed) || COUNTRY_NAMES.includes(trimmed);
+  }, []);
+
+  const validationText = useCallback((key, value) => {
+    const messages = {
+      tripNameRequired: isSpanish ? 'El nombre del viaje es obligatorio.' : 'Trip name is required.',
+      invalidCountry: isSpanish ? 'El pais debe coincidir con la lista de paises.' : 'Country must match the country list.',
+      invalidMiroUrl: isSpanish ? 'El enlace de Miro debe empezar con http:// o https://.' : 'The Miro link must start with http:// or https://.',
+      tripCreateFailed: isSpanish ? 'No se pudo crear el viaje.' : 'Could not create the trip.',
+      tripDeleteFailed: isSpanish ? 'No se pudo eliminar el viaje completo.' : 'Could not delete the trip completely.',
+      noImageFiles: isSpanish ? 'Selecciona archivos de imagen validos.' : 'Select valid image files.',
+      uploadFailedAll: isSpanish ? 'No se pudo subir ninguna foto.' : 'No photos could be uploaded.',
+      saveFailed: isSpanish ? 'No se pudieron guardar los cambios.' : 'Could not save changes.',
+      shareFailed: isSpanish ? 'No se pudo compartir el album.' : 'Could not share the album.',
+      accessLoadFailed: isSpanish ? 'No se pudieron cargar los accesos.' : 'Could not load accesses.',
+    };
+    if (key === 'uploadFailedSome') {
+      return isSpanish
+        ? `${value} foto${value !== 1 ? 's' : ''} no se pudo subir.`
+        : `${value} photo${value !== 1 ? 's' : ''} could not be uploaded.`;
+    }
+    return messages[key] || key;
+  }, [isSpanish]);
+
+  useEffect(() => {
+    if (!appNotice) return undefined;
+    const timer = window.setTimeout(() => setAppNotice(null), appNotice.type === 'success' ? 2600 : 5200);
+    return () => window.clearTimeout(timer);
+  }, [appNotice]);
 
   // ─── Dark mode effect ───
   useEffect(() => {
@@ -913,7 +489,19 @@ export default function App() {
 
   const addTrip = async () => {
     if (isReadOnly) return;
-    if (!newTripName.trim()) return;
+    clearNotice();
+    if (!newTripName.trim()) {
+      showNotice('error', validationText('tripNameRequired'));
+      return;
+    }
+    if (!countryIsValid(newTripCountry)) {
+      showNotice('error', validationText('invalidCountry'));
+      return;
+    }
+    if (!isValidHttpUrl(newTripMiro)) {
+      showNotice('error', validationText('invalidMiroUrl'));
+      return;
+    }
     const tripData = {
       name: newTripName.trim(),
       date: newTripDate || null,
@@ -924,25 +512,35 @@ export default function App() {
       visibility: newTripVisibility,
       cover: null, photoCount: 0, createdAt: serverTimestamp(),
     };
-    const docRef = await addDoc(tripsCol(), tripData);
-    setTrips(prev => [{ id: docRef.id, ...tripData }, ...prev]);
-    setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); setNewTripMiro(''); setNewTripVisibility('shared'); setShowNewTrip(false);
+    try {
+      const docRef = await addDoc(tripsCol(), tripData);
+      setTrips(prev => [{ id: docRef.id, ...tripData }, ...prev]);
+      setNewTripName(''); setNewTripDate(''); setNewTripCountry(''); setNewTripMiro(''); setNewTripVisibility('shared'); setShowNewTrip(false);
+    } catch (err) {
+      console.error('Create trip error:', err);
+      showNotice('error', validationText('tripCreateFailed'));
+    }
   };
 
   const deleteTrip = async (tripId) => {
     if (isReadOnly) return;
-    const trip = trips.find(t => t.id === tripId);
-    if (trip?.shareToken) { try { await deleteDoc(doc(db, 'sharedLinks', trip.shareToken)); } catch {} }
-    const photosSnap = await getDocs(photosCol(tripId));
-    for (const photoDoc of photosSnap.docs) {
-      const data = photoDoc.data();
-      if (data.storagePath) { try { await deleteObject(ref(storage, data.storagePath)); } catch {} }
-      await deleteDoc(photoDoc.ref);
+    try {
+      const trip = trips.find(t => t.id === tripId);
+      if (trip?.shareToken) { try { await deleteDoc(doc(db, 'sharedLinks', trip.shareToken)); } catch {} }
+      const photosSnap = await getDocs(photosCol(tripId));
+      for (const photoDoc of photosSnap.docs) {
+        const data = photoDoc.data();
+        if (data.storagePath) { try { await deleteObject(ref(storage, data.storagePath)); } catch {} }
+        await deleteDoc(photoDoc.ref);
+      }
+      await deleteDoc(doc(db, 'trips', tripId));
+      setTrips(prev => prev.filter(t => t.id !== tripId));
+      if (activeTrip === tripId) { setActiveTrip(null); setPhotos([]); }
+      setConfirmDelete(null);
+    } catch (err) {
+      console.error('Delete trip error:', err);
+      showNotice('error', validationText('tripDeleteFailed'));
     }
-    await deleteDoc(doc(db, 'trips', tripId));
-    setTrips(prev => prev.filter(t => t.id !== tripId));
-    if (activeTrip === tripId) { setActiveTrip(null); setPhotos([]); }
-    setConfirmDelete(null);
   };
 
   // ═══════════════════════════════════════
@@ -1015,10 +613,15 @@ export default function App() {
     if (isReadOnly) return;
     if (!activeTrip || !files.length) return;
     const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (!imageFiles.length) return;
+    if (!imageFiles.length) {
+      showNotice('error', validationText('noImageFiles'));
+      return;
+    }
+    clearNotice();
     setUploading(true);
     setUploadCount({ done: 0, total: imageFiles.length });
     const newPhotos = [];
+    let failed = 0;
     for (let i = 0; i < imageFiles.length; i++) {
       const file = imageFiles[i];
       try {
@@ -1027,7 +630,10 @@ export default function App() {
         const photoData = { name: file.name, ...uploaded, createdAt: serverTimestamp() };
         const docRef = await addDoc(photosCol(activeTrip), photoData);
         newPhotos.push({ id: docRef.id, ...photoData });
-      } catch (err) { console.error('Upload error:', err); }
+      } catch (err) {
+        failed++;
+        console.error('Upload error:', err);
+      }
       setUploadCount(prev => ({ ...prev, done: i + 1 }));
     }
     setPhotos(prev => [...prev, ...newPhotos]);
@@ -1038,8 +644,11 @@ export default function App() {
       await updateDoc(doc(db, 'trips', activeTrip), updates);
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, ...updates } : t));
     }
+    if (failed > 0) {
+      showNotice('error', failed === imageFiles.length ? validationText('uploadFailedAll') : validationText('uploadFailedSome', failed));
+    }
     setUploading(false);
-  }, [activeTrip, user, trips, isReadOnly]);
+  }, [activeTrip, user, trips, isReadOnly, showNotice, clearNotice, validationText]);
 
   const deletePhoto = async (photo) => {
     if (isReadOnly) return;
@@ -1639,7 +1248,20 @@ export default function App() {
 
   const saveEditTrip = async () => {
     if (isReadOnly) return;
-    if (!editName.trim() || !editTrip) return;
+    if (!editTrip) return;
+    clearNotice();
+    if (!editName.trim()) {
+      showNotice('error', validationText('tripNameRequired'));
+      return;
+    }
+    if (!countryIsValid(editCountry)) {
+      showNotice('error', validationText('invalidCountry'));
+      return;
+    }
+    if (!isValidHttpUrl(editMiro)) {
+      showNotice('error', validationText('invalidMiroUrl'));
+      return;
+    }
     setEditSaving(true);
     const updates = {
       name: editName.trim(),
@@ -1652,7 +1274,10 @@ export default function App() {
       await updateDoc(doc(db, 'trips', editTrip.id), updates);
       setTrips(prev => prev.map(t => t.id === editTrip.id ? { ...t, ...updates } : t));
       setEditTrip(null);
-    } catch (err) { console.error('Edit trip error:', err); }
+    } catch (err) {
+      console.error('Edit trip error:', err);
+      showNotice('error', validationText('saveFailed'));
+    }
     setEditSaving(false);
   };
 
@@ -1699,7 +1324,10 @@ export default function App() {
       setTrips(prev => prev.map(t => t.id === tripId ? { ...t, cities: newCities, cityMetadata: newMeta } : t));
       if (activeCity === cityName) setActiveCity(newName);
       setEditCity(null);
-    } catch (err) { console.error('Edit city error:', err); }
+    } catch (err) {
+      console.error('Edit city error:', err);
+      showNotice('error', validationText('saveFailed'));
+    }
     setEditCitySaving(false);
   };
 
@@ -1708,8 +1336,9 @@ export default function App() {
   // ═══════════════════════════════════════
   const generateShareLink = async (trip) => {
     if (isReadOnly) return;
-    if (trip.shareToken) { setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${trip.shareToken}` }); return; }
+    if (trip.shareToken) { setShareCopyStatus(''); setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${trip.shareToken}` }); return; }
     setShareGenerating(trip.id);
+    clearNotice();
     try {
       const snap = await getDocs(query(photosCol(trip.id), orderBy('createdAt', 'asc')));
       const photosData = snap.docs.map(d => ({ url: d.data().url, name: d.data().name }));
@@ -1717,8 +1346,12 @@ export default function App() {
       await setDoc(doc(db, 'sharedLinks', token), { tripName: trip.name, tripDate: trip.date || null, photos: photosData, createdAt: serverTimestamp() });
       await updateDoc(doc(db, 'trips', trip.id), { shareToken: token });
       setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, shareToken: token } : t));
+      setShareCopyStatus('');
       setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${token}` });
-    } catch (err) { console.error('Share error:', err); }
+    } catch (err) {
+      console.error('Share error:', err);
+      showNotice('error', validationText('shareFailed'));
+    }
     setShareGenerating(null);
   };
 
@@ -1729,7 +1362,10 @@ export default function App() {
       await updateDoc(doc(db, 'trips', tripId), { shareToken: null });
       setTrips(prev => prev.map(t => t.id === tripId ? { ...t, shareToken: null } : t));
       setShareModal(null);
-    } catch (err) { console.error('Revoke error:', err); }
+    } catch (err) {
+      console.error('Revoke error:', err);
+      showNotice('error', validationText('shareFailed'));
+    }
   };
 
   // ═══════════════════════════════════════
@@ -1916,10 +1552,25 @@ export default function App() {
   // ═══════════════════════════════════════
   // ALBUM SHARING
   // ═══════════════════════════════════════
+  const handleShareAlbumsClick = () => {
+    const { valid, invalid } = parseEmailList(shareEmailsInput);
+    if (invalid.length > 0) {
+      setShareEmailError(T.invalidEmails(invalid));
+      return;
+    }
+    if (valid.length === 0) {
+      setShareEmailError(T.enterAtLeastOneEmail);
+      return;
+    }
+    setShareEmailError('');
+    shareAlbums(valid);
+  };
+
   const shareAlbums = async (emails) => {
     if (isReadOnly) return;
     if (!emails.length || !selectedTrips.size) return;
     setSharingAlbums(true);
+    clearNotice();
     try {
       const tripIds = [...selectedTrips];
       const tripNames = {};
@@ -1966,9 +1617,11 @@ export default function App() {
       setSelectedTrips(new Set());
       setShareAlbumsModal(false);
       setShareEmailsInput('');
+      setShareEmailError('');
       setShareSuccess({ emails, tripNames: sharedTripNames });
     } catch (err) {
       console.error('Error sharing albums:', err);
+      showNotice('error', validationText('shareFailed'));
     }
     setSharingAlbums(false);
   };
@@ -1983,6 +1636,7 @@ export default function App() {
       setAlbumShares(shares);
     } catch (err) {
       console.error('Error loading album shares:', err);
+      showNotice('error', validationText('accessLoadFailed'));
     }
     setLoadingShares(false);
   };
@@ -2020,6 +1674,7 @@ export default function App() {
       );
     } catch (err) {
       console.error('Error revoking access:', err);
+      showNotice('error', validationText('saveFailed'));
     }
   };
 
@@ -2205,26 +1860,20 @@ export default function App() {
   // PUBLIC SHARE VIEW
   // ═══════════════════════════════════════
   const logoSrc = darkMode ? '/logo-dark.png' : '/logo.png';
-  const ThemeToggle = ({ className = '' }) => (
-    <button
-      className={`btn-icon${className ? ` ${className}` : ''}`}
-      onClick={() => setDarkMode(d => !d)}
-      title={darkMode ? T.lightMode : T.darkMode}
-      aria-label={darkMode ? T.lightMode : T.darkMode}
-    >
-      {darkMode
-        ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      }
-    </button>
-  );
+  const themeToggleProps = {
+    darkMode,
+    onToggle: () => setDarkMode(d => !d),
+    lightLabel: T.lightMode,
+    darkLabel: T.darkMode,
+  };
+
 
   if (publicShareLoading) return <div className="login-page"><span className="spinner" style={{ width: 28, height: 28 }} /></div>;
 
   if (publicShareData) {
     if (publicShareData.error) return (
       <div className="login-page"><div className="login-card">
-        <ThemeToggle className="login-theme-toggle" />
+        <ThemeToggle {...themeToggleProps} className="login-theme-toggle" />
         <img src={logoSrc} alt="Pepini per il mondo" className="login-logo-img" />
         <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{T.sharedLinkInvalid}</p>
       </div></div>
@@ -2278,7 +1927,7 @@ export default function App() {
     return (
       <div className="login-page">
         <div className="login-card fade-scale">
-          <ThemeToggle className="login-theme-toggle" />
+          <ThemeToggle {...themeToggleProps} className="login-theme-toggle" />
           <img src={logoSrc} alt="Pepini per il mondo" className="login-logo-img" />
           <p className="login-sub" style={{ fontSize: 18, fontWeight: 600, color: 'var(--danger)', marginBottom: 8 }}>{T.accessDenied}</p>
           <p className="login-sub">{T.appIsPrivate}</p>
@@ -2296,7 +1945,7 @@ export default function App() {
     return (
       <div className="login-page">
         <div className="login-card fade-scale">
-          <ThemeToggle className="login-theme-toggle" />
+          <ThemeToggle {...themeToggleProps} className="login-theme-toggle" />
           <img src={logoSrc} alt="Pepini per il mondo" className="login-logo-img" />
           <p className="login-sub">{T.signInSub}</p>
           <button onClick={handleGoogleLogin} className="btn-google" disabled={loggingIn}>
@@ -2323,15 +1972,7 @@ export default function App() {
   const canManageActiveTrip = !isReadOnly && (!activeTripData?.ownerId || activeTripData?.ownerId === user?.uid);
   const { groups: cityGroups, uncategorized: cityUncategorized, hasCities } = groupPhotosByCity(photos);
   const showCityCards = hasCities && activeCity === null;
-  const TravelLoader = ({ label }) => (
-    <div className="travel-loader" role="status" aria-live="polite">
-      <div className="travel-globe" aria-hidden="true">
-        <div className="travel-globe-lines" />
-        <div className="travel-orbit"><span /></div>
-      </div>
-      <div className="travel-loader-label">{label}</div>
-    </div>
-  );
+
 
   return (
     <div
@@ -2375,7 +2016,7 @@ export default function App() {
               {uploading ? T.uploading(uploadCount.done, uploadCount.total) : T.addPhotos}
             </button>
           )}
-          <ThemeToggle />
+          <ThemeToggle {...themeToggleProps} />
           <button className="btn-icon" onClick={handleSignOut} title={T.signOut}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -2390,6 +2031,12 @@ export default function App() {
       {appWallpaperUrl && <div className="app-wallpaper" aria-hidden="true" />}
 
       <div className="content">
+        {appNotice && (
+          <div className={`app-notice app-notice-${appNotice.type} fade-scale`} role="status" aria-live="polite">
+            <span>{appNotice.message}</span>
+            <button type="button" className="app-notice-close" onClick={clearNotice} aria-label={T.close}>×</button>
+          </div>
+        )}
 
         {/* ═══ MIGRATION BANNER ═══ */}
         {!isReadOnly && (migration === 'needed' || migration === 'running' || migration === 'done' || migration === 'error') && !activeTrip && (
@@ -3401,17 +3048,34 @@ export default function App() {
 
       {/* ═══ SHARE MODAL ═══ */}
       {!isReadOnly && shareModal && (
-        <div className="modal-overlay fade-scale" onClick={() => setShareModal(null)}>
+        <div className="modal-overlay fade-scale" onClick={() => { setShareModal(null); setShareCopyStatus(''); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
             <p className="modal-title">{T.shareTripTitle}</p>
             <p className="modal-sub">{T.shareLinkNote}</p>
             <div className="share-url-box">
               <span className="share-url-text">{shareModal.url}</span>
-              <button className="btn btn-sm btn-accent" onClick={() => navigator.clipboard.writeText(shareModal.url)}>{T.copy}</button>
+              <button
+                className="btn btn-sm btn-accent"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(shareModal.url);
+                    setShareCopyStatus('success');
+                  } catch {
+                    setShareCopyStatus('error');
+                  }
+                }}
+              >
+                {T.copy}
+              </button>
             </div>
+            {shareCopyStatus && (
+              <p className={`field-${shareCopyStatus === 'success' ? 'success' : 'error'}`}>
+                {shareCopyStatus === 'success' ? T.linkCopied : T.linkCopyFailed}
+              </p>
+            )}
             <div className="modal-actions" style={{ marginTop: 20 }}>
               <button className="btn btn-sm btn-danger" onClick={() => { const trip = trips.find(t => t.id === shareModal.tripId); if (trip?.shareToken) revokeShareLink(trip.id, trip.shareToken); }}>{T.revokeLink}</button>
-              <button className="btn btn-sm" onClick={() => setShareModal(null)}>{T.close}</button>
+              <button className="btn btn-sm" onClick={() => { setShareModal(null); setShareCopyStatus(''); }}>{T.close}</button>
             </div>
           </div>
         </div>
@@ -3419,7 +3083,7 @@ export default function App() {
 
       {/* ═══ SHARE ALBUMS MODAL ═══ */}
       {!isReadOnly && shareAlbumsModal && (
-        <div className="modal-overlay fade-scale" onClick={() => setShareAlbumsModal(false)}>
+        <div className="modal-overlay fade-scale" onClick={() => { setShareAlbumsModal(false); setShareEmailError(''); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
             <p className="modal-title">{T.shareAlbumsTitle}</p>
             <p className="modal-sub">{T.albumSelected(selectedTrips.size)}</p>
@@ -3436,22 +3100,20 @@ export default function App() {
               <input
                 className="input"
                 value={shareEmailsInput}
-                onChange={e => setShareEmailsInput(e.target.value)}
+                onChange={e => { setShareEmailsInput(e.target.value); setShareEmailError(''); }}
                 placeholder={T.emailPlaceholder}
                 autoFocus
               />
+              {shareEmailError && <p className="field-error">{shareEmailError}</p>}
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                 {T.emailNote}
               </p>
             </div>
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => setShareAlbumsModal(false)}>{T.cancel}</button>
+              <button className="btn btn-sm" onClick={() => { setShareAlbumsModal(false); setShareEmailError(''); }}>{T.cancel}</button>
               <button
                 className="btn btn-accent"
-                onClick={() => {
-                  const emails = shareEmailsInput.split(',').map(e => e.trim()).filter(e => e.includes('@'));
-                  if (emails.length > 0) shareAlbums(emails);
-                }}
+                onClick={handleShareAlbumsClick}
                 disabled={sharingAlbums || !shareEmailsInput.trim()}
               >
                 {sharingAlbums ? T.sharing : T.shareAndNotify}
