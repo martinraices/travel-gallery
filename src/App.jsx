@@ -69,6 +69,7 @@ export default function App() {
   const [signOutConfirm, setSignOutConfirm] = useState(null);
   const [view, setView] = useState('grid');
   const [tripsView, setTripsView] = useState('grid');
+  const [photoRenderLimit, setPhotoRenderLimit] = useState(80);
   const [tripPreviewPhotos, setTripPreviewPhotos] = useState({});
   const [tripPreviewIndexes, setTripPreviewIndexes] = useState({});
   const [cityPreviewIndexes, setCityPreviewIndexes] = useState({});
@@ -141,6 +142,7 @@ export default function App() {
   const [shareModal, setShareModal] = useState(null);
   const [shareGenerating, setShareGenerating] = useState(null);
   const [shareCopyStatus, setShareCopyStatus] = useState('');
+  const [shareExpirySaving, setShareExpirySaving] = useState(false);
 
   // ─── Public share (for ?share=TOKEN URLs) ───
   const [publicShareData, setPublicShareData] = useState(null);
@@ -303,7 +305,38 @@ export default function App() {
     if (!token) return;
     setPublicShareLoading(true);
     getDoc(doc(db, 'sharedLinks', token))
-      .then(snap => setPublicShareData(snap.exists() ? snap.data() : { error: true }))
+      .then(async snap => {
+        if (!snap.exists()) {
+          setPublicShareData({ error: true });
+          return;
+        }
+        const data = snap.data();
+        if (data.expiresAt?.seconds && data.expiresAt.seconds * 1000 < Date.now()) {
+          setPublicShareData({ error: true, expired: true });
+          return;
+        }
+        // New links keep tripId for future dynamic reads when allowed by rules; legacy/snapshot links keep working.
+        if (data.tripId) {
+          try {
+            const tripSnap = await getDoc(doc(db, 'trips', data.tripId));
+            if (tripSnap.exists()) {
+              const photosSnap = await getDocs(query(collection(db, 'trips', data.tripId, 'photos'), orderBy('createdAt', 'asc')));
+              const photos = photosSnap.docs.map(d => {
+                const p = d.data();
+                return { url: p.url, thumbUrl: p.thumbUrl || null, name: p.name, description: p.description || '' };
+              });
+              setPublicShareData({
+                ...data,
+                tripName: tripSnap.data().name || data.tripName,
+                tripDate: tripSnap.data().date || data.tripDate || null,
+                photos,
+              });
+              return;
+            }
+          } catch {}
+        }
+        setPublicShareData(data);
+      })
       .catch(() => setPublicShareData({ error: true }))
       .finally(() => setPublicShareLoading(false));
   }, []);
@@ -1204,6 +1237,8 @@ export default function App() {
   const displayPhotos = activeCity === null ? photos
     : activeCity === '__uncategorized__' ? photos.filter(p => !p.city)
     : photos.filter(p => p.city === activeCity);
+  const renderedDisplayPhotos = displayPhotos.slice(0, photoRenderLimit);
+  const hiddenPhotoCount = Math.max(0, displayPhotos.length - renderedDisplayPhotos.length);
   const visiblePhotoLoadTarget = displayPhotos.slice(0, Math.min(displayPhotos.length, view === 'list' ? 8 : 12));
   const visiblePhotosLoaded = visiblePhotoLoadTarget.length === 0 ||
     visiblePhotoLoadTarget.every(p => loadedPhotoImages.has(p.id));
@@ -1212,6 +1247,10 @@ export default function App() {
 
   useEffect(() => {
     setLoadedPhotoImages(new Set());
+  }, [activeTrip, activeCity, view, photos.length]);
+
+  useEffect(() => {
+    setPhotoRenderLimit(view === 'list' ? 120 : 80);
   }, [activeTrip, activeCity, view, photos.length]);
 
   const markPhotoImageLoaded = (photoId) => {
@@ -1336,18 +1375,36 @@ export default function App() {
   // ═══════════════════════════════════════
   const generateShareLink = async (trip) => {
     if (isReadOnly) return;
-    if (trip.shareToken) { setShareCopyStatus(''); setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${trip.shareToken}` }); return; }
+    if (trip.shareToken) {
+      setShareCopyStatus('');
+      setShareModal({
+        tripId: trip.id,
+        token: trip.shareToken,
+        url: `${window.location.origin}/?share=${trip.shareToken}`,
+        expiresAt: trip.shareExpiresAt || null,
+      });
+      return;
+    }
     setShareGenerating(trip.id);
     clearNotice();
     try {
       const snap = await getDocs(query(photosCol(trip.id), orderBy('createdAt', 'asc')));
-      const photosData = snap.docs.map(d => ({ url: d.data().url, name: d.data().name }));
+      const photosData = snap.docs.map(d => ({ url: d.data().url, thumbUrl: d.data().thumbUrl || null, name: d.data().name, description: d.data().description || '' }));
       const token = crypto.randomUUID();
-      await setDoc(doc(db, 'sharedLinks', token), { tripName: trip.name, tripDate: trip.date || null, photos: photosData, createdAt: serverTimestamp() });
-      await updateDoc(doc(db, 'trips', trip.id), { shareToken: token });
-      setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, shareToken: token } : t));
+      const linkData = {
+        tripId: trip.id,
+        ownerId: trip.ownerId || user?.uid || null,
+        tripName: trip.name,
+        tripDate: trip.date || null,
+        photos: photosData,
+        expiresAt: null,
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, 'sharedLinks', token), linkData);
+      await updateDoc(doc(db, 'trips', trip.id), { shareToken: token, shareExpiresAt: null });
+      setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, shareToken: token, shareExpiresAt: null } : t));
       setShareCopyStatus('');
-      setShareModal({ tripId: trip.id, url: `${window.location.origin}/?share=${token}` });
+      setShareModal({ tripId: trip.id, token, url: `${window.location.origin}/?share=${token}`, expiresAt: null });
     } catch (err) {
       console.error('Share error:', err);
       showNotice('error', validationText('shareFailed'));
@@ -1359,13 +1416,31 @@ export default function App() {
     if (isReadOnly) return;
     try {
       await deleteDoc(doc(db, 'sharedLinks', shareToken));
-      await updateDoc(doc(db, 'trips', tripId), { shareToken: null });
-      setTrips(prev => prev.map(t => t.id === tripId ? { ...t, shareToken: null } : t));
+      await updateDoc(doc(db, 'trips', tripId), { shareToken: null, shareExpiresAt: null });
+      setTrips(prev => prev.map(t => t.id === tripId ? { ...t, shareToken: null, shareExpiresAt: null } : t));
       setShareModal(null);
     } catch (err) {
       console.error('Revoke error:', err);
       showNotice('error', validationText('shareFailed'));
     }
+  };
+
+  const updateShareExpiry = async (days) => {
+    if (!shareModal?.token || isReadOnly) return;
+    setShareExpirySaving(true);
+    setShareCopyStatus('');
+    try {
+      const expiresAt = days ? new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000) : null;
+      await updateDoc(doc(db, 'sharedLinks', shareModal.token), { expiresAt });
+      await updateDoc(doc(db, 'trips', shareModal.tripId), { shareExpiresAt: expiresAt });
+      setShareModal(prev => ({ ...prev, expiresAt }));
+      setTrips(prev => prev.map(t => t.id === shareModal.tripId ? { ...t, shareExpiresAt: expiresAt } : t));
+      showNotice('success', T.shareExpirySaved);
+    } catch (err) {
+      console.error('Share expiry error:', err);
+      showNotice('error', validationText('shareFailed'));
+    }
+    setShareExpirySaving(false);
   };
 
   // ═══════════════════════════════════════
@@ -1866,6 +1941,7 @@ export default function App() {
     lightLabel: T.lightMode,
     darkLabel: T.darkMode,
   };
+  const modalProps = { role: 'dialog', 'aria-modal': 'true', tabIndex: -1 };
 
 
   if (publicShareLoading) return <div className="login-page"><span className="spinner" style={{ width: 28, height: 28 }} /></div>;
@@ -1875,7 +1951,7 @@ export default function App() {
       <div className="login-page"><div className="login-card">
         <ThemeToggle {...themeToggleProps} className="login-theme-toggle" />
         <img src={logoSrc} alt="Pepini per il mondo" className="login-logo-img" />
-        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{T.sharedLinkInvalid}</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{publicShareData.expired ? T.sharedLinkExpired : T.sharedLinkInvalid}</p>
       </div></div>
     );
     const pubPhotos = publicShareData.photos || [];
@@ -1900,17 +1976,17 @@ export default function App() {
             {pubPhotos.map((p, i) => (
               <div key={i} className="photo-thumb fade-in" style={{ animationDelay: `${i * 20}ms` }}
                 onClick={() => { setPublicLightbox(p); setPublicLbIdx(i); }}>
-                <img src={p.url} alt={p.name} loading="lazy" />
+                <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" />
               </div>
             ))}
           </div>
         </div>
         {publicLightbox && (
-          <div className="lightbox fade-scale" onClick={() => setPublicLightbox(null)}>
+          <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setPublicLightbox(null)}>
             <img src={publicLightbox.url} alt={publicLightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
-            <button className="lb-close" onClick={() => setPublicLightbox(null)}>✕</button>
-            {publicLbIdx > 0 && <button className="lb-arrow lb-arrow-left" onClick={e => { e.stopPropagation(); const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>‹</button>}
-            {publicLbIdx < pubPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>›</button>}
+            <button className="lb-close" aria-label={T.close} onClick={() => setPublicLightbox(null)}>✕</button>
+            {publicLbIdx > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>‹</button>}
+            {publicLbIdx < pubPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>›</button>}
             <div className="lb-counter">{publicLbIdx + 1} / {pubPhotos.length}</div>
           </div>
         )}
@@ -2575,7 +2651,7 @@ export default function App() {
                     <div className="photo-display-wrap">
                       {!visiblePhotosLoaded && <div className="photo-image-loader"><TravelLoader label={T.loadingPhotos} /></div>}
                       <div className={`photo-grid${!visiblePhotosLoaded ? ' photos-loading' : ''}`} onDragOver={canDrag ? onDragOver : undefined} onDragLeave={canDrag ? onDragLeave : undefined} onDrop={canDrag ? onDrop : undefined}>
-                      {displayPhotos.map((p, i) => {
+                      {renderedDisplayPhotos.map((p, i) => {
                         const flatIdx = photos.findIndex(x => x.id === p.id);
                         return (
                           <div key={p.id}
@@ -2595,6 +2671,11 @@ export default function App() {
                           </div>
                         );
                       })}
+                      {hiddenPhotoCount > 0 && (
+                        <button className="load-more-photos" onClick={() => setPhotoRenderLimit(n => n + 80)}>
+                          {T.showMorePhotos(Math.min(hiddenPhotoCount, 80))}
+                        </button>
+                      )}
                       {canDrag && <div className="add-tile" onClick={() => fileRef.current?.click()}>+</div>}
                       </div>
                     </div>
@@ -2605,7 +2686,7 @@ export default function App() {
                   <div className="photo-display-wrap">
                     {!visiblePhotosLoaded && <div className="photo-image-loader"><TravelLoader label={T.loadingPhotos} /></div>}
                     <div className={`photo-list${!visiblePhotosLoaded ? ' photos-loading' : ''}`}>
-                    {displayPhotos.map((p, i) => (
+                    {renderedDisplayPhotos.map((p, i) => (
                       <div key={p.id}
                         className={`photo-list-item fade-in${selectedPhotos.has(p.id) ? ' selected' : ''}`}
                         style={{ animationDelay: `${i * 25}ms` }}
@@ -2624,6 +2705,11 @@ export default function App() {
                         </div>
                       </div>
                     ))}
+                    {hiddenPhotoCount > 0 && (
+                      <button className="load-more-list" onClick={() => setPhotoRenderLimit(n => n + 120)}>
+                        {T.showMorePhotos(Math.min(hiddenPhotoCount, 120))}
+                      </button>
+                    )}
                     </div>
                   </div>
                 )}
@@ -2635,11 +2721,11 @@ export default function App() {
 
       {/* ═══ LIGHTBOX ═══ */}
       {lightbox && (
-        <div className="lightbox fade-scale" onClick={() => setLightbox(null)}>
+        <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
           <img src={lightbox.url} alt={lightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
-          <button className="lb-close" onClick={() => setLightbox(null)}>✕</button>
-          {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" onClick={e => { e.stopPropagation(); navLightbox(-1); }}>‹</button>}
-          {lbIndex < displayPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" onClick={e => { e.stopPropagation(); navLightbox(1); }}>›</button>}
+          <button className="lb-close" aria-label={T.close} onClick={() => setLightbox(null)}>✕</button>
+          {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); navLightbox(-1); }}>‹</button>}
+          {lbIndex < displayPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); navLightbox(1); }}>›</button>}
           <div className="lb-counter">{lbIndex + 1} / {displayPhotos.length}</div>
           {!isReadOnly && (
             <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
@@ -2707,7 +2793,7 @@ export default function App() {
       {/* ═══ DELETE TRIP ═══ */}
       {signOutConfirm && (
         <div className="modal-overlay fade-scale" onClick={() => setSignOutConfirm(null)}>
-          <div className="modal signout-modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal signout-modal" onClick={e => e.stopPropagation()}>
             <div className="signout-icon" aria-hidden="true">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -2727,7 +2813,7 @@ export default function App() {
 
       {!isReadOnly && confirmDelete && (
         <div className="modal-overlay fade-scale" onClick={() => setConfirmDelete(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.deleteTripQuestion}</p>
             <p className="modal-sub">{T.deleteTripWarn}</p>
             <div className="modal-actions">
@@ -2741,7 +2827,7 @@ export default function App() {
       {/* ═══ EDIT TRIP ═══ */}
       {!isReadOnly && editTrip && (
         <div className="modal-overlay fade-scale" onClick={() => setEditTrip(null)}>
-          <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal edit-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title" style={{ marginBottom: 16 }}>{T.editTripHeading}</p>
             <div className="edit-modal-fields">
               <div className="form-group">
@@ -2780,7 +2866,7 @@ export default function App() {
       {/* ═══ EDIT CITY SUB-ALBUM MODAL ═══ */}
       {!isReadOnly && editCity && (
         <div className="modal-overlay fade-scale" onClick={() => setEditCity(null)}>
-          <div className="modal edit-modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal edit-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title" style={{ marginBottom: 16 }}>{T.editSubAlbumHeading}</p>
             <div className="edit-modal-fields">
               <div className="form-group">
@@ -2812,7 +2898,7 @@ export default function App() {
       {/* ═══ CITY ASSIGN MODAL ═══ */}
       {!isReadOnly && cityModal && (
         <div className="modal-overlay fade-scale" onClick={() => setCityModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.assignCityHeading}</p>
             <p className="modal-sub">{T.photosSelected(selectedPhotos.size)}</p>
             <input
@@ -2834,7 +2920,7 @@ export default function App() {
       {/* ═══ AUTO-DATE MODAL ═══ */}
       {!isReadOnly && autoDateModal && (
         <div className="modal-overlay fade-scale" onClick={() => autoDateModal === 'done' && setAutoDateModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()}>
             {autoDateModal === 'running' && (
               <>
                 <p className="modal-title">{T.settingDates}</p>
@@ -2864,7 +2950,7 @@ export default function App() {
       {/* ═══ THUMBNAIL MIGRATION ═══ */}
       {!isReadOnly && thumbMigration && (
         <div className="modal-overlay fade-scale" onClick={() => thumbMigration.status !== 'running' && thumbMigration.status !== 'scanning' && setThumbMigration(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.thumbMigrationTitle}</p>
             <p className="modal-sub">
               {thumbMigration.status === 'scanning' && T.thumbMigrationScanning}
@@ -2900,7 +2986,7 @@ export default function App() {
       {/* ═══ FACEBOOK IMPORT MODAL ═══ */}
       {!isReadOnly && fbModal && (
         <div className="modal-overlay fade-scale" onClick={() => fbStep !== 'import' && setFbModal(false)}>
-          <div className="modal fb-import-modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal fb-import-modal" onClick={e => e.stopPropagation()}>
 
             {fbStep === 'folder' && (
               <>
@@ -3049,7 +3135,7 @@ export default function App() {
       {/* ═══ SHARE MODAL ═══ */}
       {!isReadOnly && shareModal && (
         <div className="modal-overlay fade-scale" onClick={() => { setShareModal(null); setShareCopyStatus(''); }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
             <p className="modal-title">{T.shareTripTitle}</p>
             <p className="modal-sub">{T.shareLinkNote}</p>
             <div className="share-url-box">
@@ -3073,6 +3159,26 @@ export default function App() {
                 {shareCopyStatus === 'success' ? T.linkCopied : T.linkCopyFailed}
               </p>
             )}
+            <div className="share-expiry-control">
+              <label>{T.shareExpiryLabel}</label>
+              <select
+                className="input share-expiry-select"
+                value={shareModal.expiresAt ? 'custom' : 'never'}
+                onChange={e => updateShareExpiry(e.target.value === 'never' ? null : e.target.value)}
+                disabled={shareExpirySaving}
+              >
+                {shareModal.expiresAt && <option value="custom">{T.shareExpiresOn(new Date(shareModal.expiresAt.seconds ? shareModal.expiresAt.seconds * 1000 : shareModal.expiresAt).toLocaleDateString())}</option>}
+                <option value="never">{T.shareExpiryNever}</option>
+                <option value="7">{T.shareExpiry7}</option>
+                <option value="30">{T.shareExpiry30}</option>
+                <option value="90">{T.shareExpiry90}</option>
+              </select>
+              {shareModal.expiresAt && (
+                <p className="share-expiry-note">
+                  {T.shareExpiresOn(new Date(shareModal.expiresAt.seconds ? shareModal.expiresAt.seconds * 1000 : shareModal.expiresAt).toLocaleDateString())}
+                </p>
+              )}
+            </div>
             <div className="modal-actions" style={{ marginTop: 20 }}>
               <button className="btn btn-sm btn-danger" onClick={() => { const trip = trips.find(t => t.id === shareModal.tripId); if (trip?.shareToken) revokeShareLink(trip.id, trip.shareToken); }}>{T.revokeLink}</button>
               <button className="btn btn-sm" onClick={() => { setShareModal(null); setShareCopyStatus(''); }}>{T.close}</button>
@@ -3084,7 +3190,7 @@ export default function App() {
       {/* ═══ SHARE ALBUMS MODAL ═══ */}
       {!isReadOnly && shareAlbumsModal && (
         <div className="modal-overlay fade-scale" onClick={() => { setShareAlbumsModal(false); setShareEmailError(''); }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
             <p className="modal-title">{T.shareAlbumsTitle}</p>
             <p className="modal-sub">{T.albumSelected(selectedTrips.size)}</p>
             <ul className="share-albums-list">
@@ -3126,7 +3232,7 @@ export default function App() {
       {/* ═══ SHARE SUCCESS MODAL ═══ */}
       {!isReadOnly && shareSuccess && (
         <div className="modal-overlay fade-scale" onClick={() => setShareSuccess(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, textAlign: 'center' }}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, textAlign: 'center' }}>
             <p style={{ fontSize: 32, marginBottom: 8 }}>✓</p>
             <p className="modal-title">{T.albumsSharedTitle}</p>
             <p className="modal-sub" style={{ marginBottom: 12 }}>
@@ -3146,7 +3252,7 @@ export default function App() {
       {/* ═══ MANAGE ACCESSES MODAL ═══ */}
       {!isReadOnly && manageAccessesModal && (
         <div className="modal-overlay fade-scale" onClick={() => setManageAccessesModal(false)}>
-          <div className="modal manage-accesses-modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className="modal manage-accesses-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.manageAccessesTitle}</p>
             {loadingShares ? (
               <div style={{ textAlign: 'center', padding: '32px 0' }}><span className="spinner" /></div>

@@ -42,6 +42,14 @@ html {
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 34%, var(--border)); border: 2px solid var(--bg); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--accent) 56%, var(--border)); }
 input, button { font-family: inherit; }
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 68%, white);
+  outline-offset: 2px;
+}
 
 .app-shell { position: relative; min-height: 100%; }
 
@@ -264,6 +272,28 @@ input, button { font-family: inherit; }
 .photo-list-item img { width: 52px; height: 52px; border-radius: 4px; object-fit: cover; }
 .photo-list-name { font-size: 13px; }
 .photo-list-date { font-size: 11px; color: var(--text-muted); }
+.load-more-photos,
+.load-more-list {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s;
+}
+.load-more-photos {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  min-height: 120px;
+}
+.load-more-list {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius);
+}
+.load-more-photos:hover,
+.load-more-list:hover { border-color: var(--accent); background: var(--accent-dim); }
 
 .drop-zone { border: 2px dashed var(--border); border-radius: var(--radius-lg); padding: 60px 20px; text-align: center; color: var(--text-muted); cursor: pointer; transition: all .3s; }
 .drop-zone:hover, .drop-zone.dragging { border-color: var(--accent); background: var(--accent-dim); }
@@ -304,8 +334,8 @@ input, button { font-family: inherit; }
 .context-menu button.context-menu-danger { color: var(--danger); }
 .context-menu button.context-menu-danger:hover { background: rgba(220,53,69,.08); }
 
-.modal-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 1001; display: flex; align-items: center; justify-content: center; }
-.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; max-width: 360px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
+.modal-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 1001; display: flex; align-items: center; justify-content: center; padding: 18px; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; max-width: 360px; max-height: calc(100vh - 36px); overflow-y: auto; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
 .modal-title { font-size: 16px; margin-bottom: 6px; }
 .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 .modal-actions { display: flex; gap: 10px; justify-content: center; }
@@ -447,6 +477,10 @@ input, button { font-family: inherit; }
 /* ─── Share URL modal ─── */
 .share-url-box { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-top: 14px; }
 .share-url-text { font-size: 11px; color: var(--text-muted); flex: 1; word-break: break-all; text-align: left; }
+.share-expiry-control { margin-top: 14px; text-align: left; }
+.share-expiry-control label { display: block; margin-bottom: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.1px; color: var(--text-muted); font-weight: 700; }
+.share-expiry-select { padding: 9px 12px; border-radius: 8px; font-size: 13px; }
+.share-expiry-note { margin-top: 6px; font-size: 12px; color: var(--text-muted); }
 
 /* ─── Facebook import ─── */
 .btn-facebook { background: #1877f2; color: #fff; border-color: #1877f2; font-weight: 600; }

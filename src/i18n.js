@@ -168,6 +168,14 @@ export function getTranslations(isSpanish) {
     revokeLink: isSpanish ? 'Revocar enlace' : 'Revoke link',
     linkCopied: isSpanish ? 'Enlace copiado.' : 'Link copied.',
     linkCopyFailed: isSpanish ? 'No se pudo copiar el enlace.' : 'Could not copy the link.',
+    shareExpiryLabel: isSpanish ? 'Caducidad del enlace' : 'Link expiration',
+    shareExpiryNever: isSpanish ? 'Sin caducidad' : 'Never expires',
+    shareExpiry7: isSpanish ? '7 dias' : '7 days',
+    shareExpiry30: isSpanish ? '30 dias' : '30 days',
+    shareExpiry90: isSpanish ? '90 dias' : '90 days',
+    shareExpirySaved: isSpanish ? 'Caducidad actualizada.' : 'Expiration updated.',
+    shareExpiresOn: (date) => isSpanish ? `Caduca el ${date}` : `Expires on ${date}`,
+    sharedLinkExpired: isSpanish ? 'Este enlace compartido ha caducado.' : 'This shared link has expired.',
     // Share albums modal
     shareAlbumsTitle: isSpanish ? 'Compartir álbumes' : 'Share Albums',
     albumSelected: (n) => isSpanish
@@ -200,6 +208,7 @@ export function getTranslations(isSpanish) {
     // Public share view
     sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
     sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',
+    showMorePhotos: (n) => isSpanish ? `Mostrar ${n} fotos mas` : `Show ${n} more photos`,
     // Login
     signInSub: isSpanish ? 'Inicia sesión para acceder a tu galería privada' : 'Sign in to access your private gallery',
     continueWithGoogle: isSpanish ? 'Continuar con Google' : 'Continue with Google',

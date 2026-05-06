@@ -32,7 +32,7 @@ service cloud.firestore {
 
     function validShareLink() {
       return request.resource.data.keys().hasOnly([
-        'tripName', 'tripDate', 'photos', 'createdAt'
+        'tripId', 'ownerId', 'tripName', 'tripDate', 'photos', 'expiresAt', 'createdAt'
       ]) &&
       request.resource.data.tripName is string &&
       request.resource.data.photos is list;
