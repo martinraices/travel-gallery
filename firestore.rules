@@ -77,6 +77,17 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Access requests: any signed-in Gmail user may create/read their own request; admins review all.
+    match /accessRequests/{email} {
+      allow create, update: if request.auth != null &&
+        email == signedInEmail() &&
+        request.resource.data.email == signedInEmail() &&
+        request.resource.data.status == 'pending';
+      allow read: if isAdmin() || (request.auth != null && email == signedInEmail());
+      allow delete: if isAdmin();
+      allow update: if isAdmin();
+    }
+
     // Global settings (panel label etc.): authenticated users can read; only admins can write.
     match /globalSettings/{docId} {
       allow read: if request.auth != null;

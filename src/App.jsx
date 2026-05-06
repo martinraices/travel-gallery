@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import {
   collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
-  query, where, orderBy, limit, serverTimestamp, getDoc, setDoc, writeBatch,
+  query, where, orderBy, limit, serverTimestamp, getDoc, setDoc, writeBatch, arrayUnion,
 } from 'firebase/firestore';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject, listAll,
@@ -106,6 +106,9 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
+  const [loginInfo, setLoginInfo] = useState('');
+  const [pendingAccessUser, setPendingAccessUser] = useState(null);
+  const [submittingAccessRequest, setSubmittingAccessRequest] = useState(false);
   const [appNotice, setAppNotice] = useState(null); // { type: 'success' | 'error', message }
   const [loggingIn, setLoggingIn] = useState(false);
   const [guestLoggingIn, setGuestLoggingIn] = useState(false);
@@ -190,6 +193,11 @@ export default function App() {
   const [manageAccessesModal, setManageAccessesModal] = useState(false);
   const [albumShares, setAlbumShares] = useState([]);
   const [loadingShares, setLoadingShares] = useState(false);
+  const [pendingRequestsModal, setPendingRequestsModal] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [selectedPendingRequests, setSelectedPendingRequests] = useState(new Set());
+  const [loadingPendingRequests, setLoadingPendingRequests] = useState(false);
+  const [savingPendingRequests, setSavingPendingRequests] = useState(false);
 
   // ─── Access denied (non-whitelisted users) ───
   const [accessDenied, setAccessDenied] = useState(false);
@@ -337,19 +345,31 @@ export default function App() {
 
   // ─── Auth listener ───
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      if (u && !u.isAnonymous && !ALLOWED_EMAILS.includes(u.email)) {
-        signOut(auth).catch(() => {});
-        setUser(null);
-        setAuthLoading(false);
-        setAccessDenied(true);
-        return;
+    return onAuthStateChanged(auth, async (u) => {
+      if (u && !u.isAnonymous) {
+        const email = (u.email || '').toLowerCase();
+        let approvedEmails = [];
+        try {
+          const approvedSnap = await getDoc(doc(db, 'globalSettings', 'approvedUsers'));
+          approvedEmails = approvedSnap.exists() ? (approvedSnap.data().emails || []).map(e => e.toLowerCase()) : [];
+        } catch {}
+
+        if (![...ALLOWED_EMAILS.map(e => e.toLowerCase()), ...approvedEmails].includes(email)) {
+          setUser(null);
+          setGuestMode(false);
+          setAccessDenied(false);
+          setPendingAccessUser({ uid: u.uid, email, displayName: u.displayName || '' });
+          setAuthLoading(false);
+          return;
+        }
       }
+
+      setPendingAccessUser(null);
       setAccessDenied(false);
       setUser(u);
       setAuthLoading(false);
-      if (u?.email) {
-        setDoc(doc(db, 'profiles', u.uid), { email: u.email, displayName: u.displayName || null }, { merge: true })
+      if (u?.email && !u.isAnonymous) {
+        setDoc(doc(db, 'profiles', u.uid), { email: u.email.toLowerCase(), displayName: u.displayName || null }, { merge: true })
           .catch(() => {});
       }
     });
@@ -545,6 +565,7 @@ export default function App() {
       }
       if (e.key === 'Escape') {
         if (shareSuccess) { setShareSuccess(null); }
+        else if (pendingRequestsModal) { setPendingRequestsModal(false); }
         else if (manageAccessesModal) { setManageAccessesModal(false); }
         else if (thumbMigration && thumbMigration.status !== 'running' && thumbMigration.status !== 'scanning') { setThumbMigration(null); }
         else if (shareAlbumsModal) { closeShareAlbumsModal(); }
@@ -570,6 +591,7 @@ export default function App() {
   // ═══════════════════════════════════════
   const handleGoogleLogin = async () => {
     setLoginError('');
+    setLoginInfo('');
     setGuestMode(false);
     setLoggingIn(true);
     try {
@@ -582,11 +604,40 @@ export default function App() {
 
   const handleGuestLogin = async () => {
     setLoginError('');
+    setLoginInfo('');
     setGuestLoggingIn(true);
     setGuestMode(true);
     setAccessDenied(false);
     setUser(null);
     setGuestLoggingIn(false);
+  };
+
+  const submitAccessRequest = async () => {
+    if (!pendingAccessUser?.email || !auth.currentUser) return;
+    setSubmittingAccessRequest(true);
+    setLoginError('');
+    try {
+      await setDoc(doc(db, 'accessRequests', pendingAccessUser.email), {
+        email: pendingAccessUser.email,
+        displayName: pendingAccessUser.displayName || null,
+        uid: pendingAccessUser.uid,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      await signOut(auth);
+      setPendingAccessUser(null);
+      setLoginInfo(T.accessRequestSent);
+    } catch (err) {
+      console.error('Access request error:', err);
+      setLoginError(T.accessRequestFailed);
+    }
+    setSubmittingAccessRequest(false);
+  };
+
+  const cancelAccessRequest = async () => {
+    await signOut(auth).catch(() => {});
+    setPendingAccessUser(null);
   };
 
   // ═══════════════════════════════════════
@@ -1933,6 +1984,58 @@ export default function App() {
     }
   };
 
+  const loadPendingRequests = async () => {
+    if (isReadOnly) return;
+    setLoadingPendingRequests(true);
+    setSelectedPendingRequests(new Set());
+    try {
+      const snap = await getDocs(collection(db, 'accessRequests'));
+      const requests = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(r => (r.status || 'pending') === 'pending')
+        .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+      setPendingRequests(requests);
+    } catch (err) {
+      console.error('Error loading pending requests:', err);
+      showNotice('error', validationText('accessLoadFailed'));
+    }
+    setLoadingPendingRequests(false);
+  };
+
+  const resolvePendingRequests = async (status) => {
+    if (isReadOnly || selectedPendingRequests.size === 0) return;
+    setSavingPendingRequests(true);
+    try {
+      const selectedIds = [...selectedPendingRequests];
+      const selectedEmails = selectedIds
+        .map(id => pendingRequests.find(r => r.id === id)?.email)
+        .filter(Boolean)
+        .map(email => email.toLowerCase());
+      const batch = writeBatch(db);
+      selectedIds.forEach(id => {
+        batch.update(doc(db, 'accessRequests', id), {
+          status,
+          reviewedAt: serverTimestamp(),
+          reviewedBy: user.email,
+        });
+      });
+      if (status === 'approved' && selectedEmails.length > 0) {
+        batch.set(doc(db, 'globalSettings', 'approvedUsers'), {
+          emails: arrayUnion(...selectedEmails),
+          updatedAt: serverTimestamp(),
+          updatedBy: user.email,
+        }, { merge: true });
+      }
+      await batch.commit();
+      setPendingRequests(prev => prev.filter(r => !selectedPendingRequests.has(r.id)));
+      setSelectedPendingRequests(new Set());
+    } catch (err) {
+      console.error('Error resolving pending requests:', err);
+      showNotice('error', validationText('saveFailed'));
+    }
+    setSavingPendingRequests(false);
+  };
+
   // ═══════════════════════════════════════
   // STATS
   // ═══════════════════════════════════════
@@ -2220,7 +2323,23 @@ export default function App() {
               : T.continueAsGuest}
           </button>
           {loginError && <p className="login-error">{loginError}</p>}
+          {loginInfo && <p className="field-success" style={{ textAlign: 'center', marginTop: 12 }}>{loginInfo}</p>}
         </div>
+        {pendingAccessUser && (
+          <div className="modal-overlay fade-scale" onClick={cancelAccessRequest}>
+            <div {...modalProps} className="modal access-request-modal" onClick={e => e.stopPropagation()}>
+              <p className="modal-title">{T.accessRequestTitle}</p>
+              <p className="modal-sub">{T.accessRequestMessage(pendingAccessUser.email)}</p>
+              <div className="modal-actions" style={{ marginTop: 18 }}>
+                <button className="btn btn-sm" onClick={cancelAccessRequest} disabled={submittingAccessRequest}>{T.no}</button>
+                <button className="btn btn-accent" onClick={submitAccessRequest} disabled={submittingAccessRequest}>
+                  {submittingAccessRequest ? T.sendingRequest : T.yesSendRequest}
+                </button>
+              </div>
+              {loginError && <p className="field-error" style={{ textAlign: 'center' }}>{loginError}</p>}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2258,6 +2377,13 @@ export default function App() {
                   <div className="admin-dropdown">
                     <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); setFbStep('folder'); setFbError(''); setFbModal(true); }}>
                       {T.importFbMenu}
+                    </button>
+                    <button className="admin-dropdown-item" onClick={() => {
+                      setAdminDropdown(false);
+                      loadPendingRequests();
+                      setPendingRequestsModal(true);
+                    }}>
+                      {T.pendingRequestsMenu}
                     </button>
                     <button className="admin-dropdown-item" onClick={() => {
                       setAdminDropdown(false);
@@ -3509,6 +3635,63 @@ export default function App() {
       )}
 
       {/* ═══ MANAGE ACCESSES MODAL ═══ */}
+      {!isReadOnly && pendingRequestsModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setPendingRequestsModal(false)}>
+          <div {...modalProps} className="modal pending-requests-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.pendingRequestsTitle}</p>
+            {loadingPendingRequests ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}><span className="spinner" /></div>
+            ) : pendingRequests.length === 0 ? (
+              <p className="modal-sub">{T.noPendingRequests}</p>
+            ) : (
+              <>
+                <label className="pending-request-row pending-request-all">
+                  <input
+                    type="checkbox"
+                    checked={selectedPendingRequests.size === pendingRequests.length}
+                    ref={el => { if (el) el.indeterminate = selectedPendingRequests.size > 0 && selectedPendingRequests.size < pendingRequests.length; }}
+                    onChange={() => {
+                      setSelectedPendingRequests(prev =>
+                        prev.size === pendingRequests.length ? new Set() : new Set(pendingRequests.map(r => r.id))
+                      );
+                    }}
+                  />
+                  <span>{T.selectAll}</span>
+                </label>
+                <div className="pending-requests-list">
+                  {pendingRequests.map(request => (
+                    <label key={request.id} className="pending-request-row">
+                      <input
+                        type="checkbox"
+                        checked={selectedPendingRequests.has(request.id)}
+                        onChange={() => setSelectedPendingRequests(prev => {
+                          const next = new Set(prev);
+                          next.has(request.id) ? next.delete(request.id) : next.add(request.id);
+                          return next;
+                        })}
+                      />
+                      <span>
+                        <strong>{request.email}</strong>
+                        {request.displayName && <small>{request.displayName}</small>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setPendingRequestsModal(false)}>{T.close}</button>
+              <button className="btn btn-sm btn-danger" onClick={() => resolvePendingRequests('denied')} disabled={savingPendingRequests || selectedPendingRequests.size === 0}>
+                {T.denyAccess}
+              </button>
+              <button className="btn btn-accent" onClick={() => resolvePendingRequests('approved')} disabled={savingPendingRequests || selectedPendingRequests.size === 0}>
+                {savingPendingRequests ? T.saving : T.approveAccess}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!isReadOnly && manageAccessesModal && (
         <div className="modal-overlay fade-scale" onClick={() => setManageAccessesModal(false)}>
           <div {...modalProps} className="modal manage-accesses-modal" onClick={e => e.stopPropagation()}>
