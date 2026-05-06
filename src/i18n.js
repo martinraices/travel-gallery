@@ -14,6 +14,10 @@ export function getTranslations(isSpanish) {
     // Stats panel
     selectAll: isSpanish ? 'Seleccionar todo' : 'Select all',
     allTrips: isSpanish ? 'Todos los viajes' : 'All Trips',
+    sharedToMeTitle: isSpanish ? 'Shared to me' : 'Shared to me',
+    sharedToMeCount: (n) => isSpanish
+      ? `${n} álbum${n !== 1 ? 'es' : ''} compartido${n !== 1 ? 's' : ''}`
+      : `${n} shared album${n !== 1 ? 's' : ''}`,
     shareAlbumsBtn: (n) => isSpanish ? `Compartir álbumes (${n})` : `Share Albums (${n})`,
     tripsLabel: isSpanish ? 'Viajes' : 'Trips',
     photosLabel: isSpanish ? 'Fotos' : 'Photos',
@@ -186,8 +190,18 @@ export function getTranslations(isSpanish) {
     emailNote: isSpanish
       ? 'Separa múltiples direcciones con comas. Al confirmar, se abrirá tu cliente de correo con la notificación lista para enviar.'
       : 'Separate multiple addresses with commas. Confirming will open your mail client with the notification ready to send.',
+    shareWithLabel: isSpanish ? 'Compartir con' : 'Share with',
+    shareGuestsTitle: isSpanish ? 'Guests' : 'Guests',
+    shareGuestsNote: isSpanish
+      ? 'Visible para quienes entran como Guest.'
+      : 'Visible to people browsing as Guest.',
+    internalUsersLabel: isSpanish ? 'Usuarios internos' : 'Internal users',
+    loadingUsers: isSpanish ? 'Cargando usuarios' : 'Loading users',
+    noInternalUsers: isSpanish ? 'No hay otros usuarios internos disponibles.' : 'No other internal users are available.',
+    selectShareAudience: isSpanish ? 'Selecciona Guests o al menos un usuario interno.' : 'Select Guests or at least one internal user.',
     sharing: isSpanish ? 'Compartiendo…' : 'Sharing…',
     shareAndNotify: isSpanish ? 'Compartir y notificar' : 'Share and notify',
+    shareAlbumsConfirm: isSpanish ? 'Compartir álbumes' : 'Share albums',
     invalidEmails: (emails) => isSpanish
       ? `Email${emails.length !== 1 ? 's' : ''} no valido${emails.length !== 1 ? 's' : ''}: ${emails.join(', ')}`
       : `Invalid email${emails.length !== 1 ? 's' : ''}: ${emails.join(', ')}`,

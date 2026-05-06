@@ -24,7 +24,72 @@ import {
 import { parseFbAlbum } from './utils/facebookAlbums';
 import { compressImage, uploadPhotoVariants } from './utils/imageUtils';
 import { formatDuration } from './utils/format';
-import { isValidHttpUrl, parseEmailList } from './utils/validation';
+import { isValidHttpUrl } from './utils/validation';
+
+function TripCoverImage({ src, alt = '' }) {
+  const [displaySrc, setDisplaySrc] = useState(src || '');
+  const [incomingSrc, setIncomingSrc] = useState('');
+
+  useEffect(() => {
+    if (!src) {
+      setDisplaySrc('');
+      setIncomingSrc('');
+      return undefined;
+    }
+    if (src === displaySrc || src === incomingSrc) return undefined;
+
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled) setIncomingSrc(src);
+    };
+    img.onerror = () => {
+      if (!cancelled && !displaySrc) setDisplaySrc(src);
+    };
+    img.src = src;
+    if (img.complete && img.naturalWidth > 0) setIncomingSrc(src);
+
+    return () => { cancelled = true; };
+  }, [src, displaySrc, incomingSrc]);
+
+  const finishTransition = useCallback(() => {
+    if (!incomingSrc) return;
+    setDisplaySrc(incomingSrc);
+    setIncomingSrc('');
+  }, [incomingSrc]);
+
+  useEffect(() => {
+    if (!incomingSrc) return undefined;
+    const timer = window.setTimeout(finishTransition, 260);
+    return () => window.clearTimeout(timer);
+  }, [incomingSrc, finishTransition]);
+
+  if (!displaySrc && !incomingSrc) return null;
+
+  return (
+    <>
+      {displaySrc && <img className="trip-cover-img trip-cover-img-current" src={displaySrc} alt={alt} loading="lazy" decoding="async" />}
+      {incomingSrc && (
+        <img
+          className="trip-cover-img trip-cover-img-incoming"
+          src={incomingSrc}
+          alt={alt}
+          loading="eager"
+          decoding="async"
+          onAnimationEnd={finishTransition}
+        />
+      )}
+    </>
+  );
+}
+
+function TripCoverLoader({ label }) {
+  return (
+    <div className="trip-cover-loader">
+      <TravelLoader label={label} />
+    </div>
+  );
+}
 
 export default function App() {
   // ─── Language (IP-based, falls back to browser language) ───
@@ -52,6 +117,7 @@ export default function App() {
   // ─── Core state ───
   const [trips, setTrips] = useState([]);
   const [activeTrip, setActiveTrip] = useState(null);
+  const [activeSharedCollection, setActiveSharedCollection] = useState(false);
   const [photos, setPhotos] = useState([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
@@ -74,6 +140,7 @@ export default function App() {
   const [tripPreviewIndexes, setTripPreviewIndexes] = useState({});
   const [cityPreviewIndexes, setCityPreviewIndexes] = useState({});
   const [loadingTripPreviews, setLoadingTripPreviews] = useState(new Set());
+  const [loadingTripCovers, setLoadingTripCovers] = useState(new Set());
   const [tripSort, setTripSort] = useState(null);
   const [appWallpaperUrl, setAppWallpaperUrl] = useState('');
   const [scrollFade, setScrollFade] = useState('');
@@ -81,6 +148,7 @@ export default function App() {
   const fileRef = useRef();
   const lastScrollYRef = useRef(0);
   const scrollFadeTimerRef = useRef(null);
+  const loadingTripCoversRef = useRef(new Set());
 
   // ─── Dark mode ───
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
@@ -108,11 +176,14 @@ export default function App() {
 
   // ─── Trip selection & album sharing ───
   const [selectedTrips, setSelectedTrips] = useState(new Set());
-  const [shareAlbumsModal, setShareAlbumsModal] = useState(false);
-  const [shareEmailsInput, setShareEmailsInput] = useState('');
+  const [shareAlbumsModal, setShareAlbumsModal] = useState(null); // { mode: 'bulk' | 'edit', tripIds: string[] }
   const [shareEmailError, setShareEmailError] = useState('');
+  const [shareWithGuests, setShareWithGuests] = useState(false);
+  const [selectedInternalEmails, setSelectedInternalEmails] = useState(new Set());
+  const [internalUsers, setInternalUsers] = useState([]);
+  const [loadingInternalUsers, setLoadingInternalUsers] = useState(false);
   const [sharingAlbums, setSharingAlbums] = useState(false);
-  const [shareSuccess, setShareSuccess] = useState(null); // { emails, tripNames }
+  const [shareSuccess, setShareSuccess] = useState(null); // { emails, guests, tripNames }
 
   // ─── Admin tools ───
   const [adminDropdown, setAdminDropdown] = useState(false);
@@ -129,7 +200,8 @@ export default function App() {
   const [editDate, setEditDate] = useState('');
   const [editCountry, setEditCountry] = useState('');
   const [editMiro, setEditMiro] = useState('');
-  const [editVisibility, setEditVisibility] = useState('shared');
+  const [editShareWithGuests, setEditShareWithGuests] = useState(true);
+  const [editAllowedEmails, setEditAllowedEmails] = useState([]);
   const [editSaving, setEditSaving] = useState(false);
 
   // ─── Edit city sub-album ───
@@ -204,6 +276,30 @@ export default function App() {
   const countryIsValid = useCallback((country) => {
     const trimmed = country.trim();
     return !trimmed || WORLD_COUNTRIES.includes(trimmed) || COUNTRY_NAMES.includes(trimmed);
+  }, []);
+
+  const tripIsShared = useCallback((trip) => (
+    trip?.visibility === 'shared' || (trip?.allowedEmails || []).length > 0
+  ), []);
+
+  const isOwnTrip = useCallback((trip) => (
+    !isReadOnly && (!trip.ownerId || trip.ownerId === user?.uid)
+  ), [isReadOnly, user?.uid]);
+
+  const isSharedToMeTrip = useCallback((trip) => {
+    if (isOwnTrip(trip)) return false;
+    if (isReadOnly) return trip?.visibility === 'shared';
+    const email = user?.email?.toLowerCase();
+    const allowedEmails = (trip?.allowedEmails || []).map(e => e.toLowerCase());
+    return trip?.visibility === 'shared' || (!!email && allowedEmails.includes(email));
+  }, [isOwnTrip, isReadOnly, user?.email]);
+
+  const cityMetadataWithVisibility = useCallback((trip, visibility) => {
+    const next = { ...(trip?.cityMetadata || {}) };
+    (trip?.cities || []).forEach(city => {
+      next[city] = { ...(next[city] || {}), visibility };
+    });
+    return next;
   }, []);
 
   const validationText = useCallback((key, value) => {
@@ -366,23 +462,47 @@ export default function App() {
     };
   }, []);
 
-  // Auto-fix: trips with a broken/missing cover — list Storage files directly and get a real URL
-  useEffect(() => {
-    if (!user || isReadOnly || trips.length === 0) return;
-    // Run for trips with no cover OR whose current cover returns 404 (we re-run on every load to heal broken covers)
-    const needsFix = trips.filter(t => (t.photoCount || 0) > 0 && t.ownerId && !t.cover);
-    needsFix.forEach(async (trip) => {
+  const resolveMissingTripCovers = useCallback(async (sourceTrips) => {
+    if (!user || isReadOnly || sourceTrips.length === 0) return;
+
+    const needsFix = sourceTrips.filter(t =>
+      (t.photoCount || 0) > 0
+      && t.ownerId
+      && !t.cover
+      && !loadingTripCoversRef.current.has(t.id)
+    );
+    if (needsFix.length === 0) return;
+
+    const ids = needsFix.map(t => t.id);
+    ids.forEach(id => loadingTripCoversRef.current.add(id));
+    setLoadingTripCovers(prev => new Set([...prev, ...ids]));
+
+    await Promise.all(needsFix.map(async (trip) => {
       try {
         const folder = ref(storage, `users/${trip.ownerId}/trips/${trip.id}`);
         const listed = await listAll(folder);
         if (listed.items.length === 0) return;
         const cover = await getDownloadURL(listed.items[0]);
-        if (cover === trip.cover) return; // already correct
+        if (cover === trip.cover) return;
         await updateDoc(doc(db, 'trips', trip.id), { cover });
         setTrips(prev => prev.map(t => t.id === trip.id ? { ...t, cover } : t));
-      } catch {}
-    });
-  }, [trips.length, user, isReadOnly]);
+      } catch (err) {
+        console.warn('Cover load failed:', trip.id, err);
+      } finally {
+        loadingTripCoversRef.current.delete(trip.id);
+        setLoadingTripCovers(prev => {
+          const next = new Set(prev);
+          next.delete(trip.id);
+          return next;
+        });
+      }
+    }));
+  }, [user, isReadOnly]);
+
+  // Auto-fix: trips with a broken/missing cover — list Storage files directly and get a real URL
+  useEffect(() => {
+    resolveMissingTripCovers(trips);
+  }, [trips, resolveMissingTripCovers]);
 
   // ─── Load wishlist from Firestore ───
   useEffect(() => {
@@ -427,7 +547,7 @@ export default function App() {
         if (shareSuccess) { setShareSuccess(null); }
         else if (manageAccessesModal) { setManageAccessesModal(false); }
         else if (thumbMigration && thumbMigration.status !== 'running' && thumbMigration.status !== 'scanning') { setThumbMigration(null); }
-        else if (shareAlbumsModal) { setShareAlbumsModal(false); }
+        else if (shareAlbumsModal) { closeShareAlbumsModal(); }
         else if (adminDropdown) { setAdminDropdown(false); }
         else if (editTrip) { setEditTrip(null); }
         else if (editCity) { setEditCity(null); }
@@ -438,6 +558,7 @@ export default function App() {
         else if (fbModal && fbStep !== 'import') { setFbModal(false); }
         else if (activeCity) { setActiveCity(null); }
         else if (activeTrip) { setActiveTrip(null); setStatPanel(null); }
+        else if (activeSharedCollection) { setActiveSharedCollection(false); }
       }
     };
     window.addEventListener('keydown', handler);
@@ -516,8 +637,12 @@ export default function App() {
         }
         setCreatorMap(map);
       }
-    } catch (err) { console.error('Load trips error:', err); }
-    setLoadingTrips(false);
+      await resolveMissingTripCovers(merged);
+    } catch (err) {
+      console.error('Load trips error:', err);
+    } finally {
+      setLoadingTrips(false);
+    }
   };
 
   const addTrip = async () => {
@@ -1282,7 +1407,8 @@ export default function App() {
     setEditDate(trip.date || '');
     setEditCountry(trip.country || '');
     setEditMiro(trip.miroUrl || '');
-    setEditVisibility(trip.visibility || 'shared');
+    setEditShareWithGuests(trip.visibility === 'shared');
+    setEditAllowedEmails(trip.allowedEmails || []);
   };
 
   const saveEditTrip = async () => {
@@ -1307,7 +1433,9 @@ export default function App() {
       date: editDate || null,
       country: editCountry.trim() || null,
       miroUrl: editMiro.trim() || null,
-      visibility: editVisibility,
+      visibility: editShareWithGuests ? 'shared' : 'private',
+      allowedEmails: editAllowedEmails,
+      cityMetadata: cityMetadataWithVisibility(editTrip, tripIsShared({ visibility: editShareWithGuests ? 'shared' : 'private', allowedEmails: editAllowedEmails }) ? 'shared' : 'private'),
     };
     try {
       await updateDoc(doc(db, 'trips', editTrip.id), updates);
@@ -1627,27 +1755,64 @@ export default function App() {
   // ═══════════════════════════════════════
   // ALBUM SHARING
   // ═══════════════════════════════════════
-  const handleShareAlbumsClick = () => {
-    const { valid, invalid } = parseEmailList(shareEmailsInput);
-    if (invalid.length > 0) {
-      setShareEmailError(T.invalidEmails(invalid));
-      return;
+  const closeShareAlbumsModal = useCallback(() => {
+    setShareAlbumsModal(null);
+    setShareEmailError('');
+  }, []);
+
+  const loadInternalUsers = useCallback(async () => {
+    if (isReadOnly) return;
+    setLoadingInternalUsers(true);
+    try {
+      const snap = await getDocs(collection(db, 'profiles'));
+      const profileEmails = snap.docs.map(d => d.data().email).filter(Boolean);
+      const emails = [...new Set([...ALLOWED_EMAILS, ...profileEmails])]
+        .map(email => email.toLowerCase())
+        .filter(email => email !== user?.email?.toLowerCase())
+        .sort((a, b) => a.localeCompare(b));
+      setInternalUsers(emails.map(email => ({ email, label: email.split('@')[0] })));
+    } catch (err) {
+      console.error('Error loading internal users:', err);
+      setInternalUsers(
+        ALLOWED_EMAILS
+          .map(email => email.toLowerCase())
+          .filter(email => email !== user?.email?.toLowerCase())
+          .sort((a, b) => a.localeCompare(b))
+          .map(email => ({ email, label: email.split('@')[0] }))
+      );
     }
-    if (valid.length === 0) {
-      setShareEmailError(T.enterAtLeastOneEmail);
+    setLoadingInternalUsers(false);
+  }, [isReadOnly, user?.email]);
+
+  const openShareAlbumsModal = useCallback((tripIds, mode = 'bulk') => {
+    const selected = tripIds.map(id => trips.find(t => t.id === id)).filter(Boolean);
+    const allGuestShared = selected.length > 0 && selected.every(t => t.visibility === 'shared');
+    const existingEmails = selected.flatMap(t => t.allowedEmails || []);
+
+    setShareAlbumsModal({ mode, tripIds });
+    setShareWithGuests(allGuestShared);
+    setSelectedInternalEmails(new Set(existingEmails));
+    setShareEmailError('');
+    loadInternalUsers();
+  }, [loadInternalUsers, trips]);
+
+  const handleShareAlbumsClick = () => {
+    const emails = [...selectedInternalEmails];
+    if (!shareWithGuests && emails.length === 0) {
+      setShareEmailError(T.selectShareAudience);
       return;
     }
     setShareEmailError('');
-    shareAlbums(valid);
+    shareAlbums({ emails, guests: shareWithGuests });
   };
 
-  const shareAlbums = async (emails) => {
+  const shareAlbums = async ({ emails, guests }) => {
     if (isReadOnly) return;
-    if (!emails.length || !selectedTrips.size) return;
+    const tripIds = shareAlbumsModal?.tripIds || [];
+    if ((!emails.length && !guests) || tripIds.length === 0) return;
     setSharingAlbums(true);
     clearNotice();
     try {
-      const tripIds = [...selectedTrips];
       const tripNames = {};
       tripIds.forEach(id => {
         const trip = trips.find(t => t.id === id);
@@ -1658,6 +1823,7 @@ export default function App() {
         tripIds,
         tripNames,
         emails,
+        guests,
         createdAt: serverTimestamp(),
         createdBy: user.email,
       });
@@ -1665,35 +1831,49 @@ export default function App() {
       const batch = writeBatch(db);
       for (const tripId of tripIds) {
         const trip = trips.find(t => t.id === tripId);
-        const existing = trip?.allowedEmails || [];
-        const updated = [...new Set([...existing, ...emails])];
-        batch.update(doc(db, 'trips', tripId), { allowedEmails: updated });
+        const nextEmails = [...new Set(emails)];
+        batch.update(doc(db, 'trips', tripId), {
+          visibility: guests ? 'shared' : 'private',
+          allowedEmails: nextEmails,
+          cityMetadata: cityMetadataWithVisibility(trip, guests || nextEmails.length > 0 ? 'shared' : 'private'),
+        });
       }
       await batch.commit();
 
       setTrips(prev => prev.map(t => {
-        if (!selectedTrips.has(t.id)) return t;
-        const existing = t.allowedEmails || [];
-        return { ...t, allowedEmails: [...new Set([...existing, ...emails])] };
+        if (!tripIds.includes(t.id)) return t;
+        const nextEmails = [...new Set(emails)];
+        return {
+          ...t,
+          visibility: guests ? 'shared' : 'private',
+          allowedEmails: nextEmails,
+          cityMetadata: cityMetadataWithVisibility(t, guests || nextEmails.length > 0 ? 'shared' : 'private'),
+        };
       }));
+
+      if (shareAlbumsModal?.mode === 'edit') {
+        setEditShareWithGuests(guests);
+        setEditAllowedEmails([...new Set(emails)]);
+      }
 
       const tripList = tripIds.map(id => {
         const trip = trips.find(t => t.id === id);
         return `• ${trip?.name || id}${trip?.date ? ` (${trip.date})` : ''}`;
       }).join('\n');
-      const appUrl = window.location.origin;
-      const subject = encodeURIComponent('Album access granted — Pepini per il mondo');
-      const body = encodeURIComponent(
-        `Hola!\n\nSe te ha dado acceso a los siguientes álbumes de viaje:\n\n${tripList}\n\nHaz clic aquí para acceder:\n${appUrl}\n\nInicia sesión con tu cuenta de Google usando esta dirección de email para ver los álbumes.\n\n¡Bon voyage!\n— Pepini per il mondo`
-      );
-      window.location.href = `mailto:${emails.join(',')}?subject=${subject}&body=${body}`;
+      if (emails.length > 0) {
+        const appUrl = window.location.origin;
+        const subject = encodeURIComponent('Album access granted — Pepini per il mondo');
+        const body = encodeURIComponent(
+          `Hola!\n\nSe te ha dado acceso a los siguientes álbumes de viaje:\n\n${tripList}\n\nHaz clic aquí para acceder:\n${appUrl}\n\nInicia sesión con tu cuenta de Google usando esta dirección de email para ver los álbumes.\n\n¡Bon voyage!\n— Pepini per il mondo`
+        );
+        window.location.href = `mailto:${emails.join(',')}?subject=${subject}&body=${body}`;
+      }
 
       const sharedTripNames = tripIds.map(id => trips.find(t => t.id === id)?.name).filter(Boolean);
       setSelectedTrips(new Set());
-      setShareAlbumsModal(false);
-      setShareEmailsInput('');
+      setShareAlbumsModal(null);
       setShareEmailError('');
-      setShareSuccess({ emails, tripNames: sharedTripNames });
+      setShareSuccess({ emails, guests, tripNames: sharedTripNames });
     } catch (err) {
       console.error('Error sharing albums:', err);
       showNotice('error', validationText('shareFailed'));
@@ -1784,6 +1964,10 @@ export default function App() {
     return trips;
   }, [trips, tripSort]);
 
+  const ownTrips = useMemo(() => sortedTrips.filter(t => !isSharedToMeTrip(t)), [sortedTrips, isSharedToMeTrip]);
+  const sharedToMeTrips = useMemo(() => sortedTrips.filter(t => isSharedToMeTrip(t)), [sortedTrips, isSharedToMeTrip]);
+  const visibleGridTrips = activeSharedCollection ? sharedToMeTrips : ownTrips;
+
   const totalPhotos = trips.reduce((s, t) => s + (t.photoCount || 0), 0);
   const countriesVisited = new Set(trips.map(t => t.country).filter(Boolean)).size;
   const topTrip = trips.reduce((best, t) => (!best || (t.photoCount || 0) > (best.photoCount || 0)) ? t : best, null);
@@ -1833,7 +2017,7 @@ export default function App() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {!isReadOnly && selectedTrips.size > 0 && (
-                <button className="btn btn-accent btn-sm" onClick={() => setShareAlbumsModal(true)}>
+                <button className="btn btn-accent btn-sm" onClick={() => openShareAlbumsModal([...selectedTrips], 'bulk')}>
                   {T.shareAlbumsBtn(selectedTrips.size)}
                 </button>
               )}
@@ -2058,14 +2242,14 @@ export default function App() {
       {/* ─── Header ─── */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div className="header-logo-wrap" onClick={() => setActiveTrip(null)}>
+          <div className="header-logo-wrap" onClick={() => { setActiveTrip(null); setActiveSharedCollection(false); }}>
             <img src={logoSrc} alt="Pepini per il mondo" className="header-logo-img" />
             <span className="header-logo heading">Pepini per il mondo</span>
           </div>
         </div>
         <div className="header-actions">
           {isGuest && <span className="guest-pill">{T.guestModeLabel}</span>}
-          {!activeTrip && !isReadOnly && (
+          {!activeTrip && !activeSharedCollection && !isReadOnly && (
             <div style={{ position: 'relative' }}>
               <button className="btn btn-secondary" onClick={() => setAdminDropdown(d => !d)}>{T.adminTools}</button>
               {adminDropdown && (
@@ -2086,7 +2270,7 @@ export default function App() {
               )}
             </div>
           )}
-          {!activeTrip && !isReadOnly && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>}
+          {!activeTrip && !activeSharedCollection && !isReadOnly && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>}
           {activeTrip && !isReadOnly && (
             <button className="btn btn-accent" onClick={() => fileRef.current?.click()} disabled={uploading}>
               {uploading ? T.uploading(uploadCount.done, uploadCount.total) : T.addPhotos}
@@ -2115,7 +2299,7 @@ export default function App() {
         )}
 
         {/* ═══ MIGRATION BANNER ═══ */}
-        {!isReadOnly && (migration === 'needed' || migration === 'running' || migration === 'done' || migration === 'error') && !activeTrip && (
+        {!isReadOnly && (migration === 'needed' || migration === 'running' || migration === 'done' || migration === 'error') && !activeTrip && !activeSharedCollection && (
           <div className={`migration-banner fade-in ${migration}`}>
             {migration === 'needed' && (
               <>
@@ -2142,7 +2326,7 @@ export default function App() {
           <div className="fade-in">
 
             {/* ─ New Trip Form ─ */}
-            {!isReadOnly && showNewTrip && (
+            {!activeSharedCollection && !isReadOnly && showNewTrip && (
               <div className="new-trip-form fade-scale">
                 <div className="form-group">
                   <label>{T.tripNameLabel}</label>
@@ -2176,7 +2360,7 @@ export default function App() {
             )}
 
             {/* ─ Stats + View toggle ─ */}
-            {trips.length > 0 && (
+            {!activeSharedCollection && trips.length > 0 && (
               <div className="sticky-header-zone">
                 <div className="stats-bar fade-in">
                   <div className={`stat-card stat-card-btn${statPanel === 'trips' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'trips' ? null : 'trips')}>
@@ -2327,9 +2511,19 @@ export default function App() {
               </div>
             )}
 
-            {loadingTrips && <TravelLoader label={T.loadingTrips} />}
+            {activeSharedCollection && (
+              <div className="shared-collection-header fade-in">
+                <button className="btn btn-sm" onClick={() => setActiveSharedCollection(false)}>{T.backToTrips}</button>
+                <div>
+                  <h2 className="gallery-title heading">{T.sharedToMeTitle}</h2>
+                  <p>{T.sharedToMeCount(sharedToMeTrips.length)}</p>
+                </div>
+              </div>
+            )}
 
-            {!loadingTrips && trips.length === 0 && !showNewTrip && (
+            {(loadingTrips || loadingTripCovers.size > 0) && <TravelLoader label={T.loadingTrips} />}
+
+            {!loadingTrips && loadingTripCovers.size === 0 && trips.length === 0 && !showNewTrip && (
               <div className="empty">
                 <div className="empty-icon">✈</div>
                 <p className="empty-title heading">{T.noTripsYet}</p>
@@ -2339,7 +2533,7 @@ export default function App() {
             )}
 
             {/* ─ Choropleth map ─ */}
-            {tripsView === 'map' && hasMapData && (
+            {!activeSharedCollection && tripsView === 'map' && hasMapData && (
               <div className="map-wrap fade-in">
                 <div className="map-toolbar">
                   <div className="map-zoom-btns">
@@ -2391,7 +2585,24 @@ export default function App() {
             {/* ─ Grid view ─ */}
             {tripsView === 'grid' && (
               <div className="trips-grid">
-                {sortedTrips.map((trip, i) => {
+                {!activeSharedCollection && sharedToMeTrips.length > 0 && (
+                  <div className="trip-card shared-to-me-card fade-in" onClick={() => { setActiveSharedCollection(true); setTripsView('grid'); }}>
+                    <div className="trip-cover shared-to-me-cover">
+                      {sharedToMeTrips.slice(0, 4).map((trip, idx) => {
+                        const thumb = trip.cover;
+                        return thumb
+                          ? <img key={trip.id} src={thumb} alt="" loading="lazy" decoding="async" style={{ gridArea: `p${idx + 1}` }} />
+                          : <div key={trip.id} className="shared-to-me-empty" style={{ gridArea: `p${idx + 1}` }} />;
+                      })}
+                      <div className="shared-to-me-badge">{sharedToMeTrips.length}</div>
+                    </div>
+                    <div className="trip-info">
+                      <div className="trip-name">{T.sharedToMeTitle}</div>
+                      <div className="trip-meta">{T.sharedToMeCount(sharedToMeTrips.length)}</div>
+                    </div>
+                  </div>
+                )}
+                {visibleGridTrips.map((trip, i) => {
                   const isOwner = !isReadOnly && (!trip.ownerId || trip.ownerId === user.uid);
                   const creatorEmail = trip.ownerEmail
                     || creatorMap[trip.ownerId]
@@ -2403,11 +2614,13 @@ export default function App() {
                   const previewUrl = previewPhoto?.thumbUrl || previewPhoto?.url || trip.cover;
                   const canSlide = (trip.photoCount || 0) > 1;
                   const previewLoading = loadingTripPreviews.has(trip.id);
+                  const coverLoading = loadingTripCovers.has(trip.id) || (!previewUrl && previewLoading);
                   return (
                   <div key={trip.id} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }} onClick={() => setActiveTrip(trip.id)}>
-                    <div className={`trip-cover ${previewUrl ? '' : 'trip-cover-empty'}`}>
-                      {previewUrl && <img key={previewUrl} className="trip-cover-img" src={previewUrl} alt="" loading="lazy" decoding="async" />}
-                      {!previewUrl && <span>🗺</span>}
+                    <div className={`trip-cover ${previewUrl || coverLoading ? '' : 'trip-cover-empty'}${coverLoading ? ' trip-cover-loading' : ''}`}>
+                      {previewUrl && <TripCoverImage src={previewUrl} />}
+                      {coverLoading && !previewUrl && <TripCoverLoader label={T.loadingTrips} />}
+                      {!previewUrl && !coverLoading && <span>🗺</span>}
                       {isOwner && <button className="trip-delete" onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>}
                       {canSlide && (
                         <>
@@ -2447,8 +2660,8 @@ export default function App() {
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                         <div className="trip-name">{trip.name}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                          <span className="trip-vis-icon" title={trip.visibility === 'private' ? T.privateTitle : T.sharedTitle}>
-                            {trip.visibility === 'private' ? '🔒' : '🌍'}
+                          <span className="trip-vis-icon" title={tripIsShared(trip) ? T.sharedTitle : T.privateTitle}>
+                            {tripIsShared(trip) ? '🌍' : '🔒'}
                           </span>
                           {isOwner && <button className="trip-edit-btn" title={T.editTripBtn} onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>}
                         </div>
@@ -2546,7 +2759,7 @@ export default function App() {
                     <div key={city} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }}
                       onClick={() => setActiveCity(city)}>
                       <div className={`trip-cover ${coverUrl ? '' : 'trip-cover-empty'}`}>
-                        {coverUrl && <img key={coverUrl} className="trip-cover-img" src={coverUrl} alt="" loading="lazy" decoding="async" />}
+                        {coverUrl && <TripCoverImage src={coverUrl} />}
                         {cityPhotos.length > 1 && (
                           <>
                             <button
@@ -2597,7 +2810,7 @@ export default function App() {
                     <div className="trip-card fade-in" style={{ animationDelay: `${Object.keys(cityGroups).length * 60}ms` }}
                       onClick={() => setActiveCity('__uncategorized__')}>
                       <div className={`trip-cover ${coverUrl ? '' : 'trip-cover-empty'}`}>
-                        {coverUrl && <img key={coverUrl} className="trip-cover-img" src={coverUrl} alt="" loading="lazy" decoding="async" />}
+                        {coverUrl && <TripCoverImage src={coverUrl} />}
                         {cityUncategorized.length > 1 && (
                           <>
                             <button
@@ -2850,8 +3063,18 @@ export default function App() {
               <div className="form-group" style={{ flex: '0 0 auto' }}>
                 <label>{T.visibilityLabel}</label>
                 <div className="vis-toggle">
-                  <button className={`vis-btn${editVisibility === 'shared' ? ' active' : ''}`} onClick={() => setEditVisibility('shared')}>{T.visShared}</button>
-                  <button className={`vis-btn${editVisibility === 'private' ? ' active' : ''}`} onClick={() => setEditVisibility('private')}>{T.visPrivate}</button>
+                  <button
+                    className={`vis-btn${editShareWithGuests || editAllowedEmails.length > 0 ? ' active' : ''}`}
+                    onClick={() => openShareAlbumsModal([editTrip.id], 'edit')}
+                  >
+                    {T.visShared}
+                  </button>
+                  <button
+                    className={`vis-btn${!editShareWithGuests && editAllowedEmails.length === 0 ? ' active' : ''}`}
+                    onClick={() => { setEditShareWithGuests(false); setEditAllowedEmails([]); }}
+                  >
+                    {T.visPrivate}
+                  </button>
                 </div>
               </div>
             </div>
@@ -3189,40 +3412,73 @@ export default function App() {
 
       {/* ═══ SHARE ALBUMS MODAL ═══ */}
       {!isReadOnly && shareAlbumsModal && (
-        <div className="modal-overlay fade-scale" onClick={() => { setShareAlbumsModal(false); setShareEmailError(''); }}>
-          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+        <div className="modal-overlay fade-scale" onClick={closeShareAlbumsModal}>
+          <div {...modalProps} className="modal share-audience-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.shareAlbumsTitle}</p>
-            <p className="modal-sub">{T.albumSelected(selectedTrips.size)}</p>
+            <p className="modal-sub">{T.albumSelected(shareAlbumsModal.tripIds.length)}</p>
             <ul className="share-albums-list">
-              {[...selectedTrips].map(id => {
+              {shareAlbumsModal.tripIds.map(id => {
                 const trip = trips.find(t => t.id === id);
                 return trip ? (
                   <li key={id}>{trip.name}{trip.date ? ` (${trip.date})` : ''}</li>
                 ) : null;
               })}
             </ul>
-            <div className="form-group" style={{ marginTop: 16 }}>
-              <label>{T.emailAddressesLabel}</label>
-              <input
-                className="input"
-                value={shareEmailsInput}
-                onChange={e => { setShareEmailsInput(e.target.value); setShareEmailError(''); }}
-                placeholder={T.emailPlaceholder}
-                autoFocus
-              />
-              {shareEmailError && <p className="field-error">{shareEmailError}</p>}
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                {T.emailNote}
-              </p>
+
+            <div className="share-audience-section">
+              <p className="share-audience-title">{T.shareWithLabel}</p>
+              <label className="share-audience-row">
+                <input
+                  type="checkbox"
+                  checked={shareWithGuests}
+                  onChange={e => { setShareWithGuests(e.target.checked); setShareEmailError(''); }}
+                />
+                <span>
+                  <strong>{T.shareGuestsTitle}</strong>
+                  <small>{T.shareGuestsNote}</small>
+                </span>
+              </label>
             </div>
+
+            <div className="share-audience-section">
+              <p className="share-audience-title">{T.internalUsersLabel}</p>
+              <div className="internal-users-list">
+                {loadingInternalUsers ? (
+                  <div className="share-audience-loading"><span className="spinner" /> {T.loadingUsers}</div>
+                ) : internalUsers.length === 0 ? (
+                  <p className="share-audience-empty">{T.noInternalUsers}</p>
+                ) : internalUsers.map(internalUser => (
+                  <label key={internalUser.email} className="share-audience-row">
+                    <input
+                      type="checkbox"
+                      checked={selectedInternalEmails.has(internalUser.email)}
+                      onChange={() => {
+                        setSelectedInternalEmails(prev => {
+                          const next = new Set(prev);
+                          next.has(internalUser.email) ? next.delete(internalUser.email) : next.add(internalUser.email);
+                          return next;
+                        });
+                        setShareEmailError('');
+                      }}
+                    />
+                    <span>
+                      <strong>{internalUser.label}</strong>
+                      <small>{internalUser.email}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {shareEmailError && <p className="field-error">{shareEmailError}</p>}
+            </div>
+
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => { setShareAlbumsModal(false); setShareEmailError(''); }}>{T.cancel}</button>
+              <button className="btn btn-sm" onClick={closeShareAlbumsModal}>{T.cancel}</button>
               <button
                 className="btn btn-accent"
                 onClick={handleShareAlbumsClick}
-                disabled={sharingAlbums || !shareEmailsInput.trim()}
+                disabled={sharingAlbums || loadingInternalUsers}
               >
-                {sharingAlbums ? T.sharing : T.shareAndNotify}
+                {sharingAlbums ? T.sharing : T.shareAlbumsConfirm}
               </button>
             </div>
           </div>
@@ -3236,14 +3492,17 @@ export default function App() {
             <p style={{ fontSize: 32, marginBottom: 8 }}>✓</p>
             <p className="modal-title">{T.albumsSharedTitle}</p>
             <p className="modal-sub" style={{ marginBottom: 12 }}>
-              {T.accessGrantedTo(shareSuccess.emails.join(', '))}
+              {T.accessGrantedTo([
+                ...(shareSuccess.guests ? [T.shareGuestsTitle] : []),
+                ...(shareSuccess.emails || []),
+              ].join(', '))}
             </p>
             <ul className="share-albums-list" style={{ textAlign: 'left', marginBottom: 16 }}>
               {shareSuccess.tripNames.map(name => <li key={name}>{name}</li>)}
             </ul>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+            {(shareSuccess.emails || []).length > 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
               {T.emailClientNote}
-            </p>
+            </p>}
             <button className="btn btn-accent" onClick={() => setShareSuccess(null)}>{T.accept}</button>
           </div>
         </div>
