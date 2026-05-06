@@ -2259,11 +2259,11 @@ export default function App() {
                     <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); setFbStep('folder'); setFbError(''); setFbModal(true); }}>
                       {T.importFbMenu}
                     </button>
-                    <button className="admin-dropdown-item" onClick={runThumbnailMigration}>
-                      {T.generateThumbsMenu}
-                    </button>
-                    <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); loadAlbumShares(); setManageAccessesModal(true); }}>
-                      {T.manageAccessesMenu}
+                    <button className="admin-dropdown-item" onClick={() => {
+                      setAdminDropdown(false);
+                      window.open('https://console.firebase.google.com/project/wanderlust-gallery/usage', 'firebase-bills-usage', 'noopener,noreferrer,width=1200,height=800');
+                    }}>
+                      {T.firebaseBillsUsageMenu}
                     </button>
                   </div>
                 </>

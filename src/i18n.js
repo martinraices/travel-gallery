@@ -5,6 +5,7 @@ export function getTranslations(isSpanish) {
     importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
     generateThumbsMenu: isSpanish ? 'Generar miniaturas desde carpeta local' : 'Generate thumbnails from local folder',
     manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
+    firebaseBillsUsageMenu: isSpanish ? 'Firebase Bills and Usage' : 'Firebase Bills and Usage',
     newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
     addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
     uploading: (d, t) => isSpanish ? `Subiendo ${d}/${t}…` : `Uploading ${d}/${t}…`,
