@@ -2367,12 +2367,24 @@ export default function App() {
     return hydrated;
   };
 
+  const fetchStoredPersonMatches = async (person) => {
+    if (!canUseFaceRecognition || !person?.id) return null;
+    try {
+      const snap = await getDocs(collection(db, 'people', person.id, 'matches'));
+      return snap.docs.map(matchDoc => ({ id: matchDoc.id, ...matchDoc.data() }));
+    } catch (err) {
+      console.error('Load stored person matches error:', err);
+      showNotice('error', err.message || T.faceActionFailed);
+      return null;
+    }
+  };
+
   const openPersonMatches = async (person) => {
     if (!canUseFaceRecognition || !person?.id || (person.matchCount || 0) === 0) return;
     setPersonMatchesModal({ person, loading: true, matches: [], albums: [] });
-    const rawMatches = await fetchPersonMatches(person);
+    const rawMatches = await fetchStoredPersonMatches(person);
     if (!rawMatches) {
-      setPersonMatchesModal(null);
+      setPersonMatchesModal({ person, loading: false, matches: [], albums: [] });
       return;
     }
     const matches = await hydratePersonMatches(rawMatches);
