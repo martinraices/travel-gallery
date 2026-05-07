@@ -1,13 +1,14 @@
 export function getTranslations(isSpanish) {
   return {
     // Header
-    adminTools: isSpanish ? '⚙ Herramientas' : '⚙ Admin Tools',
+    adminTools: isSpanish ? 'Herramientas' : 'Admin Tools',
     importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
     generateThumbsMenu: isSpanish ? 'Generar miniaturas desde carpeta local' : 'Generate thumbnails from local folder',
     manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
     firebaseBillsUsageMenu: isSpanish ? 'Firebase Bills and Usage' : 'Firebase Bills and Usage',
     pendingRequestsMenu: isSpanish ? 'Pending Requests' : 'Pending Requests',
     usersMenu: isSpanish ? 'Users' : 'Users',
+    notificationsMenu: isSpanish ? 'Notificaciones' : 'Notifications',
     newTrip: isSpanish ? '+ Nuevo viaje' : '+ New Trip',
     addPhotos: isSpanish ? '+ Agregar fotos' : '+ Add Photos',
     uploading: (d, t) => isSpanish ? `Subiendo ${d}/${t}…` : `Uploading ${d}/${t}…`,
@@ -218,6 +219,16 @@ export function getTranslations(isSpanish) {
       ? 'Se abrió tu cliente de correo para enviar la notificación. Si no se abrió, revisa que tengas un cliente de correo configurado.'
       : 'Your mail client was opened to send the notification. If it did not open, check that you have a mail client configured.',
     accept: isSpanish ? 'Aceptar' : 'Accept',
+    view: isSpanish ? 'Ver' : 'View',
+    someone: isSpanish ? 'alguien' : 'someone',
+    albumSharedNotificationTitle: isSpanish ? 'Album compartido contigo' : 'Album shared with you',
+    albumSharedNotificationText: (album, sender) => isSpanish
+      ? `${sender} compartio "${album}" contigo.`
+      : `${sender} shared "${album}" with you.`,
+    userRequestNotificationTitle: isSpanish ? 'Nuevo request de usuario' : 'New user request',
+    userRequestNotificationText: (email) => isSpanish
+      ? `${email} pidio acceso para crear usuario.`
+      : `${email} requested access to create a user.`,
     // Manage accesses modal
     manageAccessesTitle: isSpanish ? 'Gestionar accesos' : 'Manage Accesses',
     noAlbumsSharedYet: isSpanish ? 'Aún no se han compartido álbumes con nadie.' : 'No albums have been shared yet.',
@@ -247,6 +258,12 @@ export function getTranslations(isSpanish) {
     confirmRemoveUserText: (email) => isSpanish
       ? `¿Seguro que quieres remover ${email}? Se borrarán sus datos de perfil y requests, y se quitará su acceso aprobado.`
       : `Are you sure you want to remove ${email}? Their profile data and requests will be deleted, and approved access will be removed.`,
+    notificationsTitle: isSpanish ? 'Notificaciones' : 'Notifications',
+    notificationsSub: isSpanish ? 'Habilita o deshabilita las notificaciones que apareceran en el dashboard.' : 'Enable or disable the notifications shown on the dashboard.',
+    albumSharedNotificationType: isSpanish ? 'Album compartido' : 'Shared album',
+    albumSharedNotificationTypeHelp: isSpanish ? 'Avisa cuando alguien comparte un album contigo.' : 'Notify users when someone shares an album with them.',
+    userRequestNotificationType: isSpanish ? 'Request de creacion de usuario' : 'User creation request',
+    userRequestNotificationTypeHelp: isSpanish ? 'Solo admins: avisa cuando hay requests pendientes.' : 'Admins only: notify when pending requests exist.',
     // Public share view
     sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
     sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',

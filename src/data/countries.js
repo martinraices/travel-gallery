@@ -145,6 +145,7 @@ export const COUNTRY_CONTINENT = {
 export const CONTINENT_ORDER = ['Europe', 'North America', 'South America', 'Asia', 'Africa', 'Oceania', 'Other'];
 
 export const ALLOWED_EMAILS = ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];
+export const ADMIN_EMAILS = ['raicesm@gmail.com'];
 
 export const SPANISH_COUNTRIES = new Set(['ES','MX','AR','CO','CL','PE','VE','EC','GT','CU','BO','DO','HN','PY','SV','NI','CR','PA','UY','GQ','PR']);
 

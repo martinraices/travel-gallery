@@ -18,7 +18,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { TravelLoader } from './components/TravelLoader';
 import { getTranslations } from './i18n';
 import {
-  ALLOWED_EMAILS, CONTINENT_ORDER, COUNTRY_CONTINENT, COUNTRY_ISO, COUNTRY_NAMES,
+  ADMIN_EMAILS, ALLOWED_EMAILS, CONTINENT_ORDER, COUNTRY_CONTINENT, COUNTRY_ISO, COUNTRY_NAMES,
   GEO_URL, ISO_COUNTRY, SPANISH_COUNTRIES, WORLD_COUNTRIES,
 } from './data/countries';
 import { parseFbAlbum } from './utils/facebookAlbums';
@@ -117,6 +117,7 @@ export default function App() {
   const [creatorMap, setCreatorMap] = useState({}); // { [uid]: email }
   const isGuest = guestMode || !!user?.isAnonymous;
   const isReadOnly = isGuest;
+  const isAdminUser = !!user?.email && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user.email.toLowerCase());
 
   // ─── Core state ───
   const [trips, setTrips] = useState([]);
@@ -204,6 +205,14 @@ export default function App() {
   const [loadingAppUsers, setLoadingAppUsers] = useState(false);
   const [savingAppUser, setSavingAppUser] = useState(null);
   const [confirmUserAction, setConfirmUserAction] = useState(null); // { type, user }
+  const [notificationsModal, setNotificationsModal] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState({ albumShared: true, userRequest: true });
+  const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
+  const [dashboardRequests, setDashboardRequests] = useState([]);
+  const [dismissedNotifications, setDismissedNotifications] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('dismissedNotifications') || '[]')); }
+    catch { return new Set(); }
+  });
 
   // ─── Access denied (non-whitelisted users) ───
   const [accessDenied, setAccessDenied] = useState(false);
@@ -287,6 +296,15 @@ export default function App() {
 
   const clearNotice = useCallback(() => setAppNotice(null), []);
 
+  const dismissDashboardNotification = useCallback((id) => {
+    setDismissedNotifications(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      localStorage.setItem('dismissedNotifications', JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
   const countryIsValid = useCallback((country) => {
     const trimmed = country.trim();
     return !trimmed || WORLD_COUNTRIES.includes(trimmed) || COUNTRY_NAMES.includes(trimmed);
@@ -342,6 +360,19 @@ export default function App() {
     const timer = window.setTimeout(() => setAppNotice(null), appNotice.type === 'success' ? 2600 : 5200);
     return () => window.clearTimeout(timer);
   }, [appNotice]);
+
+  useEffect(() => {
+    if (!user || isReadOnly) {
+      setNotificationSettings({ albumShared: true, userRequest: true });
+      return;
+    }
+    getDoc(doc(db, 'globalSettings', 'notifications'))
+      .then(snap => {
+        if (!snap.exists()) return;
+        setNotificationSettings(prev => ({ ...prev, ...snap.data() }));
+      })
+      .catch(() => {});
+  }, [user, isReadOnly]);
 
   // ─── Dark mode effect ───
   useEffect(() => {
@@ -481,6 +512,21 @@ export default function App() {
   useEffect(() => { if (!user && !guestMode) return; loadTrips(); }, [user, guestMode]);
   useEffect(() => { if (!activeTrip || (!user && !guestMode)) { setPhotos([]); return; } loadPhotos(activeTrip); setSelectedPhotos(new Set()); setActiveCity(pendingCityRef.current); pendingCityRef.current = null; }, [activeTrip, user, guestMode]);
   useEffect(() => {
+    if (!user || !isAdminUser || !notificationSettings.userRequest) {
+      setDashboardRequests([]);
+      return;
+    }
+    getDocs(collection(db, 'accessRequests'))
+      .then(snap => {
+        const requests = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(r => (r.status || 'pending') === 'pending')
+          .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+        setDashboardRequests(requests);
+      })
+      .catch(() => setDashboardRequests([]));
+  }, [user, isAdminUser, notificationSettings.userRequest]);
+  useEffect(() => {
     const handleScroll = () => {
       const currentY = window.scrollY;
       const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
@@ -587,6 +633,7 @@ export default function App() {
       if (e.key === 'Escape') {
         if (shareSuccess) { setShareSuccess(null); }
         else if (confirmUserAction) { setConfirmUserAction(null); }
+        else if (notificationsModal) { setNotificationsModal(false); }
         else if (usersModal) { setUsersModal(false); }
         else if (pendingRequestsModal) { setPendingRequestsModal(false); }
         else if (manageAccessesModal) { setManageAccessesModal(false); }
@@ -2058,6 +2105,7 @@ export default function App() {
       }
       await batch.commit();
       setPendingRequests(prev => prev.filter(r => !selectedPendingRequests.has(r.id)));
+      setDashboardRequests(prev => prev.filter(r => !selectedPendingRequests.has(r.id)));
       setSelectedPendingRequests(new Set());
     } catch (err) {
       console.error('Error resolving pending requests:', err);
@@ -2094,7 +2142,7 @@ export default function App() {
         email,
         uid: profileByEmail[email]?.id || null,
         displayName: profileByEmail[email]?.displayName || email.split('@')[0],
-        isAdmin: ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(email),
+        isAdmin: ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email),
         isPaused: pausedEmails.includes(email),
         albums: stats[email]?.albums || 0,
         photos: stats[email]?.photos || 0,
@@ -2149,6 +2197,23 @@ export default function App() {
   // ═══════════════════════════════════════
   // STATS
   // ═══════════════════════════════════════
+  const saveNotificationSettings = async () => {
+    if (!isAdminUser) return;
+    setSavingNotificationSettings(true);
+    try {
+      await setDoc(doc(db, 'globalSettings', 'notifications'), {
+        ...notificationSettings,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.email,
+      }, { merge: true });
+      setNotificationsModal(false);
+    } catch (err) {
+      console.error('Error saving notification settings:', err);
+      showNotice('error', validationText('saveFailed'));
+    }
+    setSavingNotificationSettings(false);
+  };
+
   const sortedTrips = useMemo(() => {
     const tripTime = (trip) => {
       if (trip.date) {
@@ -2180,6 +2245,38 @@ export default function App() {
   const ownTrips = useMemo(() => sortedTrips.filter(t => !isSharedToMeTrip(t)), [sortedTrips, isSharedToMeTrip]);
   const sharedToMeTrips = useMemo(() => sortedTrips.filter(t => isSharedToMeTrip(t)), [sortedTrips, isSharedToMeTrip]);
   const visibleGridTrips = activeSharedCollection ? sharedToMeTrips : ownTrips;
+  const dashboardNotifications = useMemo(() => {
+    if (!user || isReadOnly || activeTrip || activeSharedCollection) return [];
+    const email = user.email?.toLowerCase();
+    const albumNotifications = notificationSettings.albumShared
+      ? sortedTrips
+        .filter(trip => !isOwnTrip(trip) && (trip.allowedEmails || []).map(e => e.toLowerCase()).includes(email))
+        .map(trip => ({
+          id: `album:${trip.id}`,
+          type: 'albumShared',
+          title: T.albumSharedNotificationTitle,
+          text: T.albumSharedNotificationText(trip.name, trip.ownerEmail || creatorMap[trip.ownerId] || T.someone),
+          action: () => setActiveTrip(trip.id),
+        }))
+      : [];
+    const requestNotifications = isAdminUser && notificationSettings.userRequest
+      ? dashboardRequests.map(request => ({
+        id: `request:${request.id}`,
+        type: 'userRequest',
+        title: T.userRequestNotificationTitle,
+        text: T.userRequestNotificationText(request.email),
+        action: () => {
+          loadPendingRequests();
+          setPendingRequestsModal(true);
+        },
+      }))
+      : [];
+    return [...albumNotifications, ...requestNotifications].filter(item => !dismissedNotifications.has(item.id));
+  }, [
+    user, isReadOnly, activeTrip, activeSharedCollection, notificationSettings,
+    sortedTrips, isOwnTrip, creatorMap, T, isAdminUser, dashboardRequests,
+    dismissedNotifications,
+  ]);
 
   const totalPhotos = trips.reduce((s, t) => s + (t.photoCount || 0), 0);
   const countriesVisited = new Set(trips.map(t => t.country).filter(Boolean)).size;
@@ -2489,9 +2586,14 @@ export default function App() {
         </div>
         <div className="header-actions">
           {isGuest && <span className="guest-pill">{T.guestModeLabel}</span>}
-          {!activeTrip && !activeSharedCollection && !isReadOnly && (
+          {!activeTrip && !activeSharedCollection && isAdminUser && (
             <div style={{ position: 'relative' }}>
-              <button className="btn btn-secondary" onClick={() => setAdminDropdown(d => !d)}>{T.adminTools}</button>
+              <button className="btn-icon" onClick={() => setAdminDropdown(d => !d)} title={T.adminTools} aria-label={T.adminTools}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.5.65 1 1.56 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z" />
+                </svg>
+              </button>
               {adminDropdown && (
                 <>
                   <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setAdminDropdown(false)} />
@@ -2515,6 +2617,12 @@ export default function App() {
                     </button>
                     <button className="admin-dropdown-item" onClick={() => {
                       setAdminDropdown(false);
+                      setNotificationsModal(true);
+                    }}>
+                      {T.notificationsMenu}
+                    </button>
+                    <button className="admin-dropdown-item" onClick={() => {
+                      setAdminDropdown(false);
                       window.open('https://console.firebase.google.com/project/wanderlust-gallery/usage', 'firebase-bills-usage', 'noopener,noreferrer,width=1200,height=800');
                     }}>
                       {T.firebaseBillsUsageMenu}
@@ -2524,7 +2632,7 @@ export default function App() {
               )}
             </div>
           )}
-          {!activeTrip && !activeSharedCollection && !isReadOnly && <button className="btn btn-accent" onClick={() => setShowNewTrip(true)}>{T.newTrip}</button>}
+          {!activeTrip && !activeSharedCollection && !isReadOnly && <button className="btn-icon btn-new-trip" onClick={() => setShowNewTrip(true)} title={T.newTrip} aria-label={T.newTrip}>+</button>}
           {activeTrip && !isReadOnly && (
             <button className="btn btn-accent" onClick={() => fileRef.current?.click()} disabled={uploading}>
               {uploading ? T.uploading(uploadCount.done, uploadCount.total) : T.addPhotos}
@@ -2553,6 +2661,24 @@ export default function App() {
         )}
 
         {/* ═══ MIGRATION BANNER ═══ */}
+        {dashboardNotifications.length > 0 && (
+          <div className="dashboard-notifications fade-in" role="status" aria-live="polite">
+            {dashboardNotifications.map(notification => (
+              <div key={notification.id} className={`dashboard-notification dashboard-notification-${notification.type}`}>
+                <div className="dashboard-notification-icon">{notification.type === 'albumShared' ? '↗' : '!'}</div>
+                <div className="dashboard-notification-copy">
+                  <strong>{notification.title}</strong>
+                  <span>{notification.text}</span>
+                </div>
+                <div className="dashboard-notification-actions">
+                  <button className="btn btn-sm" onClick={notification.action}>{T.view}</button>
+                  <button className="btn btn-accent btn-sm" onClick={() => dismissDashboardNotification(notification.id)}>{T.accept}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {!isReadOnly && (migration === 'needed' || migration === 'running' || migration === 'done' || migration === 'error') && !activeTrip && !activeSharedCollection && (
           <div className={`migration-banner fade-in ${migration}`}>
             {migration === 'needed' && (
@@ -3763,6 +3889,45 @@ export default function App() {
       )}
 
       {/* ═══ MANAGE ACCESSES MODAL ═══ */}
+      {isAdminUser && notificationsModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setNotificationsModal(false)}>
+          <div {...modalProps} className="modal notifications-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.notificationsTitle}</p>
+            <p className="modal-sub">{T.notificationsSub}</p>
+            <div className="notification-settings-list">
+              <label className="notification-setting-row">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.albumShared}
+                  onChange={e => setNotificationSettings(prev => ({ ...prev, albumShared: e.target.checked }))}
+                />
+                <span>
+                  <strong>{T.albumSharedNotificationType}</strong>
+                  <small>{T.albumSharedNotificationTypeHelp}</small>
+                </span>
+              </label>
+              <label className="notification-setting-row">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.userRequest}
+                  onChange={e => setNotificationSettings(prev => ({ ...prev, userRequest: e.target.checked }))}
+                />
+                <span>
+                  <strong>{T.userRequestNotificationType}</strong>
+                  <small>{T.userRequestNotificationTypeHelp}</small>
+                </span>
+              </label>
+            </div>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setNotificationsModal(false)} disabled={savingNotificationSettings}>{T.cancel}</button>
+              <button className="btn btn-accent" onClick={saveNotificationSettings} disabled={savingNotificationSettings}>
+                {savingNotificationSettings ? T.saving : T.save}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!isReadOnly && pendingRequestsModal && (
         <div className="modal-overlay fade-scale" onClick={() => setPendingRequestsModal(false)}>
           <div {...modalProps} className="modal pending-requests-modal" onClick={e => e.stopPropagation()}>
