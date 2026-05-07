@@ -279,6 +279,16 @@ export function getTranslations(isSpanish) {
     faceSearchComplete: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''} encontrada${n !== 1 ? 's' : ''}.` : `${n} matching photo${n !== 1 ? 's' : ''} found.`,
     personFilterLabel: (name, n) => isSpanish ? `${name}: ${n} foto${n !== 1 ? 's' : ''}` : `${name}: ${n} photo${n !== 1 ? 's' : ''}`,
     clearFilter: isSpanish ? 'Limpiar filtro' : 'Clear filter',
+    viewMatches: isSpanish ? 'Ver matches' : 'View Matches',
+    personMatchesTitle: (name) => isSpanish ? `Matches de ${name}` : `${name} matches`,
+    noMatchesFound: isSpanish ? 'No se encontraron matches.' : 'No matches found.',
+    viewAllMatches: isSpanish ? 'Ver todos los matches' : 'View all matches',
+    allMatchesTitle: (name) => isSpanish ? `Todos los matches de ${name}` : `All ${name} matches`,
+    deletePersonTitle: isSpanish ? 'Eliminar persona' : 'Delete person',
+    deletePersonText: (name) => isSpanish
+      ? `Seguro que quieres eliminar ${name}? Podras recrearla luego desde otra foto.`
+      : `Are you sure you want to delete ${name}? You can recreate this person later from another photo.`,
+    personDeleted: isSpanish ? 'Persona eliminada.' : 'Person deleted.',
     // Public share view
     sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
     sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',

@@ -220,6 +220,9 @@ export default function App() {
   const [faceAction, setFaceAction] = useState(null);
   const [activePersonFilter, setActivePersonFilter] = useState(null);
   const [personMatchPhotoIds, setPersonMatchPhotoIds] = useState(new Set());
+  const [confirmDeletePerson, setConfirmDeletePerson] = useState(null);
+  const [personMatchesModal, setPersonMatchesModal] = useState(null);
+  const [personSlideshow, setPersonSlideshow] = useState(null);
   const [dismissedNotifications, setDismissedNotifications] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('dismissedNotifications') || '[]')); }
     catch { return new Set(); }
@@ -649,6 +652,9 @@ export default function App() {
       if (e.key === 'Escape') {
         if (shareSuccess) { setShareSuccess(null); }
         else if (confirmUserAction) { setConfirmUserAction(null); }
+        else if (personSlideshow) { setPersonSlideshow(null); }
+        else if (personMatchesModal) { setPersonMatchesModal(null); }
+        else if (confirmDeletePerson) { setConfirmDeletePerson(null); }
         else if (peopleModal) { setPeopleModal(false); }
         else if (notificationsModal) { setNotificationsModal(false); }
         else if (usersModal) { setUsersModal(false); }
@@ -2287,7 +2293,7 @@ export default function App() {
     setFaceAction(null);
   };
 
-  const searchPersonMatches = async (person) => {
+  const fetchPersonMatches = async (person) => {
     if (!canUseFaceRecognition || !person?.id) return;
     setFaceAction(`search:${person.id}`);
     try {
@@ -2295,13 +2301,99 @@ export default function App() {
       const result = await searchMatches({ personId: person.id, threshold: 90 });
       const matches = result.data?.matches || [];
       setPeople(prev => prev.map(p => p.id === person.id ? { ...p, matchCount: result.data?.matchCount || matches.length } : p));
-      if (activeTrip) {
-        setActivePersonFilter(person);
-        setPersonMatchPhotoIds(new Set(matches.filter(m => m.tripId === activeTrip).map(m => m.photoId)));
-      }
-      showNotice('success', T.faceSearchComplete(result.data?.matchCount || matches.length));
+      return matches;
     } catch (err) {
       console.error('Search person matches error:', err);
+      showNotice('error', err.message || T.faceActionFailed);
+      return null;
+    } finally {
+      setFaceAction(null);
+    }
+  };
+
+  const searchPersonMatches = async (person) => {
+    const matches = await fetchPersonMatches(person);
+    if (!matches) return;
+    if (activeTrip) {
+      setActivePersonFilter(person);
+      setPersonMatchPhotoIds(new Set(matches.filter(m => m.tripId === activeTrip).map(m => m.photoId)));
+    }
+    showNotice('success', T.faceSearchComplete(matches.length));
+  };
+
+  const hydratePersonMatches = async (matches) => {
+    const hydrated = [];
+    for (const match of matches) {
+      try {
+        const [tripSnap, photoSnap] = await Promise.all([
+          getDoc(doc(db, 'trips', match.tripId)),
+          getDoc(doc(db, 'trips', match.tripId, 'photos', match.photoId)),
+        ]);
+        if (!tripSnap.exists() || !photoSnap.exists()) continue;
+        const trip = { id: tripSnap.id, ...tripSnap.data() };
+        const photo = { id: photoSnap.id, ...photoSnap.data(), tripId: trip.id, tripName: trip.name };
+        hydrated.push({ ...match, trip, photo });
+      } catch (err) {
+        console.warn('Could not hydrate match:', match, err);
+      }
+    }
+    return hydrated;
+  };
+
+  const openPersonMatches = async (person) => {
+    if (!canUseFaceRecognition || !person?.id || (person.matchCount || 0) === 0) return;
+    setPersonMatchesModal({ person, loading: true, matches: [], albums: [] });
+    const rawMatches = await fetchPersonMatches(person);
+    if (!rawMatches) {
+      setPersonMatchesModal(null);
+      return;
+    }
+    const matches = await hydratePersonMatches(rawMatches);
+    const albumMap = new Map();
+    matches.forEach(match => {
+      const current = albumMap.get(match.trip.id) || { trip: match.trip, matches: [] };
+      current.matches.push(match);
+      albumMap.set(match.trip.id, current);
+    });
+    setPersonMatchesModal({
+      person,
+      loading: false,
+      matches,
+      albums: [...albumMap.values()].sort((a, b) => (a.trip.name || '').localeCompare(b.trip.name || '')),
+    });
+  };
+
+  const openPersonSlideshow = (person, matches, title) => {
+    if (!matches.length) return;
+    setPersonSlideshow({
+      person,
+      title,
+      photos: matches.map(match => match.photo),
+      index: 0,
+    });
+  };
+
+  const navigatePersonSlideshow = (dir) => {
+    setPersonSlideshow(prev => {
+      if (!prev) return prev;
+      const next = prev.index + dir;
+      if (next < 0 || next >= prev.photos.length) return prev;
+      return { ...prev, index: next };
+    });
+  };
+
+  const deletePersonFromIndex = async (person) => {
+    if (!isAdminUser || !person?.id) return;
+    setFaceAction(`delete:${person.id}`);
+    try {
+      const deletePerson = httpsCallable(firebaseFunctions, 'deletePerson');
+      await deletePerson({ personId: person.id });
+      setPeople(prev => prev.filter(p => p.id !== person.id));
+      if (activePersonFilter?.id === person.id) clearPersonFilter();
+      setConfirmDeletePerson(null);
+      showNotice('success', T.personDeleted);
+    } catch (err) {
+      console.error('Delete person error:', err);
       showNotice('error', err.message || T.faceActionFailed);
     }
     setFaceAction(null);
@@ -4080,19 +4172,125 @@ export default function App() {
                         <small>{T.personMatchCount(person.matchCount || 0)}</small>
                       </span>
                     </div>
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => searchPersonMatches(person)}
-                      disabled={faceAction === `search:${person.id}`}
-                    >
-                      {faceAction === `search:${person.id}` ? T.searchingFaces : T.searchFaces}
-                    </button>
+                    <div className="person-actions">
+                      <button
+                        className="btn btn-sm"
+                        onClick={e => { e.stopPropagation(); searchPersonMatches(person); }}
+                        disabled={faceAction === `search:${person.id}` || faceAction === `delete:${person.id}`}
+                      >
+                        {faceAction === `search:${person.id}` ? T.searchingFaces : T.searchFaces}
+                      </button>
+                      <button
+                        className="btn btn-accent btn-sm"
+                        onClick={() => openPersonMatches(person)}
+                        disabled={(person.matchCount || 0) === 0 || faceAction === `search:${person.id}` || faceAction === `delete:${person.id}`}
+                      >
+                        {T.viewMatches}
+                      </button>
+                      {isAdminUser && (
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={e => { e.stopPropagation(); setConfirmDeletePerson(person); }}
+                          disabled={faceAction === `delete:${person.id}`}
+                        >
+                          {faceAction === `delete:${person.id}` ? T.saving : T.deleteBtn}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
             <div className="modal-actions" style={{ marginTop: 16 }}>
               <button className="btn btn-sm" onClick={() => setPeopleModal(false)}>{T.close}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAdminUser && confirmDeletePerson && (
+        <div className="modal-overlay fade-scale" onClick={() => setConfirmDeletePerson(null)}>
+          <div {...modalProps} className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, textAlign: 'center' }}>
+            <p className="modal-title">{T.deletePersonTitle}</p>
+            <p className="modal-sub">{T.deletePersonText(confirmDeletePerson.name)}</p>
+            <div className="modal-actions">
+              <button className="btn btn-sm" onClick={() => setConfirmDeletePerson(null)} disabled={faceAction === `delete:${confirmDeletePerson.id}`}>{T.cancel}</button>
+              <button className="btn btn-danger" onClick={() => deletePersonFromIndex(confirmDeletePerson)} disabled={faceAction === `delete:${confirmDeletePerson.id}`}>
+                {faceAction === `delete:${confirmDeletePerson.id}` ? T.saving : T.deleteBtn}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canUseFaceRecognition && personMatchesModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setPersonMatchesModal(null)}>
+          <div {...modalProps} className="modal person-matches-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.personMatchesTitle(personMatchesModal.person.name)}</p>
+            {personMatchesModal.loading ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}><span className="spinner" /></div>
+            ) : personMatchesModal.matches.length === 0 ? (
+              <p className="modal-sub">{T.noMatchesFound}</p>
+            ) : (
+              <>
+                <div className="person-match-actions">
+                  <button
+                    className="btn btn-accent"
+                    onClick={() => openPersonSlideshow(personMatchesModal.person, personMatchesModal.matches, T.allMatchesTitle(personMatchesModal.person.name))}
+                  >
+                    {T.viewAllMatches}
+                  </button>
+                </div>
+                <div className="match-albums-list">
+                  {personMatchesModal.albums.map(album => (
+                    <button
+                      key={album.trip.id}
+                      className="match-album-row"
+                      onClick={() => openPersonSlideshow(personMatchesModal.person, album.matches, album.trip.name)}
+                    >
+                      <span>
+                        <strong>{album.trip.name}</strong>
+                        <small>{T.personMatchCount(album.matches.length)}</small>
+                      </span>
+                      <span className="match-album-arrow">›</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setPersonMatchesModal(null)}>{T.close}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canUseFaceRecognition && personSlideshow && (
+        <div className="modal-overlay fade-scale" onClick={() => setPersonSlideshow(null)}>
+          <div {...modalProps} className="modal person-slideshow-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{personSlideshow.title}</p>
+            {(() => {
+              const photo = personSlideshow.photos[personSlideshow.index];
+              return (
+                <>
+                  <div className="person-slide-frame">
+                    <img src={photo.url || photo.thumbUrl} alt={photo.name || ''} />
+                    {personSlideshow.index > 0 && (
+                      <button className="person-slide-arrow person-slide-prev" onClick={() => navigatePersonSlideshow(-1)} aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}>&lt;</button>
+                    )}
+                    {personSlideshow.index < personSlideshow.photos.length - 1 && (
+                      <button className="person-slide-arrow person-slide-next" onClick={() => navigatePersonSlideshow(1)} aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}>&gt;</button>
+                    )}
+                  </div>
+                  <div className="person-slide-meta">
+                    <span>{photo.tripName}</span>
+                    <span>{personSlideshow.index + 1} / {personSlideshow.photos.length}</span>
+                  </div>
+                </>
+              );
+            })()}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setPersonSlideshow(null)}>{T.close}</button>
             </div>
           </div>
         </div>
