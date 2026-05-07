@@ -104,6 +104,47 @@ function TripCoverLoader({ label }) {
   );
 }
 
+const PHOTO_GRID_BATCH_SIZE = 24;
+const PHOTO_LIST_BATCH_SIZE = 40;
+
+function LazyPhotoImage({ src, alt = '', className = '', onLoad, onError, onClick, style }) {
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    setShouldLoad(false);
+  }, [src]);
+
+  useEffect(() => {
+    const node = wrapRef.current;
+    if (!node || shouldLoad) return undefined;
+    if (!('IntersectionObserver' in window)) {
+      setShouldLoad(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setShouldLoad(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '0px', threshold: 0.01 });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [shouldLoad, src]);
+
+  return (
+    <span ref={wrapRef} className={`lazy-photo-frame ${className}`.trim()} onClick={onClick} style={style}>
+      {shouldLoad ? (
+        <img src={src} alt={alt} loading="lazy" decoding="async" onLoad={onLoad} onError={onError} />
+      ) : (
+        <span className="lazy-photo-placeholder" aria-hidden="true" />
+      )}
+    </span>
+  );
+}
+
 export default function App() {
   // ─── Language (IP-based, falls back to browser language) ───
   const [isSpanish, setIsSpanish] = useState(() => (navigator.language || '').startsWith('es'));
@@ -154,7 +195,8 @@ export default function App() {
   const [signOutConfirm, setSignOutConfirm] = useState(null);
   const [view, setView] = useState('grid');
   const [tripsView, setTripsView] = useState('grid');
-  const [photoRenderLimit, setPhotoRenderLimit] = useState(80);
+  const [photoRenderLimit, setPhotoRenderLimit] = useState(PHOTO_GRID_BATCH_SIZE);
+  const [publicPhotoRenderLimit, setPublicPhotoRenderLimit] = useState(PHOTO_GRID_BATCH_SIZE);
   const [tripPreviewPhotos, setTripPreviewPhotos] = useState({});
   const [tripPreviewIndexes, setTripPreviewIndexes] = useState({});
   const [cityPreviewIndexes, setCityPreviewIndexes] = useState({});
@@ -166,6 +208,8 @@ export default function App() {
   const [scrollFade, setScrollFade] = useState('');
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef();
+  const photoLoadMoreRef = useRef(null);
+  const publicPhotoLoadMoreRef = useRef(null);
   const lastScrollYRef = useRef(0);
   const scrollFadeTimerRef = useRef(null);
   const loadingTripCoversRef = useRef(new Set());
@@ -1552,8 +1596,43 @@ export default function App() {
   }, [activeTrip, activeCity, view, photos.length]);
 
   useEffect(() => {
-    setPhotoRenderLimit(view === 'list' ? 120 : 80);
+    setPhotoRenderLimit(view === 'list' ? PHOTO_LIST_BATCH_SIZE : PHOTO_GRID_BATCH_SIZE);
   }, [activeTrip, activeCity, view, photos.length]);
+
+  useEffect(() => {
+    setPublicPhotoRenderLimit(PHOTO_GRID_BATCH_SIZE);
+  }, [publicShareData?.tripId, publicShareData?.photos?.length]);
+
+  useEffect(() => {
+    const node = photoLoadMoreRef.current;
+    if (!node || photoRenderLimit >= displayPhotos.length) return undefined;
+
+    const batchSize = view === 'list' ? PHOTO_LIST_BATCH_SIZE : PHOTO_GRID_BATCH_SIZE;
+    if (!('IntersectionObserver' in window)) return undefined;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      setPhotoRenderLimit(limit => Math.min(displayPhotos.length, limit + batchSize));
+    }, { rootMargin: '420px 0px', threshold: 0.01 });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [displayPhotos.length, photoRenderLimit, view]);
+
+  useEffect(() => {
+    const photoCount = publicShareData?.photos?.length || 0;
+    const node = publicPhotoLoadMoreRef.current;
+    if (!node || publicPhotoRenderLimit >= photoCount) return undefined;
+    if (!('IntersectionObserver' in window)) return undefined;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      setPublicPhotoRenderLimit(limit => Math.min(photoCount, limit + PHOTO_GRID_BATCH_SIZE));
+    }, { rootMargin: '420px 0px', threshold: 0.01 });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [publicShareData?.photos?.length, publicPhotoRenderLimit]);
 
   useEffect(() => {
     clearPersonFilter();
@@ -2951,6 +3030,8 @@ export default function App() {
       </div></div>
     );
     const pubPhotos = publicShareData.photos || [];
+    const renderedPubPhotos = pubPhotos.slice(0, publicPhotoRenderLimit);
+    const hiddenPubPhotoCount = Math.max(0, pubPhotos.length - renderedPubPhotos.length);
     return (
       <div>
         <header className="header">
@@ -2969,12 +3050,17 @@ export default function App() {
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{T.photoCount(pubPhotos.length)}</span>
           </div>
           <div className="photo-grid">
-            {pubPhotos.map((p, i) => (
+            {renderedPubPhotos.map((p, i) => (
               <div key={i} className="photo-thumb fade-in" style={{ animationDelay: `${i * 20}ms` }}
                 onClick={() => { setPublicLightbox(p); setPublicLbIdx(i); }}>
-                <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" />
+                <LazyPhotoImage src={p.thumbUrl || p.url} alt={p.name} />
               </div>
             ))}
+            {hiddenPubPhotoCount > 0 && (
+              <button ref={publicPhotoLoadMoreRef} className="load-more-photos" onClick={() => setPublicPhotoRenderLimit(n => Math.min(pubPhotos.length, n + PHOTO_GRID_BATCH_SIZE))}>
+                {T.showMorePhotos(Math.min(hiddenPubPhotoCount, PHOTO_GRID_BATCH_SIZE))}
+              </button>
+            )}
           </div>
         </div>
         {publicLightbox && (
@@ -3818,8 +3904,7 @@ export default function App() {
                   const canDrag = !isReadOnly && activeCity === null;
                   return (
                     <div className="photo-display-wrap">
-                      {!visiblePhotosLoaded && <div className="photo-image-loader"><TravelLoader label={T.loadingPhotos} /></div>}
-                      <div className={`photo-grid${!visiblePhotosLoaded ? ' photos-loading' : ''}`} onDragOver={canDrag ? onDragOver : undefined} onDragLeave={canDrag ? onDragLeave : undefined} onDrop={canDrag ? onDrop : undefined}>
+                      <div className="photo-grid" onDragOver={canDrag ? onDragOver : undefined} onDragLeave={canDrag ? onDragLeave : undefined} onDrop={canDrag ? onDrop : undefined}>
                       {renderedDisplayPhotos.map((p, i) => {
                         const flatIdx = photos.findIndex(x => x.id === p.id);
                         return (
@@ -3834,15 +3919,20 @@ export default function App() {
                             onDrop={canDrag ? e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(flatIdx); setDragOverIdx(null); } : undefined}
                             onClick={() => setLightbox(p)}
                             onContextMenu={!isReadOnly ? e => openPhotoContextMenu(e, p, { canSetAlbumCover: activeCity && canManageActiveTrip, canManagePhoto: canManageActiveTrip }) : undefined}>
-                            <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" decoding="async" onLoad={() => markPhotoImageLoaded(p.id)} onError={() => markPhotoImageLoaded(p.id)} />
+                            <LazyPhotoImage
+                              src={p.thumbUrl || p.url}
+                              alt={p.name}
+                              onLoad={() => markPhotoImageLoaded(p.id)}
+                              onError={() => markPhotoImageLoaded(p.id)}
+                            />
                             {canDrag && <div className="photo-drag-handle">⠿</div>}
                             {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
                           </div>
                         );
                       })}
                       {hiddenPhotoCount > 0 && (
-                        <button className="load-more-photos" onClick={() => setPhotoRenderLimit(n => n + 80)}>
-                          {T.showMorePhotos(Math.min(hiddenPhotoCount, 80))}
+                        <button ref={photoLoadMoreRef} className="load-more-photos" onClick={() => setPhotoRenderLimit(n => Math.min(displayPhotos.length, n + PHOTO_GRID_BATCH_SIZE))}>
+                          {T.showMorePhotos(Math.min(hiddenPhotoCount, PHOTO_GRID_BATCH_SIZE))}
                         </button>
                       )}
                       {canDrag && <div className="add-tile" onClick={() => fileRef.current?.click()}>+</div>}
@@ -3853,8 +3943,7 @@ export default function App() {
 
                 {displayPhotos.length > 0 && view === 'list' && (
                   <div className="photo-display-wrap">
-                    {!visiblePhotosLoaded && <div className="photo-image-loader"><TravelLoader label={T.loadingPhotos} /></div>}
-                    <div className={`photo-list${!visiblePhotosLoaded ? ' photos-loading' : ''}`}>
+                    <div className="photo-list">
                     {renderedDisplayPhotos.map((p, i) => (
                       <div key={p.id}
                         className={`photo-list-item fade-in${selectedPhotos.has(p.id) ? ' selected' : ''}`}
@@ -3866,7 +3955,15 @@ export default function App() {
                             onChange={() => togglePhotoSelection(p.id)}
                             onClick={e => e.stopPropagation()} />
                         )}
-                        <img src={p.thumbUrl || p.url} alt={p.name} loading="lazy" decoding="async" onLoad={() => markPhotoImageLoaded(p.id)} onError={() => markPhotoImageLoaded(p.id)} onClick={() => setLightbox(p)} style={{ cursor: 'pointer' }} />
+                        <LazyPhotoImage
+                          src={p.thumbUrl || p.url}
+                          alt={p.name}
+                          className="photo-list-img"
+                          onLoad={() => markPhotoImageLoaded(p.id)}
+                          onError={() => markPhotoImageLoaded(p.id)}
+                          onClick={() => setLightbox(p)}
+                          style={{ cursor: 'pointer' }}
+                        />
                         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setLightbox(p)}>
                           <div className="photo-list-name">{p.name}</div>
                           {p.description && <div className="photo-list-desc">{p.description}</div>}
@@ -3875,8 +3972,8 @@ export default function App() {
                       </div>
                     ))}
                     {hiddenPhotoCount > 0 && (
-                      <button className="load-more-list" onClick={() => setPhotoRenderLimit(n => n + 120)}>
-                        {T.showMorePhotos(Math.min(hiddenPhotoCount, 120))}
+                      <button ref={photoLoadMoreRef} className="load-more-list" onClick={() => setPhotoRenderLimit(n => Math.min(displayPhotos.length, n + PHOTO_LIST_BATCH_SIZE))}>
+                        {T.showMorePhotos(Math.min(hiddenPhotoCount, PHOTO_LIST_BATCH_SIZE))}
                       </button>
                     )}
                     </div>
