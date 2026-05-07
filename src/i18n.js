@@ -2,10 +2,11 @@ export function getTranslations(isSpanish) {
   return {
     // Header
     adminTools: isSpanish ? 'Herramientas' : 'Admin Tools',
-    importFbMenu: isSpanish ? '↓ Importar desde Facebook' : '↓ Import from Facebook',
+    importFbMenu: isSpanish ? 'Importar desde Facebook' : 'Import from Facebook',
     generateThumbsMenu: isSpanish ? 'Generar miniaturas desde carpeta local' : 'Generate thumbnails from local folder',
     manageAccessesMenu: isSpanish ? '👥 Gestionar accesos' : '👥 Manage Accesses',
     firebaseBillsUsageMenu: isSpanish ? 'Firebase Bills and Usage' : 'Firebase Bills and Usage',
+    awsConsoleMenu: isSpanish ? 'AWS Console' : 'AWS Console',
     pendingRequestsMenu: isSpanish ? 'Pending Requests' : 'Pending Requests',
     usersMenu: isSpanish ? 'Users' : 'Users',
     notificationsMenu: isSpanish ? 'Notificaciones' : 'Notifications',
@@ -308,6 +309,17 @@ export function getTranslations(isSpanish) {
     fullIndexationDone: isSpanish ? 'Indexacion completa finalizada.' : 'Full indexation finished.',
     fullIndexationCancelled: isSpanish ? 'Indexacion cancelada.' : 'Indexation cancelled.',
     cancelIndexation: isSpanish ? 'Cancelar indexacion' : 'Cancel indexation',
+    groupingFaces: isSpanish ? 'Agrupando caras similares...' : 'Grouping similar faces...',
+    faceClusterReportTitle: (faces, people) => isSpanish
+      ? `${faces} cara${faces !== 1 ? 's' : ''} agrupada${faces !== 1 ? 's' : ''} en ${people} persona${people !== 1 ? 's' : ''} posible${people !== 1 ? 's' : ''}.`
+      : `${faces} face${faces !== 1 ? 's' : ''} grouped into ${people} possible ${people !== 1 ? 'people' : 'person'}.`,
+    noFaceClustersFound: isSpanish ? 'No se encontraron caras indexadas para agrupar.' : 'No indexed faces were found to group.',
+    personCandidate: (n) => isSpanish ? `Persona ${n}` : `Person ${n}`,
+    faceClusterCount: (faces, photos) => isSpanish
+      ? `${faces} cara${faces !== 1 ? 's' : ''} en ${photos} foto${photos !== 1 ? 's' : ''}`
+      : `${faces} face${faces !== 1 ? 's' : ''} in ${photos} photo${photos !== 1 ? 's' : ''}`,
+    createPeople: isSpanish ? 'Create People' : 'Create People',
+    peopleCreatedFromClusters: (n) => isSpanish ? `${n} persona${n !== 1 ? 's' : ''} creada${n !== 1 ? 's' : ''}.` : `${n} people created.`,
     // Public share view
     sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
     sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',

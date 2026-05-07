@@ -225,6 +225,9 @@ export default function App() {
   const [personSlideshow, setPersonSlideshow] = useState(null);
   const [confirmFullIndexation, setConfirmFullIndexation] = useState(false);
   const [fullIndexation, setFullIndexation] = useState(null);
+  const [faceClusterReport, setFaceClusterReport] = useState(null);
+  const [faceClusterNames, setFaceClusterNames] = useState({});
+  const [savingClusterPeople, setSavingClusterPeople] = useState(false);
   const fullIndexCancelRef = useRef(false);
   const [dismissedNotifications, setDismissedNotifications] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('dismissedNotifications') || '[]')); }
@@ -2401,9 +2404,65 @@ export default function App() {
     return jobs;
   };
 
+  const loadFullIndexationClusters = async (jobs) => {
+    const tripIds = [...new Set((jobs || []).map(job => job.tripId))];
+    setFaceClusterReport({ status: 'loading', clusters: [], faceCount: 0, error: '' });
+    setFaceClusterNames({});
+    try {
+      const getClusters = httpsCallable(firebaseFunctions, 'getIndexedFaceClusters');
+      const result = await getClusters({ tripIds, threshold: 90 });
+      const clusters = result.data?.clusters || [];
+      setFaceClusterReport({
+        status: 'ready',
+        clusters,
+        faceCount: result.data?.faceCount || 0,
+        error: '',
+      });
+      setFaceClusterNames(Object.fromEntries(clusters.map(cluster => [cluster.clusterId, ''])));
+    } catch (err) {
+      console.error('Face cluster report failed:', err);
+      setFaceClusterReport({
+        status: 'error',
+        clusters: [],
+        faceCount: 0,
+        error: err.message || T.faceActionFailed,
+      });
+    }
+  };
+
+  const createPeopleFromClusters = async () => {
+    if (!faceClusterReport?.clusters?.length) return;
+    const namedPeople = faceClusterReport.clusters
+      .map(cluster => ({
+        name: (faceClusterNames[cluster.clusterId] || '').trim(),
+        faceIds: cluster.faceIds,
+      }))
+      .filter(item => item.name);
+    if (namedPeople.length === 0) return;
+
+    setSavingClusterPeople(true);
+    try {
+      const createPeople = httpsCallable(firebaseFunctions, 'createPeopleFromFaceClusters');
+      const result = await createPeople({
+        tripIds: [...new Set(trips.map(trip => trip.id))],
+        people: namedPeople,
+      });
+      await loadPeople();
+      setFaceClusterReport(null);
+      setFullIndexation(null);
+      showNotice('success', T.peopleCreatedFromClusters(result.data?.created?.length || 0));
+    } catch (err) {
+      console.error('Create people from clusters failed:', err);
+      showNotice('error', err.message || T.faceActionFailed);
+    }
+    setSavingClusterPeople(false);
+  };
+
   const startFullIndexation = async () => {
     if (!canUseFaceRecognition || fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running') return;
     setConfirmFullIndexation(false);
+    setFaceClusterReport(null);
+    setFaceClusterNames({});
     fullIndexCancelRef.current = false;
     const startedAt = Date.now();
     setFullIndexation({
@@ -2472,6 +2531,7 @@ export default function App() {
     await Promise.all(Array.from({ length: concurrency }, worker));
     const finalStatus = fullIndexCancelRef.current ? 'cancelled' : 'done';
     setFullIndexation(prev => ({ ...prev, status: finalStatus, etaMs: 0, current: '' }));
+    if (finalStatus === 'done') await loadFullIndexationClusters(jobs);
   };
 
   const cancelFullIndexation = () => {
@@ -2931,6 +2991,12 @@ export default function App() {
                       window.open('https://console.firebase.google.com/project/wanderlust-gallery/usage', 'firebase-bills-usage', 'noopener,noreferrer,width=1200,height=800');
                     }}>
                       {T.firebaseBillsUsageMenu}
+                    </button>
+                    <button className="admin-dropdown-item" onClick={() => {
+                      setAdminDropdown(false);
+                      window.open('https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1', 'aws-console', 'noopener,noreferrer');
+                    }}>
+                      {T.awsConsoleMenu}
                     </button>
                   </div>
                 </>
@@ -4349,9 +4415,9 @@ export default function App() {
 
       {canUseFaceRecognition && fullIndexation && (
         <div className="modal-overlay fade-scale" onClick={() => {
-          if (fullIndexation.status === 'done' || fullIndexation.status === 'cancelled') setFullIndexation(null);
+          if ((fullIndexation.status === 'done' || fullIndexation.status === 'cancelled') && !faceClusterReport) setFullIndexation(null);
         }}>
-          <div {...modalProps} className="modal full-index-modal" onClick={e => e.stopPropagation()}>
+          <div {...modalProps} className={`modal full-index-modal${faceClusterReport?.status === 'ready' ? ' full-index-report-modal' : ''}`} onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.fullIndexation}</p>
             <p className="modal-sub">
               {fullIndexation.status === 'scanning'
@@ -4378,11 +4444,57 @@ export default function App() {
             {fullIndexation.etaMs !== null && fullIndexation.status === 'running' && (
               <p className="full-index-eta">{T.fullIndexationEta(formatDuration(fullIndexation.etaMs))}</p>
             )}
+            {faceClusterReport?.status === 'loading' && (
+              <div className="face-cluster-loading">
+                <span className="spinner" />
+                <span>{T.groupingFaces}</span>
+              </div>
+            )}
+            {faceClusterReport?.status === 'error' && (
+              <p className="field-error" style={{ textAlign: 'center' }}>{faceClusterReport.error}</p>
+            )}
+            {faceClusterReport?.status === 'ready' && (
+              <div className="face-cluster-report">
+                <p className="face-cluster-title">{T.faceClusterReportTitle(faceClusterReport.faceCount, faceClusterReport.clusters.length)}</p>
+                {faceClusterReport.clusters.length === 0 ? (
+                  <p className="modal-sub">{T.noFaceClustersFound}</p>
+                ) : (
+                  <div className="face-cluster-list">
+                    {faceClusterReport.clusters.map((cluster, index) => (
+                      <div key={cluster.clusterId} className="face-cluster-row">
+                        {cluster.sample?.imageUrl && <img src={cluster.sample.imageUrl} alt="" />}
+                        <div className="face-cluster-copy">
+                          <strong>{T.personCandidate(index + 1)}</strong>
+                          <small>{T.faceClusterCount(cluster.faceCount, cluster.photoCount)}</small>
+                        </div>
+                        <input
+                          className="input"
+                          value={faceClusterNames[cluster.clusterId] || ''}
+                          onChange={e => setFaceClusterNames(prev => ({ ...prev, [cluster.clusterId]: e.target.value }))}
+                          placeholder={T.personNamePlaceholder}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="modal-actions" style={{ marginTop: 16 }}>
               {fullIndexation.status === 'running' || fullIndexation.status === 'scanning' ? (
                 <button className="btn btn-sm" onClick={cancelFullIndexation}>{T.cancelIndexation}</button>
+              ) : faceClusterReport?.status === 'ready' && faceClusterReport.clusters.length > 0 ? (
+                <>
+                  <button className="btn btn-sm" onClick={() => { setFaceClusterReport(null); setFullIndexation(null); }} disabled={savingClusterPeople}>{T.close}</button>
+                  <button
+                    className="btn btn-accent"
+                    onClick={createPeopleFromClusters}
+                    disabled={savingClusterPeople || !Object.values(faceClusterNames).some(name => name.trim())}
+                  >
+                    {savingClusterPeople ? T.saving : T.createPeople}
+                  </button>
+                </>
               ) : (
-                <button className="btn btn-accent" onClick={() => setFullIndexation(null)}>{T.close}</button>
+                <button className="btn btn-accent" onClick={() => { setFaceClusterReport(null); setFullIndexation(null); }}>{T.close}</button>
               )}
             </div>
           </div>

@@ -117,6 +117,104 @@ async function saveFaceIndex({ tripId, photoId, faceRecords, indexedBy }) {
   await batch.commit();
 }
 
+function chunks(items, size) {
+  const out = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+function makeUnionFind(ids) {
+  const parent = new Map(ids.map(id => [id, id]));
+  const find = (id) => {
+    const current = parent.get(id);
+    if (!current || current === id) return current || id;
+    const root = find(current);
+    parent.set(id, root);
+    return root;
+  };
+  const union = (a, b) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent.set(rootB, rootA);
+  };
+  return { find, union };
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function searchFacesWithRetry(client, faceId, threshold) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await client.send(new SearchFacesCommand({
+        CollectionId: collectionId(),
+        FaceId: faceId,
+        FaceMatchThreshold: Number(threshold),
+        MaxFaces: 4096,
+      }));
+    } catch (err) {
+      if (err instanceof ResourceNotFoundException || err.name === 'ResourceNotFoundException') {
+        return { FaceMatches: [] };
+      }
+      const retryable = [
+        'ProvisionedThroughputExceededException',
+        'ThrottlingException',
+        'TooManyRequestsException',
+        'InternalServerError',
+      ].includes(err.name);
+      if (!retryable || attempt === 3) throw err;
+      await sleep(350 * Math.pow(2, attempt));
+    }
+  }
+  return { FaceMatches: [] };
+}
+
+async function loadAccessibleTrips(request, tripIds) {
+  const uniqueTripIds = [...new Set((tripIds || []).filter(Boolean))];
+  if (uniqueTripIds.length === 0) throw new HttpsError('invalid-argument', 'tripIds are required.');
+  const trips = new Map();
+  await Promise.all(uniqueTripIds.map(async tripId => {
+    const snap = await db.collection('trips').doc(tripId).get();
+    if (!snap.exists) return;
+    const trip = snap.data();
+    if (canAccessTrip(request, trip)) trips.set(tripId, trip);
+  }));
+  if (trips.size === 0) throw new HttpsError('permission-denied', 'No accessible trips were found.');
+  return trips;
+}
+
+async function readFaceIndexForTrips(tripIds) {
+  const faces = new Map();
+  for (const chunk of chunks(tripIds, 30)) {
+    const snap = await db.collection('faceIndex').where('tripId', 'in', chunk).get();
+    snap.docs.forEach(faceDoc => faces.set(faceDoc.id, { id: faceDoc.id, ...faceDoc.data() }));
+  }
+  return faces;
+}
+
+async function enrichFaceCluster(root, faceIds, faces) {
+  const faceRows = faceIds.map(faceId => faces.get(faceId)).filter(Boolean);
+  const photoKeys = [...new Set(faceRows.map(face => `${face.tripId}:${face.photoId}`))];
+  const firstFace = faceRows[0];
+  let samplePhoto = null;
+  if (firstFace) {
+    const photoSnap = await db.collection('trips').doc(firstFace.tripId).collection('photos').doc(firstFace.photoId).get();
+    if (photoSnap.exists) samplePhoto = { id: photoSnap.id, ...photoSnap.data() };
+  }
+  return {
+    clusterId: root,
+    faceIds,
+    faceCount: faceIds.length,
+    photoCount: photoKeys.length,
+    sample: firstFace ? {
+      tripId: firstFace.tripId,
+      photoId: firstFace.photoId,
+      imageUrl: samplePhoto?.thumbUrl || samplePhoto?.url || null,
+    } : null,
+  };
+}
+
 exports.indexPhotoFaces = onCall(
   { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 120, memory: '512MiB' },
   async (request) => {
@@ -203,6 +301,8 @@ exports.createPersonFromPhoto = onCall(
       referencePhotoId: photoId,
       referenceImageUrl: photo.thumbUrl || photo.url || null,
       referenceFaceIds,
+      ownedReferenceFaceIds: referenceFaceIds,
+      referenceFaceSource: 'person',
       matchCount: 0,
     });
 
@@ -242,7 +342,8 @@ exports.searchPersonMatches = onCall(
 
       for (const match of result.FaceMatches || []) {
         const matchedFaceId = match.Face?.FaceId;
-        if (!matchedFaceId || referenceFaceIds.includes(matchedFaceId)) continue;
+        if (!matchedFaceId) continue;
+        if (person.referenceFaceSource !== 'indexed' && referenceFaceIds.includes(matchedFaceId)) continue;
         const indexSnap = await db.collection('faceIndex').doc(matchedFaceId).get();
         if (!indexSnap.exists) continue;
         const data = indexSnap.data();
@@ -274,6 +375,120 @@ exports.searchPersonMatches = onCall(
   }
 );
 
+exports.getIndexedFaceClusters = onCall(
+  { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 540, memory: '1GiB' },
+  async (request) => {
+    assertSignedIn(request);
+    const { tripIds, threshold = 90 } = request.data || {};
+    const accessibleTrips = await loadAccessibleTrips(request, tripIds);
+    const faces = await readFaceIndexForTrips([...accessibleTrips.keys()]);
+    const faceIds = [...faces.keys()];
+    if (faceIds.length === 0) return { clusters: [], faceCount: 0 };
+
+    try {
+      const client = rekognitionClient();
+      const uf = makeUnionFind(faceIds);
+      const ungrouped = new Set(faceIds);
+      for (const faceId of faceIds) {
+        if (!ungrouped.has(faceId)) continue;
+        ungrouped.delete(faceId);
+        const result = await searchFacesWithRetry(client, faceId, threshold);
+
+        for (const match of result.FaceMatches || []) {
+          const matchedFaceId = match.Face?.FaceId;
+          if (!matchedFaceId || !faces.has(matchedFaceId)) continue;
+          uf.union(faceId, matchedFaceId);
+          ungrouped.delete(matchedFaceId);
+        }
+      }
+
+      const grouped = new Map();
+      for (const faceId of faceIds) {
+        const root = uf.find(faceId);
+        if (!grouped.has(root)) grouped.set(root, []);
+        grouped.get(root).push(faceId);
+      }
+
+      const clusters = await Promise.all([...grouped.entries()]
+        .map(([root, ids]) => enrichFaceCluster(root, ids, faces)));
+
+      return {
+        faceCount: faceIds.length,
+        clusters: clusters.sort((a, b) => b.faceCount - a.faceCount),
+      };
+    } catch (err) {
+      console.error('Could not group indexed faces:', err);
+      if ([
+        'ProvisionedThroughputExceededException',
+        'ThrottlingException',
+        'TooManyRequestsException',
+      ].includes(err.name)) {
+        throw new HttpsError('resource-exhausted', 'AWS Rekognition is throttling face grouping. Please retry in a few minutes.');
+      }
+      throw new HttpsError('internal', err.message || 'Could not group indexed faces.');
+    }
+  }
+);
+
+exports.createPeopleFromFaceClusters = onCall(
+  { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 540, memory: '1GiB' },
+  async (request) => {
+    const email = assertSignedIn(request);
+    const { people = [], tripIds = [] } = request.data || {};
+    const accessibleTrips = await loadAccessibleTrips(request, tripIds);
+    const faces = await readFaceIndexForTrips([...accessibleTrips.keys()]);
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const created = [];
+
+    for (const item of people) {
+      const name = String(item.name || '').trim();
+      const faceIds = [...new Set(item.faceIds || [])].filter(faceId => faces.has(faceId));
+      if (!name || faceIds.length === 0) continue;
+
+      const faceRows = faceIds.map(faceId => faces.get(faceId)).filter(Boolean);
+      const firstFace = faceRows[0];
+      const photoSnap = firstFace
+        ? await db.collection('trips').doc(firstFace.tripId).collection('photos').doc(firstFace.photoId).get()
+        : null;
+      const photo = photoSnap?.exists ? photoSnap.data() : {};
+      const personRef = db.collection('people').doc();
+      const uniqueMatches = new Map();
+      faceRows.forEach(face => {
+        uniqueMatches.set(`${face.tripId}_${face.photoId}`, {
+          tripId: face.tripId,
+          photoId: face.photoId,
+          faceId: face.faceId,
+          boundingBox: face.boundingBox || null,
+          similarity: 100,
+          matchedAt: now,
+        });
+      });
+
+      const batch = db.batch();
+      batch.set(personRef, {
+        name,
+        createdAt: now,
+        createdBy: email,
+        referenceTripId: firstFace?.tripId || null,
+        referencePhotoId: firstFace?.photoId || null,
+        referenceImageUrl: photo.thumbUrl || photo.url || null,
+        referenceFaceIds: faceIds,
+        ownedReferenceFaceIds: [],
+        referenceFaceSource: 'indexed',
+        matchCount: uniqueMatches.size,
+        lastMatchedAt: now,
+      });
+      uniqueMatches.forEach((match, key) => {
+        batch.set(personRef.collection('matches').doc(key), match, { merge: true });
+      });
+      await batch.commit();
+      created.push({ personId: personRef.id, name, matchCount: uniqueMatches.size });
+    }
+
+    return { created };
+  }
+);
+
 exports.deletePerson = onCall(
   { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 60, memory: '256MiB' },
   async (request) => {
@@ -284,7 +499,10 @@ exports.deletePerson = onCall(
     const personRef = db.collection('people').doc(personId);
     const personSnap = await personRef.get();
     if (!personSnap.exists) return { deleted: true };
-    const referenceFaceIds = personSnap.data().referenceFaceIds || [];
+    const person = personSnap.data();
+    const referenceFaceIds = person.ownedReferenceFaceIds || (
+      person.referenceFaceSource ? [] : (person.referenceFaceIds || [])
+    );
 
     if (referenceFaceIds.length > 0) {
       const client = rekognitionClient();
