@@ -2479,8 +2479,8 @@ export default function App() {
           <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setPublicLightbox(null)}>
             <img src={publicLightbox.url} alt={publicLightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
             <button className="lb-close" aria-label={T.close} onClick={() => setPublicLightbox(null)}>✕</button>
-            {publicLbIdx > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>‹</button>}
-            {publicLbIdx < pubPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>›</button>}
+            {publicLbIdx > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>&lt;</button>}
+            {publicLbIdx < pubPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>&gt;</button>}
             <div className="lb-counter">{publicLbIdx + 1} / {pubPhotos.length}</div>
           </div>
         )}
@@ -3010,7 +3010,7 @@ export default function App() {
                             title={isSpanish ? 'Foto anterior' : 'Previous photo'}
                             aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
                           >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            &lt;
                           </button>
                           <button
                             className="trip-slider-btn trip-slider-next"
@@ -3018,7 +3018,7 @@ export default function App() {
                             title={isSpanish ? 'Foto siguiente' : 'Next photo'}
                             aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
                           >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            &gt;
                           </button>
                           <div className="trip-slider-indicator">
                             {previewLoading
@@ -3148,7 +3148,7 @@ export default function App() {
                               title={isSpanish ? 'Foto anterior' : 'Previous photo'}
                               aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                              &lt;
                             </button>
                             <button
                               className="trip-slider-btn trip-slider-next"
@@ -3156,7 +3156,7 @@ export default function App() {
                               title={isSpanish ? 'Foto siguiente' : 'Next photo'}
                               aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                              &gt;
                             </button>
                             <div className="trip-slider-indicator">{`${cityPreviewIndex + 1}/${cityPhotos.length}`}</div>
                           </>
@@ -3199,7 +3199,7 @@ export default function App() {
                               title={isSpanish ? 'Foto anterior' : 'Previous photo'}
                               aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                              &lt;
                             </button>
                             <button
                               className="trip-slider-btn trip-slider-next"
@@ -3207,7 +3207,7 @@ export default function App() {
                               title={isSpanish ? 'Foto siguiente' : 'Next photo'}
                               aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                              &gt;
                             </button>
                             <div className="trip-slider-indicator">{`${cityPreviewIndex + 1}/${cityUncategorized.length}`}</div>
                           </>
@@ -3317,8 +3317,8 @@ export default function App() {
         <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
           <img src={lightbox.url} alt={lightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
           <button className="lb-close" aria-label={T.close} onClick={() => setLightbox(null)}>✕</button>
-          {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); navLightbox(-1); }}>‹</button>}
-          {lbIndex < displayPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); navLightbox(1); }}>›</button>}
+          {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); navLightbox(-1); }}>&lt;</button>}
+          {lbIndex < displayPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); navLightbox(1); }}>&gt;</button>}
           <div className="lb-counter">{lbIndex + 1} / {displayPhotos.length}</div>
           {!isReadOnly && (
             <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
