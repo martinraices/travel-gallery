@@ -65,6 +65,11 @@ export function getTranslations(isSpanish) {
     gridView: isSpanish ? 'Vista de cuadrícula' : 'Grid view',
     sortByDate: 'Sort by Date',
     sortAZ: 'Sort A-Z',
+    albumSearchPlaceholder: isSpanish ? 'Buscar album o ciudad...' : 'Search album or city...',
+    clearSearch: isSpanish ? 'Limpiar busqueda' : 'Clear search',
+    noAlbumSearchResults: (query) => isSpanish
+      ? `No se encontraron albumes para "${query}".`
+      : `No albums found for "${query}".`,
     privateTitle: isSpanish ? 'Privado' : 'Private',
     sharedTitle: isSpanish ? 'Compartido' : 'Shared',
     editTripBtn: isSpanish ? 'Editar viaje' : 'Edit trip',
@@ -273,6 +278,10 @@ export function getTranslations(isSpanish) {
     peopleTitle: isSpanish ? 'Personas' : 'People',
     personNameLabel: isSpanish ? 'Nombre' : 'Name',
     personNamePlaceholder: isSpanish ? 'ej. Elena' : 'e.g. Elena',
+    loadingFaces: isSpanish ? 'Detectando caras...' : 'Detecting faces...',
+    selectFaceHint: isSpanish ? 'Selecciona la cara que quieres usar como referencia.' : 'Select the face to use as the reference.',
+    selectThisFace: isSpanish ? 'Seleccionar esta cara' : 'Select this face',
+    noSelectableFaces: isSpanish ? 'No se encontraron caras seleccionables en esta foto.' : 'No selectable faces were found in this photo.',
     noPeopleYet: isSpanish ? 'Aun no hay personas.' : 'No people yet.',
     personMatchCount: (n) => isSpanish ? `${n} coincidencia${n !== 1 ? 's' : ''}` : `${n} match${n !== 1 ? 'es' : ''}`,
     searchFaces: isSpanish ? 'Buscar' : 'Search',

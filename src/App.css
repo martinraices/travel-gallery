@@ -445,9 +445,16 @@ a:focus-visible {
 /* ─── Trips view header ─── */
 .trips-view-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; padding-bottom: 8px; flex-wrap: wrap; }
 .sort-toggle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.album-search-wrap { position: relative; width: min(320px, 42vw); min-width: 220px; }
+.album-search-input { width: 100%; min-height: 36px; padding: 8px 34px 8px 13px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; outline: none; box-shadow: 0 1px 4px rgba(42,37,32,.04); transition: border-color .2s, background .2s, box-shadow .2s; }
+.album-search-input::placeholder { color: var(--text-muted); font-weight: 500; }
+.album-search-input:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-dim); }
+.album-search-clear { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
+.album-search-clear:hover { background: var(--surface-2); color: var(--text); }
 .sort-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; box-shadow: 0 1px 4px rgba(42,37,32,.04); }
 .sort-btn:hover { border-color: var(--border-hover); background: var(--surface-2); }
 .sort-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(42,37,32,.12); }
+.album-search-empty { grid-column: 1 / -1; padding: 38px 18px; border: 1px dashed var(--border); border-radius: var(--radius); background: color-mix(in srgb, var(--surface) 78%, transparent); color: var(--text-muted); text-align: center; font-size: 14px; font-weight: 600; }
 
 /* ─── Choropleth map ─── */
 .map-wrap { margin-bottom: 24px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 2px 12px rgba(42,37,32,.06); background: var(--surface); }
@@ -694,8 +701,15 @@ a:focus-visible {
 .people-modal .modal-title { text-align: center; }
 .people-modal-actions { display: flex; justify-content: center; gap: 10px; margin: 8px 0 16px; flex-wrap: wrap; }
 .refresh-all-status { text-align: center; margin: -6px 0 14px; }
-.person-reference-box { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 12px; align-items: end; margin: 14px 0 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
-.person-reference-box img { width: 74px; height: 74px; object-fit: cover; border-radius: 6px; }
+.person-reference-box { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; gap: 12px; align-items: end; margin: 14px 0 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.person-reference-preview { position: relative; align-self: center; width: 180px; overflow: hidden; border-radius: 6px; background: #111; }
+.person-reference-preview img { width: 100%; height: auto; display: block; }
+.person-face-box { position: absolute; padding: 0; border: 2px solid rgba(255,255,255,.9); border-radius: 4px; background: rgba(0,0,0,.08); box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.28); cursor: pointer; transition: border-color .15s, background .15s, transform .15s; }
+.person-face-box:hover,
+.person-face-box.active { border-color: #ffd400; background: rgba(255,212,0,.14); transform: scale(1.04); }
+.person-face-box.active { box-shadow: 0 0 0 2px rgba(0,0,0,.55), 0 0 0 5px rgba(255,212,0,.35); }
+.person-reference-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.38); }
+.person-reference-hint { display: block; margin-top: 6px; color: var(--text-muted); font-size: 11px; line-height: 1.35; }
 .people-list { max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 .person-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
 .person-row:last-child { border-bottom: none; }
@@ -780,6 +794,8 @@ a:focus-visible {
   .stat-label { font-size: 9px; letter-spacing: .9px; }
   .trips-view-header { align-items: center; gap: 8px; }
   .sort-toggle { gap: 6px; }
+  .album-search-wrap { width: 100%; min-width: 0; }
+  .album-search-input { min-height: 34px; font-size: 12px; }
   .sort-btn { padding: 8px 12px; font-size: 12px; }
   .view-btn { min-width: 38px; padding: 8px 12px; font-size: 12px; }
   .view-toggle { margin-left: auto; }
@@ -791,8 +807,8 @@ a:focus-visible {
   .lb-cover-btn { right: 60px; bottom: 12px; }
   .lb-person-btn { right: 108px; bottom: 12px; }
   .lb-face-index-btn { right: 156px; bottom: 12px; }
-  .person-reference-box { grid-template-columns: 58px minmax(0, 1fr); align-items: center; }
-  .person-reference-box img { width: 58px; height: 58px; }
+  .person-reference-box { grid-template-columns: 1fr; align-items: stretch; }
+  .person-reference-preview { width: 100%; }
   .person-reference-box .btn { grid-column: 1 / -1; justify-content: center; }
   .face-cluster-row { grid-template-columns: 44px minmax(0, 1fr); }
   .face-cluster-row img { width: 44px; height: 44px; }

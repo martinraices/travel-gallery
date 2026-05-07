@@ -161,6 +161,7 @@ export default function App() {
   const [loadingTripPreviews, setLoadingTripPreviews] = useState(new Set());
   const [loadingTripCovers, setLoadingTripCovers] = useState(new Set());
   const [tripSort, setTripSort] = useState(null);
+  const [albumSearch, setAlbumSearch] = useState('');
   const [appWallpaperUrl, setAppWallpaperUrl] = useState('');
   const [scrollFade, setScrollFade] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -228,6 +229,9 @@ export default function App() {
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [personName, setPersonName] = useState('');
   const [peopleReferencePhoto, setPeopleReferencePhoto] = useState(null);
+  const [peopleReferenceFaces, setPeopleReferenceFaces] = useState([]);
+  const [loadingReferenceFaces, setLoadingReferenceFaces] = useState(false);
+  const [selectedReferenceFaceId, setSelectedReferenceFaceId] = useState('');
   const [savingPerson, setSavingPerson] = useState(false);
   const [faceAction, setFaceAction] = useState(null);
   const [activePersonFilter, setActivePersonFilter] = useState(null);
@@ -2258,16 +2262,64 @@ export default function App() {
     setLoadingPeople(false);
   };
 
+  const loadReferenceFaces = async (referencePhoto) => {
+    if (!canUseFaceRecognition || !activeTrip || !referencePhoto?.id) return;
+    setLoadingReferenceFaces(true);
+    setPeopleReferenceFaces([]);
+    setSelectedReferenceFaceId('');
+    try {
+      const facesRef = collection(db, 'trips', activeTrip, 'photos', referencePhoto.id, 'faces');
+      let snap = await getDocs(facesRef);
+      let indexedFaceIds = [];
+      if (snap.empty) {
+        const indexFaces = httpsCallable(firebaseFunctions, 'indexPhotoFaces');
+        const result = await indexFaces({ tripId: activeTrip, photoId: referencePhoto.id });
+        indexedFaceIds = result.data?.faceIds || [];
+        snap = await getDocs(facesRef);
+      }
+      let rows = snap.docs
+        .map(faceDoc => ({ id: faceDoc.id, ...faceDoc.data() }))
+        .filter(face => face.boundingBox)
+        .sort((a, b) => {
+          const boxA = a.boundingBox || {};
+          const boxB = b.boundingBox || {};
+          return ((boxB.Width || 0) * (boxB.Height || 0)) - ((boxA.Width || 0) * (boxA.Height || 0));
+        });
+      if (rows.length === 0 && indexedFaceIds.length > 0) {
+        const faceDocs = await Promise.all(indexedFaceIds.map(faceId => getDoc(doc(db, 'faceIndex', faceId))));
+        rows = faceDocs
+          .filter(faceDoc => faceDoc.exists())
+          .map(faceDoc => ({ id: faceDoc.id, ...faceDoc.data() }))
+          .filter(face => face.tripId === activeTrip && face.photoId === referencePhoto.id && face.boundingBox)
+          .sort((a, b) => {
+            const boxA = a.boundingBox || {};
+            const boxB = b.boundingBox || {};
+            return ((boxB.Width || 0) * (boxB.Height || 0)) - ((boxA.Width || 0) * (boxA.Height || 0));
+          });
+      }
+      setPeopleReferenceFaces(rows);
+      setSelectedReferenceFaceId(rows[0]?.id || '');
+      if (rows.length === 0) showNotice('error', T.noSelectableFaces);
+    } catch (err) {
+      console.error('Load reference faces error:', err);
+      showNotice('error', err.message || T.faceActionFailed);
+    }
+    setLoadingReferenceFaces(false);
+  };
+
   const openPeopleTools = (referencePhoto = null) => {
     if (!canUseFaceRecognition) return;
     setPeopleReferencePhoto(referencePhoto);
+    setPeopleReferenceFaces([]);
+    setSelectedReferenceFaceId('');
     setPersonName('');
     setPeopleModal(true);
     loadPeople();
+    if (referencePhoto) loadReferenceFaces(referencePhoto);
   };
 
   const createPersonFromReference = async () => {
-    if (!canUseFaceRecognition || !peopleReferencePhoto || !activeTrip || !personName.trim()) return;
+    if (!canUseFaceRecognition || !peopleReferencePhoto || !activeTrip || !personName.trim() || !selectedReferenceFaceId) return;
     setSavingPerson(true);
     try {
       const createPerson = httpsCallable(firebaseFunctions, 'createPersonFromPhoto');
@@ -2275,6 +2327,7 @@ export default function App() {
         name: personName.trim(),
         tripId: activeTrip,
         photoId: peopleReferencePhoto.id,
+        referenceFaceId: selectedReferenceFaceId,
       });
       const personId = result.data?.personId;
       if (personId) {
@@ -2284,13 +2337,15 @@ export default function App() {
           referencePhotoId: peopleReferencePhoto.id,
           referenceTripId: activeTrip,
           referenceImageUrl: peopleReferencePhoto.thumbUrl || peopleReferencePhoto.url,
-          matchCount: 0,
+          matchCount: 1,
         }, ...prev].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
       } else {
         await loadPeople();
       }
       setPersonName('');
       setPeopleReferencePhoto(null);
+      setPeopleReferenceFaces([]);
+      setSelectedReferenceFaceId('');
     } catch (err) {
       console.error('Create person error:', err);
       showNotice('error', err.message || T.faceActionFailed);
@@ -2671,7 +2726,23 @@ export default function App() {
 
   const ownTrips = useMemo(() => sortedTrips.filter(t => !isSharedToMeTrip(t)), [sortedTrips, isSharedToMeTrip]);
   const sharedToMeTrips = useMemo(() => sortedTrips.filter(t => isSharedToMeTrip(t)), [sortedTrips, isSharedToMeTrip]);
-  const visibleGridTrips = activeSharedCollection ? sharedToMeTrips : ownTrips;
+  const normalizeSearchText = useCallback((value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase(), []);
+  const albumSearchText = normalizeSearchText(albumSearch.trim());
+  const tripMatchesAlbumSearch = useCallback((trip) => {
+    if (!albumSearchText) return true;
+    return [
+      trip.name,
+      trip.country,
+      ...(trip.cities || []),
+    ].some(value => normalizeSearchText(value).includes(albumSearchText));
+  }, [albumSearchText, normalizeSearchText]);
+  const visibleGridTrips = useMemo(() => {
+    const source = activeSharedCollection ? sharedToMeTrips : albumSearchText ? sortedTrips : ownTrips;
+    return source.filter(tripMatchesAlbumSearch);
+  }, [activeSharedCollection, albumSearchText, sortedTrips, sharedToMeTrips, ownTrips, tripMatchesAlbumSearch]);
   const dashboardNotifications = useMemo(() => {
     if (!user || isReadOnly || activeTrip || activeSharedCollection) return [];
     const email = user.email?.toLowerCase();
@@ -3336,6 +3407,26 @@ export default function App() {
                 {renderStatPanel()}
                 <div className="trips-view-header">
                   <div className="sort-toggle" aria-label="Album sorting">
+                    <div className="album-search-wrap">
+                      <input
+                        className="album-search-input"
+                        value={albumSearch}
+                        onChange={e => setAlbumSearch(e.target.value)}
+                        placeholder={T.albumSearchPlaceholder}
+                        aria-label={T.albumSearchPlaceholder}
+                      />
+                      {albumSearch && (
+                        <button
+                          type="button"
+                          className="album-search-clear"
+                          onClick={() => setAlbumSearch('')}
+                          title={T.clearSearch}
+                          aria-label={T.clearSearch}
+                        >
+                          &times;
+                        </button>
+                      )}
+                    </div>
                     <button
                       className={`sort-btn ${tripSort === 'date' ? 'active' : ''}`}
                       onClick={() => setTripSort('date')}
@@ -3435,7 +3526,7 @@ export default function App() {
             {/* ─ Grid view ─ */}
             {tripsView === 'grid' && (
               <div className="trips-grid">
-                {!activeSharedCollection && sharedToMeTrips.length > 0 && (
+                {!activeSharedCollection && sharedToMeTrips.length > 0 && !albumSearchText && (
                   <div className="trip-card shared-to-me-card fade-in" onClick={() => { setActiveSharedCollection(true); setTripsView('grid'); }}>
                     <div className="trip-cover shared-to-me-cover">
                       {sharedToMeTrips.slice(0, 4).map((trip, idx) => {
@@ -3543,6 +3634,11 @@ export default function App() {
                   </div>
                   );
                 })}
+                {visibleGridTrips.length === 0 && albumSearchText && (
+                  <div className="album-search-empty fade-in">
+                    {T.noAlbumSearchResults(albumSearch.trim())}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -4426,7 +4522,34 @@ export default function App() {
             )}
             {peopleReferencePhoto && (
               <div className="person-reference-box">
-                <img src={peopleReferencePhoto.thumbUrl || peopleReferencePhoto.url} alt="" />
+                <div className="person-reference-preview">
+                  <img src={peopleReferencePhoto.thumbUrl || peopleReferencePhoto.url} alt="" />
+                  {peopleReferenceFaces.map(face => {
+                    const box = face.boundingBox || {};
+                    const active = selectedReferenceFaceId === face.id;
+                    return (
+                      <button
+                        key={face.id}
+                        type="button"
+                        className={`person-face-box${active ? ' active' : ''}`}
+                        style={{
+                          left: `${(box.Left || 0) * 100}%`,
+                          top: `${(box.Top || 0) * 100}%`,
+                          width: `${(box.Width || 0) * 100}%`,
+                          height: `${(box.Height || 0) * 100}%`,
+                        }}
+                        onClick={() => setSelectedReferenceFaceId(face.id)}
+                        title={T.selectThisFace}
+                        aria-label={T.selectThisFace}
+                      />
+                    );
+                  })}
+                  {loadingReferenceFaces && (
+                    <div className="person-reference-loading">
+                      <span className="spinner" />
+                    </div>
+                  )}
+                </div>
                 <div className="form-group">
                   <label>{T.personNameLabel}</label>
                   <input
@@ -4437,8 +4560,15 @@ export default function App() {
                     placeholder={T.personNamePlaceholder}
                     autoFocus
                   />
+                  <small className="person-reference-hint">
+                    {loadingReferenceFaces
+                      ? T.loadingFaces
+                      : peopleReferenceFaces.length > 0
+                        ? T.selectFaceHint
+                        : T.noSelectableFaces}
+                  </small>
                 </div>
-                <button className="btn btn-accent" onClick={createPersonFromReference} disabled={savingPerson || !personName.trim()}>
+                <button className="btn btn-accent" onClick={createPersonFromReference} disabled={savingPerson || !personName.trim() || !selectedReferenceFaceId}>
                   {savingPerson ? T.saving : T.create}
                 </button>
               </div>

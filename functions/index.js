@@ -265,7 +265,7 @@ exports.createPersonFromPhoto = onCall(
   { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 120, memory: '512MiB' },
   async (request) => {
     const email = assertSignedIn(request);
-    const { name, tripId, photoId } = request.data || {};
+    const { name, tripId, photoId, referenceFaceId } = request.data || {};
     const cleanName = String(name || '').trim();
     if (!cleanName) throw new HttpsError('invalid-argument', 'Person name is required.');
     if (!tripId || !photoId) throw new HttpsError('invalid-argument', 'tripId and photoId are required.');
@@ -275,6 +275,45 @@ exports.createPersonFromPhoto = onCall(
       throw new HttpsError('permission-denied', 'You do not have access to this trip.');
     }
     const personRef = db.collection('people').doc();
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    if (referenceFaceId) {
+      const faceSnap = await db.collection('faceIndex').doc(referenceFaceId).get();
+      if (!faceSnap.exists) {
+        throw new HttpsError('failed-precondition', 'Selected face is not indexed yet.');
+      }
+      const face = faceSnap.data();
+      if (face.tripId !== tripId || face.photoId !== photoId) {
+        throw new HttpsError('invalid-argument', 'Selected face does not belong to this photo.');
+      }
+
+      const batch = db.batch();
+      batch.set(personRef, {
+        name: cleanName,
+        createdAt: now,
+        createdBy: email,
+        referenceTripId: tripId,
+        referencePhotoId: photoId,
+        referenceImageUrl: photo.thumbUrl || photo.url || null,
+        referenceFaceIds: [referenceFaceId],
+        ownedReferenceFaceIds: [],
+        referenceFaceSource: 'indexed',
+        matchCount: 1,
+        lastMatchedAt: now,
+      });
+      batch.set(personRef.collection('matches').doc(`${tripId}_${photoId}`), {
+        tripId,
+        photoId,
+        faceId: referenceFaceId,
+        boundingBox: face.boundingBox || null,
+        similarity: 100,
+        matchedAt: now,
+      }, { merge: true });
+      await batch.commit();
+
+      return { personId: personRef.id, referenceFaceIds: [referenceFaceId] };
+    }
+
     const client = rekognitionClient();
     await ensureCollection(client);
 
@@ -295,7 +334,7 @@ exports.createPersonFromPhoto = onCall(
     const referenceFaceIds = faceRecords.map(record => record.Face.FaceId).filter(Boolean);
     await personRef.set({
       name: cleanName,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: now,
       createdBy: email,
       referenceTripId: tripId,
       referencePhotoId: photoId,
