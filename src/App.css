@@ -690,7 +690,8 @@ a:focus-visible {
 .notification-setting-row small { font-size: 12px; color: var(--text-muted); }
 .people-modal { max-width: 680px; width: min(680px, calc(100vw - 32px)); text-align: left; }
 .people-modal .modal-title { text-align: center; }
-.people-modal-actions { display: flex; justify-content: center; margin: 8px 0 16px; }
+.people-modal-actions { display: flex; justify-content: center; gap: 10px; margin: 8px 0 16px; flex-wrap: wrap; }
+.refresh-all-status { text-align: center; margin: -6px 0 14px; }
 .person-reference-box { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 12px; align-items: end; margin: 14px 0 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
 .person-reference-box img { width: 74px; height: 74px; object-fit: cover; border-radius: 6px; }
 .people-list { max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }

@@ -277,6 +277,14 @@ export function getTranslations(isSpanish) {
     personMatchCount: (n) => isSpanish ? `${n} coincidencia${n !== 1 ? 's' : ''}` : `${n} match${n !== 1 ? 'es' : ''}`,
     searchFaces: isSpanish ? 'Buscar' : 'Search',
     searchingFaces: isSpanish ? 'Buscando...' : 'Searching...',
+    refreshAll: isSpanish ? 'Refresh All' : 'Refresh All',
+    refreshingAll: isSpanish ? 'Refrescando...' : 'Refreshing...',
+    refreshAllProgress: (done, total, name) => isSpanish
+      ? `Refrescando ${done}/${total}${name ? `: ${name}` : ''}`
+      : `Refreshing ${done}/${total}${name ? `: ${name}` : ''}`,
+    refreshAllComplete: (updated, failed) => isSpanish
+      ? `${updated} persona${updated !== 1 ? 's' : ''} refrescada${updated !== 1 ? 's' : ''}${failed ? `, ${failed} con error` : ''}.`
+      : `${updated} ${updated !== 1 ? 'people' : 'person'} refreshed${failed ? `, ${failed} failed` : ''}.`,
     faceActionFailed: isSpanish ? 'No se pudo completar la accion de reconocimiento facial.' : 'Could not complete the face recognition action.',
     faceIndexComplete: (n) => isSpanish ? `${n} rostro${n !== 1 ? 's' : ''} indexado${n !== 1 ? 's' : ''}.` : `${n} face${n !== 1 ? 's' : ''} indexed.`,
     faceSearchComplete: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''} encontrada${n !== 1 ? 's' : ''}.` : `${n} matching photo${n !== 1 ? 's' : ''} found.`,

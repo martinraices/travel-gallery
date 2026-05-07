@@ -228,6 +228,7 @@ export default function App() {
   const [faceClusterReport, setFaceClusterReport] = useState(null);
   const [faceClusterNames, setFaceClusterNames] = useState({});
   const [savingClusterPeople, setSavingClusterPeople] = useState(false);
+  const [refreshAllPeople, setRefreshAllPeople] = useState(null);
   const fullIndexCancelRef = useRef(false);
   const [dismissedNotifications, setDismissedNotifications] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('dismissedNotifications') || '[]')); }
@@ -2299,9 +2300,10 @@ export default function App() {
     setFaceAction(null);
   };
 
-  const fetchPersonMatches = async (person) => {
+  const fetchPersonMatches = async (person, options = {}) => {
     if (!canUseFaceRecognition || !person?.id) return;
-    setFaceAction(`search:${person.id}`);
+    const { silent = false } = options;
+    if (!silent) setFaceAction(`search:${person.id}`);
     try {
       const searchMatches = httpsCallable(firebaseFunctions, 'searchPersonMatches');
       const result = await searchMatches({ personId: person.id, threshold: 90 });
@@ -2310,11 +2312,30 @@ export default function App() {
       return matches;
     } catch (err) {
       console.error('Search person matches error:', err);
-      showNotice('error', err.message || T.faceActionFailed);
+      if (!silent) showNotice('error', err.message || T.faceActionFailed);
       return null;
     } finally {
-      setFaceAction(null);
+      if (!silent) setFaceAction(null);
     }
+  };
+
+  const refreshAllPersonMatches = async () => {
+    if (!canUseFaceRecognition || refreshAllPeople?.status === 'running' || people.length === 0) return;
+    let updated = 0;
+    let failed = 0;
+    setRefreshAllPeople({ status: 'running', done: 0, total: people.length, current: '', updated, failed });
+
+    for (let index = 0; index < people.length; index++) {
+      const person = people[index];
+      setRefreshAllPeople({ status: 'running', done: index, total: people.length, current: person.name, updated, failed });
+      const matches = await fetchPersonMatches(person, { silent: true });
+      if (matches) updated++;
+      else failed++;
+      setRefreshAllPeople({ status: 'running', done: index + 1, total: people.length, current: person.name, updated, failed });
+    }
+
+    setRefreshAllPeople({ status: 'done', done: people.length, total: people.length, current: '', updated, failed });
+    showNotice(failed > 0 ? 'error' : 'success', T.refreshAllComplete(updated, failed));
   };
 
   const searchPersonMatches = async (person) => {
@@ -4344,13 +4365,25 @@ export default function App() {
               <button
                 className="btn btn-accent"
                 onClick={() => setConfirmFullIndexation(true)}
-                disabled={fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running'}
+                disabled={refreshAllPeople?.status === 'running' || fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running'}
               >
                 {fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running'
                   ? T.indexingFaces
                   : T.fullIndexation}
               </button>
+              <button
+                className="btn btn-accent"
+                onClick={refreshAllPersonMatches}
+                disabled={refreshAllPeople?.status === 'running' || loadingPeople || people.length === 0 || fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running'}
+              >
+                {refreshAllPeople?.status === 'running' ? T.refreshingAll : T.refreshAll}
+              </button>
             </div>
+            {refreshAllPeople?.status === 'running' && (
+              <p className="modal-sub refresh-all-status">
+                {T.refreshAllProgress(refreshAllPeople.done, refreshAllPeople.total, refreshAllPeople.current)}
+              </p>
+            )}
             {peopleReferencePhoto && (
               <div className="person-reference-box">
                 <img src={peopleReferencePhoto.thumbUrl || peopleReferencePhoto.url} alt="" />
@@ -4389,14 +4422,14 @@ export default function App() {
                       <button
                         className="btn btn-sm"
                         onClick={e => { e.stopPropagation(); searchPersonMatches(person); }}
-                        disabled={faceAction === `search:${person.id}` || faceAction === `delete:${person.id}`}
+                        disabled={refreshAllPeople?.status === 'running' || faceAction === `search:${person.id}` || faceAction === `delete:${person.id}`}
                       >
                         {faceAction === `search:${person.id}` ? T.searchingFaces : T.searchFaces}
                       </button>
                       <button
                         className="btn btn-accent btn-sm"
                         onClick={() => openPersonMatches(person)}
-                        disabled={(person.matchCount || 0) === 0 || faceAction === `search:${person.id}` || faceAction === `delete:${person.id}`}
+                        disabled={refreshAllPeople?.status === 'running' || (person.matchCount || 0) === 0 || faceAction === `search:${person.id}` || faceAction === `delete:${person.id}`}
                       >
                         {T.viewMatches}
                       </button>
@@ -4404,7 +4437,7 @@ export default function App() {
                         <button
                           className="btn btn-sm btn-danger"
                           onClick={e => { e.stopPropagation(); setConfirmDeletePerson(person); }}
-                          disabled={faceAction === `delete:${person.id}`}
+                          disabled={refreshAllPeople?.status === 'running' || faceAction === `delete:${person.id}`}
                         >
                           {faceAction === `delete:${person.id}` ? T.saving : T.deleteBtn}
                         </button>
