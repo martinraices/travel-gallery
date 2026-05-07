@@ -11,6 +11,10 @@ service cloud.firestore {
       return request.auth != null ? request.auth.token.email : null;
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     function hasTripAccess(trip) {
       return trip.visibility == 'shared' || (
         request.auth != null && (
@@ -49,6 +53,26 @@ service cloud.firestore {
     // Photos follow their parent trip visibility/access rules.
     match /trips/{tripId}/photos/{photoId} {
       allow read: if hasTripAccess(get(/databases/$(database)/documents/trips/$(tripId)).data);
+      allow write: if isAdmin();
+    }
+
+    match /trips/{tripId}/photos/{photoId}/faces/{faceId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /people/{personId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /people/{personId}/matches/{matchId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /faceIndex/{faceId} {
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 

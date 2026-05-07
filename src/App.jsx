@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { auth, db, storage } from './firebase';
+import { auth, db, functions as firebaseFunctions, storage } from './firebase';
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -10,6 +10,7 @@ import {
   collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
   query, where, orderBy, limit, serverTimestamp, getDoc, setDoc, writeBatch, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject, listAll,
 } from 'firebase/storage';
@@ -118,6 +119,7 @@ export default function App() {
   const isGuest = guestMode || !!user?.isAnonymous;
   const isReadOnly = isGuest;
   const isAdminUser = !!user?.email && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user.email.toLowerCase());
+  const canUseFaceRecognition = !!user && !isReadOnly;
 
   // ─── Core state ───
   const [trips, setTrips] = useState([]);
@@ -209,6 +211,15 @@ export default function App() {
   const [notificationSettings, setNotificationSettings] = useState({ albumShared: true, userRequest: true });
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
   const [dashboardRequests, setDashboardRequests] = useState([]);
+  const [peopleModal, setPeopleModal] = useState(false);
+  const [people, setPeople] = useState([]);
+  const [loadingPeople, setLoadingPeople] = useState(false);
+  const [personName, setPersonName] = useState('');
+  const [peopleReferencePhoto, setPeopleReferencePhoto] = useState(null);
+  const [savingPerson, setSavingPerson] = useState(false);
+  const [faceAction, setFaceAction] = useState(null);
+  const [activePersonFilter, setActivePersonFilter] = useState(null);
+  const [personMatchPhotoIds, setPersonMatchPhotoIds] = useState(new Set());
   const [dismissedNotifications, setDismissedNotifications] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('dismissedNotifications') || '[]')); }
     catch { return new Set(); }
@@ -303,6 +314,11 @@ export default function App() {
       localStorage.setItem('dismissedNotifications', JSON.stringify([...next]));
       return next;
     });
+  }, []);
+
+  const clearPersonFilter = useCallback(() => {
+    setActivePersonFilter(null);
+    setPersonMatchPhotoIds(new Set());
   }, []);
 
   const countryIsValid = useCallback((country) => {
@@ -633,6 +649,7 @@ export default function App() {
       if (e.key === 'Escape') {
         if (shareSuccess) { setShareSuccess(null); }
         else if (confirmUserAction) { setConfirmUserAction(null); }
+        else if (peopleModal) { setPeopleModal(false); }
         else if (notificationsModal) { setNotificationsModal(false); }
         else if (usersModal) { setUsersModal(false); }
         else if (pendingRequestsModal) { setPendingRequestsModal(false); }
@@ -1487,9 +1504,12 @@ export default function App() {
     } catch (err) { console.error('Reorder error:', err); }
   };
 
-  const displayPhotos = activeCity === null ? photos
+  const baseDisplayPhotos = activeCity === null ? photos
     : activeCity === '__uncategorized__' ? photos.filter(p => !p.city)
     : photos.filter(p => p.city === activeCity);
+  const displayPhotos = activePersonFilter
+    ? baseDisplayPhotos.filter(p => personMatchPhotoIds.has(p.id))
+    : baseDisplayPhotos;
   const renderedDisplayPhotos = displayPhotos.slice(0, photoRenderLimit);
   const hiddenPhotoCount = Math.max(0, displayPhotos.length - renderedDisplayPhotos.length);
   const visiblePhotoLoadTarget = displayPhotos.slice(0, Math.min(displayPhotos.length, view === 'list' ? 8 : 12));
@@ -1505,6 +1525,10 @@ export default function App() {
   useEffect(() => {
     setPhotoRenderLimit(view === 'list' ? 120 : 80);
   }, [activeTrip, activeCity, view, photos.length]);
+
+  useEffect(() => {
+    clearPersonFilter();
+  }, [activeTrip, clearPersonFilter]);
 
   const markPhotoImageLoaded = (photoId) => {
     setLoadedPhotoImages(prev => {
@@ -2194,6 +2218,95 @@ export default function App() {
     setSavingAppUser(null);
   };
 
+  const loadPeople = async () => {
+    if (!canUseFaceRecognition) return;
+    setLoadingPeople(true);
+    try {
+      const snap = await getDocs(collection(db, 'people'));
+      const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setPeople(rows);
+    } catch (err) {
+      console.error('Error loading people:', err);
+      showNotice('error', validationText('accessLoadFailed'));
+    }
+    setLoadingPeople(false);
+  };
+
+  const openPeopleTools = (referencePhoto = null) => {
+    if (!canUseFaceRecognition) return;
+    setPeopleReferencePhoto(referencePhoto);
+    setPersonName('');
+    setPeopleModal(true);
+    loadPeople();
+  };
+
+  const createPersonFromReference = async () => {
+    if (!canUseFaceRecognition || !peopleReferencePhoto || !activeTrip || !personName.trim()) return;
+    setSavingPerson(true);
+    try {
+      const createPerson = httpsCallable(firebaseFunctions, 'createPersonFromPhoto');
+      const result = await createPerson({
+        name: personName.trim(),
+        tripId: activeTrip,
+        photoId: peopleReferencePhoto.id,
+      });
+      const personId = result.data?.personId;
+      if (personId) {
+        setPeople(prev => [{
+          id: personId,
+          name: personName.trim(),
+          referencePhotoId: peopleReferencePhoto.id,
+          referenceTripId: activeTrip,
+          referenceImageUrl: peopleReferencePhoto.thumbUrl || peopleReferencePhoto.url,
+          matchCount: 0,
+        }, ...prev].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+      } else {
+        await loadPeople();
+      }
+      setPersonName('');
+      setPeopleReferencePhoto(null);
+    } catch (err) {
+      console.error('Create person error:', err);
+      showNotice('error', err.message || T.faceActionFailed);
+    }
+    setSavingPerson(false);
+  };
+
+  const indexCurrentPhotoFaces = async (photo = lightbox) => {
+    if (!canUseFaceRecognition || !activeTrip || !photo?.id) return;
+    setFaceAction(`index:${photo.id}`);
+    try {
+      const indexFaces = httpsCallable(firebaseFunctions, 'indexPhotoFaces');
+      const result = await indexFaces({ tripId: activeTrip, photoId: photo.id });
+      showNotice('success', T.faceIndexComplete(result.data?.faceCount || 0));
+    } catch (err) {
+      console.error('Index photo faces error:', err);
+      showNotice('error', err.message || T.faceActionFailed);
+    }
+    setFaceAction(null);
+  };
+
+  const searchPersonMatches = async (person) => {
+    if (!canUseFaceRecognition || !person?.id) return;
+    setFaceAction(`search:${person.id}`);
+    try {
+      const searchMatches = httpsCallable(firebaseFunctions, 'searchPersonMatches');
+      const result = await searchMatches({ personId: person.id, threshold: 90 });
+      const matches = result.data?.matches || [];
+      setPeople(prev => prev.map(p => p.id === person.id ? { ...p, matchCount: result.data?.matchCount || matches.length } : p));
+      if (activeTrip) {
+        setActivePersonFilter(person);
+        setPersonMatchPhotoIds(new Set(matches.filter(m => m.tripId === activeTrip).map(m => m.photoId)));
+      }
+      showNotice('success', T.faceSearchComplete(result.data?.matchCount || matches.length));
+    } catch (err) {
+      console.error('Search person matches error:', err);
+      showNotice('error', err.message || T.faceActionFailed);
+    }
+    setFaceAction(null);
+  };
+
   // ═══════════════════════════════════════
   // STATS
   // ═══════════════════════════════════════
@@ -2631,6 +2744,16 @@ export default function App() {
                 </>
               )}
             </div>
+          )}
+          {!activeTrip && !activeSharedCollection && canUseFaceRecognition && (
+            <button className="btn-icon" onClick={() => openPeopleTools()} title={T.peopleMenu} aria-label={T.peopleMenu}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/>
+                <circle cx="10" cy="7" r="4"/>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </button>
           )}
           {!activeTrip && !activeSharedCollection && !isReadOnly && <button className="btn-icon btn-new-trip" onClick={() => setShowNewTrip(true)} title={T.newTrip} aria-label={T.newTrip}>+</button>}
           {activeTrip && !isReadOnly && (
@@ -3108,6 +3231,9 @@ export default function App() {
                     {shareGenerating === activeTrip ? T.generating : activeTripData.shareToken ? T.sharedBtn : T.shareBtn}
                   </button>
                 )}
+                {canUseFaceRecognition && (
+                  <button className="btn btn-sm" onClick={() => openPeopleTools()}>{T.peopleMenu}</button>
+                )}
                 {!showCityCards && (
                   <>
                     {!isReadOnly && selectedPhotos.size > 0 && (
@@ -3125,6 +3251,13 @@ export default function App() {
             </div>
 
             {/* ─ City sub-album cards ─ */}
+            {activePersonFilter && (
+              <div className="person-filter-bar fade-in">
+                <span>{T.personFilterLabel(activePersonFilter.name, displayPhotos.length)}</span>
+                <button className="btn btn-sm" onClick={clearPersonFilter}>{T.clearFilter}</button>
+              </div>
+            )}
+
             {showCityCards && (
               <div className="trips-grid">
                 {Object.keys(cityGroups).sort().map((city, i) => {
@@ -3347,6 +3480,26 @@ export default function App() {
                 : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
               }
             </button>
+          )}
+          {canUseFaceRecognition && (
+            <>
+              <button
+                className="lb-person-btn"
+                onClick={e => { e.stopPropagation(); openPeopleTools(lightbox); }}
+                title={T.createPersonFromPhoto}
+                disabled={savingPerson}
+              >
+                +
+              </button>
+              <button
+                className="lb-face-index-btn"
+                onClick={e => { e.stopPropagation(); indexCurrentPhotoFaces(lightbox); }}
+                title={T.indexFacesInPhoto}
+                disabled={faceAction === `index:${lightbox.id}`}
+              >
+                {faceAction === `index:${lightbox.id}` ? <span className="spinner" style={{ width: 16, height: 16 }} /> : '◎'}
+              </button>
+            </>
           )}
           {!isReadOnly && (
             <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title={T.deletePhotoTitle}>
@@ -3889,6 +4042,62 @@ export default function App() {
       )}
 
       {/* ═══ MANAGE ACCESSES MODAL ═══ */}
+      {canUseFaceRecognition && peopleModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setPeopleModal(false)}>
+          <div {...modalProps} className="modal people-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.peopleTitle}</p>
+            {peopleReferencePhoto && (
+              <div className="person-reference-box">
+                <img src={peopleReferencePhoto.thumbUrl || peopleReferencePhoto.url} alt="" />
+                <div className="form-group">
+                  <label>{T.personNameLabel}</label>
+                  <input
+                    className="input"
+                    value={personName}
+                    onChange={e => setPersonName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && createPersonFromReference()}
+                    placeholder={T.personNamePlaceholder}
+                    autoFocus
+                  />
+                </div>
+                <button className="btn btn-accent" onClick={createPersonFromReference} disabled={savingPerson || !personName.trim()}>
+                  {savingPerson ? T.saving : T.create}
+                </button>
+              </div>
+            )}
+            {loadingPeople ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}><span className="spinner" /></div>
+            ) : people.length === 0 ? (
+              <p className="modal-sub">{T.noPeopleYet}</p>
+            ) : (
+              <div className="people-list">
+                {people.map(person => (
+                  <div key={person.id} className="person-row">
+                    <div className="person-main">
+                      {person.referenceImageUrl && <img src={person.referenceImageUrl} alt="" />}
+                      <span>
+                        <strong>{person.name}</strong>
+                        <small>{T.personMatchCount(person.matchCount || 0)}</small>
+                      </span>
+                    </div>
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => searchPersonMatches(person)}
+                      disabled={faceAction === `search:${person.id}`}
+                    >
+                      {faceAction === `search:${person.id}` ? T.searchingFaces : T.searchFaces}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-sm" onClick={() => setPeopleModal(false)}>{T.close}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isAdminUser && notificationsModal && (
         <div className="modal-overlay fade-scale" onClick={() => setNotificationsModal(false)}>
           <div {...modalProps} className="modal notifications-modal" onClick={e => e.stopPropagation()}>

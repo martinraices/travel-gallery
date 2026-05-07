@@ -387,6 +387,14 @@ a:focus-visible {
 .lb-delete:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
 .lb-cover-btn { position: fixed; bottom: 16px; right: 72px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); color: rgba(255,255,255,.6); width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px); transition: all .25s; }
 .lb-cover-btn:hover { background: rgba(255,255,255,.2); color: #fff; border-color: rgba(255,255,255,.35); }
+.lb-person-btn,
+.lb-face-index-btn { position: fixed; bottom: 16px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); color: rgba(255,255,255,.72); width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px); transition: all .25s; font-size: 20px; font-weight: 800; }
+.lb-person-btn { right: 122px; }
+.lb-face-index-btn { right: 172px; font-size: 22px; }
+.lb-person-btn:hover,
+.lb-face-index-btn:hover { background: rgba(255,255,255,.2); color: #fff; border-color: rgba(255,255,255,.35); }
+.lb-person-btn:disabled,
+.lb-face-index-btn:disabled { opacity: .65; cursor: default; }
 
 .context-menu { position: fixed; z-index: 1100; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 18px rgba(0,0,0,.15); min-width: 200px; overflow: hidden; }
 .context-menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: var(--text); text-align: left; transition: background .15s; }
@@ -677,6 +685,19 @@ a:focus-visible {
 .notification-setting-row span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .notification-setting-row strong { font-size: 13px; color: var(--text); }
 .notification-setting-row small { font-size: 12px; color: var(--text-muted); }
+.people-modal { max-width: 680px; width: min(680px, calc(100vw - 32px)); text-align: left; }
+.people-modal .modal-title { text-align: center; }
+.person-reference-box { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 12px; align-items: end; margin: 14px 0 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.person-reference-box img { width: 74px; height: 74px; object-fit: cover; border-radius: 6px; }
+.people-list { max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.person-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+.person-row:last-child { border-bottom: none; }
+.person-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.person-main img { width: 42px; height: 42px; object-fit: cover; border-radius: 50%; flex-shrink: 0; }
+.person-main span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.person-main strong { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-main small { font-size: 12px; color: var(--text-muted); }
+.person-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; margin-bottom: 14px; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700; }
 
 @media (max-width: 640px) {
   .app-wallpaper { top: 0; background-attachment: scroll; }
@@ -719,6 +740,14 @@ a:focus-visible {
   .map-wrap { border-radius: var(--radius); }
   .trip-edit-btn { min-width: 36px; min-height: 36px; font-size: 23px; padding: 4px; }
   .trip-vis-icon { width: 32px; height: 32px; font-size: 17px; }
+  .lb-delete { right: 12px; bottom: 12px; }
+  .lb-cover-btn { right: 60px; bottom: 12px; }
+  .lb-person-btn { right: 108px; bottom: 12px; }
+  .lb-face-index-btn { right: 156px; bottom: 12px; }
+  .person-reference-box { grid-template-columns: 58px minmax(0, 1fr); align-items: center; }
+  .person-reference-box img { width: 58px; height: 58px; }
+  .person-reference-box .btn { grid-column: 1 / -1; justify-content: center; }
+  .person-row { align-items: flex-start; flex-direction: column; }
   .dashboard-notification { grid-template-columns: auto minmax(0, 1fr); }
   .dashboard-notification-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .dashboard-notification-copy span { white-space: normal; }
