@@ -306,6 +306,12 @@ export function getTranslations(isSpanish) {
     fullIndexationFaces: (n) => isSpanish ? `${n} rostro${n !== 1 ? 's' : ''}` : `${n} face${n !== 1 ? 's' : ''}`,
     fullIndexationFailed: (n) => isSpanish ? `${n} error${n !== 1 ? 'es' : ''}` : `${n} failed`,
     fullIndexationEta: (eta) => isSpanish ? `Tiempo estimado: ${eta}` : `Estimated time: ${eta}`,
+    fullIndexationReportEta: (faces, eta) => isSpanish
+      ? `Reporte: ${eta} estimado, basado en ${faces} cara${faces !== 1 ? 's' : ''} ya indexada${faces !== 1 ? 's' : ''}.`
+      : `Report: ${eta} estimated, based on ${faces} indexed face${faces !== 1 ? 's' : ''}.`,
+    fullIndexationReportEtaUnknown: isSpanish
+      ? 'Reporte: estimacion no disponible porque las fotos indexadas no tienen contador de caras guardado.'
+      : 'Report: estimate unavailable because indexed photos do not have saved face counts.',
     fullIndexationDone: isSpanish ? 'Indexacion completa finalizada.' : 'Full indexation finished.',
     fullIndexationCancelled: isSpanish ? 'Indexacion cancelada.' : 'Indexation cancelled.',
     cancelIndexation: isSpanish ? 'Cancelar indexacion' : 'Cancel indexation',

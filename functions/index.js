@@ -376,7 +376,7 @@ exports.searchPersonMatches = onCall(
 );
 
 exports.getIndexedFaceClusters = onCall(
-  { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 540, memory: '1GiB' },
+  { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 1800, memory: '2GiB' },
   async (request) => {
     assertSignedIn(request);
     const { tripIds, threshold = 90 } = request.data || {};

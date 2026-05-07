@@ -2404,12 +2404,32 @@ export default function App() {
     return jobs;
   };
 
-  const loadFullIndexationClusters = async (jobs) => {
+  const estimateFaceClusterReport = (jobs, newlyIndexedFaces = 0) => {
+    const indexedPhotos = (jobs || []).filter(job => job.photo.rekognition?.indexedAt);
+    const knownFaces = indexedPhotos.reduce((sum, job) => sum + (job.photo.rekognition?.faceCount || 0), 0) + newlyIndexedFaces;
+    if (knownFaces <= 0) {
+      return { faceCount: 0, text: T.fullIndexationReportEtaUnknown };
+    }
+    const photoCount = Math.max(indexedPhotos.length, 1);
+    const lowMs = Math.max(30000, (knownFaces * 220) + (photoCount * 5));
+    const highMs = Math.max(lowMs + 60000, (knownFaces * 650) + (photoCount * 10));
+    const hardLimitMs = 1800000;
+    const text = T.fullIndexationReportEta(
+      knownFaces,
+      highMs > hardLimitMs
+        ? `${formatDuration(lowMs)}-${formatDuration(hardLimitMs)}+`
+        : `${formatDuration(lowMs)}-${formatDuration(highMs)}`
+    );
+    return { faceCount: knownFaces, text };
+  };
+
+  const loadFullIndexationClusters = async (jobs, newlyIndexedFaces = 0) => {
     const tripIds = [...new Set((jobs || []).map(job => job.tripId))];
-    setFaceClusterReport({ status: 'loading', clusters: [], faceCount: 0, error: '' });
+    const estimate = estimateFaceClusterReport(jobs, newlyIndexedFaces);
+    setFaceClusterReport({ status: 'loading', clusters: [], faceCount: estimate.faceCount, error: '', estimateText: estimate.text });
     setFaceClusterNames({});
     try {
-      const getClusters = httpsCallable(firebaseFunctions, 'getIndexedFaceClusters');
+      const getClusters = httpsCallable(firebaseFunctions, 'getIndexedFaceClusters', { timeout: 1800000 });
       const result = await getClusters({ tripIds, threshold: 90 });
       const clusters = result.data?.clusters || [];
       setFaceClusterReport({
@@ -2424,7 +2444,8 @@ export default function App() {
       setFaceClusterReport({
         status: 'error',
         clusters: [],
-        faceCount: 0,
+        faceCount: estimate.faceCount,
+        estimateText: estimate.text,
         error: err.message || T.faceActionFailed,
       });
     }
@@ -2531,7 +2552,7 @@ export default function App() {
     await Promise.all(Array.from({ length: concurrency }, worker));
     const finalStatus = fullIndexCancelRef.current ? 'cancelled' : 'done';
     setFullIndexation(prev => ({ ...prev, status: finalStatus, etaMs: 0, current: '' }));
-    if (finalStatus === 'done') await loadFullIndexationClusters(jobs);
+    if (finalStatus === 'done') await loadFullIndexationClusters(jobs, faces);
   };
 
   const cancelFullIndexation = () => {
@@ -4445,13 +4466,19 @@ export default function App() {
               <p className="full-index-eta">{T.fullIndexationEta(formatDuration(fullIndexation.etaMs))}</p>
             )}
             {faceClusterReport?.status === 'loading' && (
-              <div className="face-cluster-loading">
-                <span className="spinner" />
-                <span>{T.groupingFaces}</span>
-              </div>
+              <>
+                <div className="face-cluster-loading">
+                  <span className="spinner" />
+                  <span>{T.groupingFaces}</span>
+                </div>
+                {faceClusterReport.estimateText && <p className="full-index-eta">{faceClusterReport.estimateText}</p>}
+              </>
             )}
             {faceClusterReport?.status === 'error' && (
-              <p className="field-error" style={{ textAlign: 'center' }}>{faceClusterReport.error}</p>
+              <>
+                {faceClusterReport.estimateText && <p className="full-index-eta">{faceClusterReport.estimateText}</p>}
+                <p className="field-error" style={{ textAlign: 'center' }}>{faceClusterReport.error}</p>
+              </>
             )}
             {faceClusterReport?.status === 'ready' && (
               <div className="face-cluster-report">
