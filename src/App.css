@@ -371,7 +371,9 @@ a:focus-visible {
 .form-group label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
 
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(16px); }
+.lightbox-img-wrap { position: relative; max-width: 90vw; max-height: 90vh; display: flex; align-items: center; justify-content: center; }
 .lightbox-img { max-width: 90vw; max-height: 90vh; object-fit: contain; display: block; border-radius: 6px; box-shadow: 0 20px 60px rgba(0,0,0,.5); user-select: none; }
+.lightbox-img-incoming { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; animation: coverFadeIn .22s ease-out both; }
 
 .lb-close { position: fixed; top: 18px; right: 22px; background: rgba(255,255,255,.1); border: none; color: rgba(255,255,255,.8); font-size: 20px; cursor: pointer; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); transition: all .2s; z-index: 1; }
 .lb-close:hover { background: rgba(255,255,255,.25); color: #fff; }
@@ -718,7 +720,8 @@ a:focus-visible {
 .match-album-arrow { color: var(--text-muted); font-size: 22px; line-height: 1; }
 .person-slideshow-modal { max-width: 840px; width: min(840px, calc(100vw - 32px)); }
 .person-slide-frame { position: relative; height: min(62vh, 560px); border-radius: var(--radius); overflow: hidden; background: #111; display: flex; align-items: center; justify-content: center; }
-.person-slide-frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.person-slide-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.person-slide-img-incoming { position: absolute; inset: 0; animation: coverFadeIn .22s ease-out both; }
 .person-slide-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 56px; border: 0; background: rgba(0,0,0,.28); color: #fff; font-size: 36px; cursor: pointer; transition: background .2s; }
 .person-slide-arrow:hover { background: rgba(0,0,0,.48); }
 .person-slide-prev { left: 8px; }

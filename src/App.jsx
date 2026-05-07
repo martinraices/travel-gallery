@@ -27,7 +27,7 @@ import { compressImage, uploadPhotoVariants } from './utils/imageUtils';
 import { formatDuration } from './utils/format';
 import { isValidHttpUrl } from './utils/validation';
 
-function TripCoverImage({ src, alt = '' }) {
+function CrossfadeImage({ src, alt = '', className = '', currentClassName = '', incomingClassName = '', loading = 'lazy', decoding = 'async' }) {
   const [displaySrc, setDisplaySrc] = useState(src || '');
   const [incomingSrc, setIncomingSrc] = useState('');
 
@@ -69,18 +69,30 @@ function TripCoverImage({ src, alt = '' }) {
 
   return (
     <>
-      {displaySrc && <img className="trip-cover-img trip-cover-img-current" src={displaySrc} alt={alt} loading="lazy" decoding="async" />}
+      {displaySrc && <img className={`${className} ${currentClassName}`.trim()} src={displaySrc} alt={alt} loading={loading} decoding={decoding} />}
       {incomingSrc && (
         <img
-          className="trip-cover-img trip-cover-img-incoming"
+          className={`${className} ${incomingClassName}`.trim()}
           src={incomingSrc}
           alt={alt}
           loading="eager"
-          decoding="async"
+          decoding={decoding}
           onAnimationEnd={finishTransition}
         />
       )}
     </>
+  );
+}
+
+function TripCoverImage({ src, alt = '' }) {
+  return (
+    <CrossfadeImage
+      src={src}
+      alt={alt}
+      className="trip-cover-img"
+      currentClassName="trip-cover-img-current"
+      incomingClassName="trip-cover-img-incoming"
+    />
   );
 }
 
@@ -2896,7 +2908,15 @@ export default function App() {
         </div>
         {publicLightbox && (
           <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setPublicLightbox(null)}>
-            <img src={publicLightbox.url} alt={publicLightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
+            <div className="lightbox-img-wrap" onClick={e => e.stopPropagation()}>
+              <CrossfadeImage
+                src={publicLightbox.url}
+                alt={publicLightbox.name}
+                className="lightbox-img"
+                incomingClassName="lightbox-img-incoming"
+                loading="eager"
+              />
+            </div>
             <button className="lb-close" aria-label={T.close} onClick={() => setPublicLightbox(null)}>✕</button>
             {publicLbIdx > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>&lt;</button>}
             {publicLbIdx < pubPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>&gt;</button>}
@@ -3775,7 +3795,15 @@ export default function App() {
       {/* ═══ LIGHTBOX ═══ */}
       {lightbox && (
         <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
-          <img src={lightbox.url} alt={lightbox.name} className="lightbox-img" onClick={e => e.stopPropagation()} />
+          <div className="lightbox-img-wrap" onClick={e => e.stopPropagation()}>
+            <CrossfadeImage
+              src={lightbox.url}
+              alt={lightbox.name}
+              className="lightbox-img"
+              incomingClassName="lightbox-img-incoming"
+              loading="eager"
+            />
+          </div>
           <button className="lb-close" aria-label={T.close} onClick={() => setLightbox(null)}>✕</button>
           {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); navLightbox(-1); }}>&lt;</button>}
           {lbIndex < displayPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); navLightbox(1); }}>&gt;</button>}
@@ -4635,11 +4663,17 @@ export default function App() {
           <div {...modalProps} className="modal person-slideshow-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{personSlideshow.title}</p>
             {(() => {
-              const photo = personSlideshow.photos[personSlideshow.index];
-              return (
-                <>
-                  <div className="person-slide-frame">
-                    <img src={photo.url || photo.thumbUrl} alt={photo.name || ''} />
+                  const photo = personSlideshow.photos[personSlideshow.index];
+                  return (
+                    <>
+                      <div className="person-slide-frame">
+                        <CrossfadeImage
+                          src={photo.url || photo.thumbUrl}
+                          alt={photo.name || ''}
+                          className="person-slide-img"
+                          incomingClassName="person-slide-img-incoming"
+                          loading="eager"
+                        />
                     {personSlideshow.index > 0 && (
                       <button className="person-slide-arrow person-slide-prev" onClick={() => navigatePersonSlideshow(-1)} aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}>&lt;</button>
                     )}
