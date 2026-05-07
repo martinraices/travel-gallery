@@ -30,6 +30,8 @@ Suggested roles:
 
 The workflow runs on pushes to `main`, and can also be run from the GitHub Actions tab with `workflow_dispatch`.
 
+The deploy command uses `--force` so Firebase can configure an Artifact Registry cleanup policy for function images without an interactive prompt.
+
 ## Notes
 
 - Do not commit AWS keys to the repo.

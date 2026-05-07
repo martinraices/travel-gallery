@@ -45,4 +45,4 @@ jobs:
           rm aws-access-key-id.txt aws-secret-access-key.txt
 
       - name: Deploy Firebase
-        run: firebase deploy --project wanderlust-gallery --only hosting,firestore,functions
+        run: firebase deploy --project wanderlust-gallery --only hosting,firestore,functions --force
