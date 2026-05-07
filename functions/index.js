@@ -76,6 +76,17 @@ async function readPhoto(tripId, photoId) {
   return { tripRef, photoRef, trip: tripSnap.data(), photo: photoSnap.data() };
 }
 
+function canAccessTrip(request, trip) {
+  const email = request.auth?.token?.email?.toLowerCase();
+  const uid = request.auth?.uid;
+  const allowedEmails = (trip.allowedEmails || []).map(item => String(item).toLowerCase());
+  return trip.visibility === 'shared'
+    || trip.ownerId === uid
+    || !trip.ownerId
+    || email === ADMIN_EMAIL
+    || (!!email && allowedEmails.includes(email));
+}
+
 async function imageBytesFromUrl(url) {
   if (!url) throw new HttpsError('failed-precondition', 'Photo has no image URL.');
   const response = await fetch(url);
@@ -113,7 +124,17 @@ exports.indexPhotoFaces = onCall(
     const { tripId, photoId } = request.data || {};
     if (!tripId || !photoId) throw new HttpsError('invalid-argument', 'tripId and photoId are required.');
 
-    const { photoRef, photo } = await readPhoto(tripId, photoId);
+    const { photoRef, trip, photo } = await readPhoto(tripId, photoId);
+    if (!canAccessTrip(request, trip)) {
+      throw new HttpsError('permission-denied', 'You do not have access to this trip.');
+    }
+    if (photo.rekognition?.indexedAt) {
+      return {
+        skipped: true,
+        faceCount: photo.rekognition.faceCount || 0,
+        faceIds: photo.rekognition.faceIds || [],
+      };
+    }
     const client = rekognitionClient();
     await ensureCollection(client);
 
@@ -127,15 +148,18 @@ exports.indexPhotoFaces = onCall(
     }));
 
     const faceRecords = result.FaceRecords || [];
+    const faceIds = faceRecords.map(record => record.Face?.FaceId).filter(Boolean);
     await saveFaceIndex({ tripId, photoId, faceRecords, indexedBy: email });
     await photoRef.set({
       rekognition: {
         indexedAt: admin.firestore.FieldValue.serverTimestamp(),
         faceCount: faceRecords.length,
+        faceIds,
+        indexedBy: email,
       },
     }, { merge: true });
 
-    return { faceCount: faceRecords.length };
+    return { skipped: false, faceCount: faceRecords.length, faceIds };
   }
 );
 
@@ -148,7 +172,10 @@ exports.createPersonFromPhoto = onCall(
     if (!cleanName) throw new HttpsError('invalid-argument', 'Person name is required.');
     if (!tripId || !photoId) throw new HttpsError('invalid-argument', 'tripId and photoId are required.');
 
-    const { photo } = await readPhoto(tripId, photoId);
+    const { trip, photo } = await readPhoto(tripId, photoId);
+    if (!canAccessTrip(request, trip)) {
+      throw new HttpsError('permission-denied', 'You do not have access to this trip.');
+    }
     const personRef = db.collection('people').doc();
     const client = rekognitionClient();
     await ensureCollection(client);

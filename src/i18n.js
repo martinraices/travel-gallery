@@ -267,6 +267,8 @@ export function getTranslations(isSpanish) {
     albumSharedNotificationTypeHelp: isSpanish ? 'Avisa cuando alguien comparte un album contigo.' : 'Notify users when someone shares an album with them.',
     userRequestNotificationType: isSpanish ? 'Request de creacion de usuario' : 'User creation request',
     userRequestNotificationTypeHelp: isSpanish ? 'Solo admins: avisa cuando hay requests pendientes.' : 'Admins only: notify when pending requests exist.',
+    sharedByMePhotosLabel: isSpanish ? 'Compartidas por mi' : 'Shared by me',
+    sharedWithMePhotosLabel: isSpanish ? 'Compartidas conmigo' : 'Shared with me',
     peopleTitle: isSpanish ? 'Personas' : 'People',
     personNameLabel: isSpanish ? 'Nombre' : 'Name',
     personNamePlaceholder: isSpanish ? 'ej. Elena' : 'e.g. Elena',
@@ -289,6 +291,23 @@ export function getTranslations(isSpanish) {
       ? `Seguro que quieres eliminar ${name}? Podras recrearla luego desde otra foto.`
       : `Are you sure you want to delete ${name}? You can recreate this person later from another photo.`,
     personDeleted: isSpanish ? 'Persona eliminada.' : 'Person deleted.',
+    fullIndexation: isSpanish ? 'Indexacion completa' : 'Full indexation',
+    fullIndexationTitle: isSpanish ? 'Indexar todas las caras' : 'Index every face',
+    fullIndexationText: isSpanish
+      ? 'Se revisaran todas las fotos visibles en tu perfil, incluyendo albums compartidos contigo. Las fotos ya indexadas se saltaran para evitar duplicados en Rekognition.'
+      : 'This will scan every photo visible in your profile, including albums shared with you. Photos already indexed will be skipped to avoid Rekognition duplicates.',
+    startIndexation: isSpanish ? 'Empezar' : 'Start',
+    indexingFaces: isSpanish ? 'Indexando...' : 'Indexing...',
+    preparingIndexation: isSpanish ? 'Preparando fotos...' : 'Preparing photos...',
+    fullIndexationProgress: (done, total) => isSpanish ? `${done} de ${total} fotos procesadas` : `${done} of ${total} photos processed`,
+    fullIndexationIndexed: (n) => isSpanish ? `${n} indexada${n !== 1 ? 's' : ''}` : `${n} indexed`,
+    fullIndexationSkipped: (n) => isSpanish ? `${n} saltada${n !== 1 ? 's' : ''}` : `${n} skipped`,
+    fullIndexationFaces: (n) => isSpanish ? `${n} rostro${n !== 1 ? 's' : ''}` : `${n} face${n !== 1 ? 's' : ''}`,
+    fullIndexationFailed: (n) => isSpanish ? `${n} error${n !== 1 ? 'es' : ''}` : `${n} failed`,
+    fullIndexationEta: (eta) => isSpanish ? `Tiempo estimado: ${eta}` : `Estimated time: ${eta}`,
+    fullIndexationDone: isSpanish ? 'Indexacion completa finalizada.' : 'Full indexation finished.',
+    fullIndexationCancelled: isSpanish ? 'Indexacion cancelada.' : 'Indexation cancelled.',
+    cancelIndexation: isSpanish ? 'Cancelar indexacion' : 'Cancel indexation',
     // Public share view
     sharedLinkInvalid: isSpanish ? 'Este enlace compartido ya no es válido.' : 'This shared link is no longer valid.',
     sharedGallery: isSpanish ? 'Galería compartida' : 'Shared gallery',

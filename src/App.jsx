@@ -223,6 +223,9 @@ export default function App() {
   const [confirmDeletePerson, setConfirmDeletePerson] = useState(null);
   const [personMatchesModal, setPersonMatchesModal] = useState(null);
   const [personSlideshow, setPersonSlideshow] = useState(null);
+  const [confirmFullIndexation, setConfirmFullIndexation] = useState(false);
+  const [fullIndexation, setFullIndexation] = useState(null);
+  const fullIndexCancelRef = useRef(false);
   const [dismissedNotifications, setDismissedNotifications] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('dismissedNotifications') || '[]')); }
     catch { return new Set(); }
@@ -2382,6 +2385,99 @@ export default function App() {
     });
   };
 
+  const collectPhotosForFullIndexation = async () => {
+    const jobs = [];
+    for (const trip of trips) {
+      try {
+        const snap = await getDocs(query(photosCol(trip.id), orderBy('createdAt', 'asc')));
+        snap.docs.forEach(photoDoc => {
+          const photo = { id: photoDoc.id, ...photoDoc.data() };
+          jobs.push({ tripId: trip.id, tripName: trip.name, photoId: photo.id, photo });
+        });
+      } catch (err) {
+        console.warn('Could not load photos for face indexation:', trip.id, err);
+      }
+    }
+    return jobs;
+  };
+
+  const startFullIndexation = async () => {
+    if (!canUseFaceRecognition || fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running') return;
+    setConfirmFullIndexation(false);
+    fullIndexCancelRef.current = false;
+    const startedAt = Date.now();
+    setFullIndexation({
+      status: 'scanning',
+      done: 0,
+      total: 0,
+      skipped: 0,
+      failed: 0,
+      faces: 0,
+      etaMs: null,
+      startedAt,
+      current: '',
+    });
+
+    const jobs = await collectPhotosForFullIndexation();
+    if (fullIndexCancelRef.current) {
+      setFullIndexation(prev => ({ ...prev, status: 'cancelled', etaMs: 0, current: '' }));
+      return;
+    }
+    const pendingJobs = jobs.filter(job => !job.photo.rekognition?.indexedAt);
+    const initiallySkipped = jobs.length - pendingJobs.length;
+    let done = 0;
+    let skipped = initiallySkipped;
+    let failed = 0;
+    let faces = 0;
+    let nextJob = 0;
+    const total = jobs.length;
+    const indexFaces = httpsCallable(firebaseFunctions, 'indexPhotoFaces');
+    const concurrency = 2;
+
+    const report = (current = '') => {
+      const processed = done + skipped + failed;
+      const elapsed = Date.now() - startedAt;
+      setFullIndexation({
+        status: fullIndexCancelRef.current ? 'cancelled' : 'running',
+        done,
+        total,
+        skipped,
+        failed,
+        faces,
+        etaMs: processed > initiallySkipped ? (elapsed / Math.max(processed - initiallySkipped, 1)) * Math.max(total - processed, 0) : null,
+        startedAt,
+        current,
+      });
+    };
+
+    report(T.preparingIndexation);
+
+    const worker = async () => {
+      while (nextJob < pendingJobs.length && !fullIndexCancelRef.current) {
+        const job = pendingJobs[nextJob++];
+        try {
+          report(job.tripName);
+          const result = await indexFaces({ tripId: job.tripId, photoId: job.photoId });
+          if (result.data?.skipped) skipped++;
+          else done++;
+          faces += result.data?.faceCount || 0;
+        } catch (err) {
+          failed++;
+          console.warn('Face indexation failed:', job.tripId, job.photoId, err);
+        }
+        report(job.tripName);
+      }
+    };
+
+    await Promise.all(Array.from({ length: concurrency }, worker));
+    const finalStatus = fullIndexCancelRef.current ? 'cancelled' : 'done';
+    setFullIndexation(prev => ({ ...prev, status: finalStatus, etaMs: 0, current: '' }));
+  };
+
+  const cancelFullIndexation = () => {
+    fullIndexCancelRef.current = true;
+  };
+
   const deletePersonFromIndex = async (person) => {
     if (!isAdminUser || !person?.id) return;
     setFaceAction(`delete:${person.id}`);
@@ -2484,6 +2580,10 @@ export default function App() {
   ]);
 
   const totalPhotos = trips.reduce((s, t) => s + (t.photoCount || 0), 0);
+  const sharedByMePhotos = ownTrips
+    .filter(tripIsShared)
+    .reduce((s, t) => s + (t.photoCount || 0), 0);
+  const sharedWithMePhotos = sharedToMeTrips.reduce((s, t) => s + (t.photoCount || 0), 0);
   const countriesVisited = new Set(trips.map(t => t.country).filter(Boolean)).size;
   const topTrip = trips.reduce((best, t) => (!best || (t.photoCount || 0) > (best.photoCount || 0)) ? t : best, null);
 
@@ -2791,7 +2891,7 @@ export default function App() {
         </div>
         <div className="header-actions">
           {isGuest && <span className="guest-pill">{T.guestModeLabel}</span>}
-          {!activeTrip && !activeSharedCollection && isAdminUser && (
+          {isAdminUser && (
             <div style={{ position: 'relative' }}>
               <button className="btn-icon" onClick={() => setAdminDropdown(d => !d)} title={T.adminTools} aria-label={T.adminTools}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -2837,7 +2937,7 @@ export default function App() {
               )}
             </div>
           )}
-          {!activeTrip && !activeSharedCollection && canUseFaceRecognition && (
+          {canUseFaceRecognition && (
             <button className="btn-icon" onClick={() => openPeopleTools()} title={T.peopleMenu} aria-label={T.peopleMenu}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/>
@@ -2847,10 +2947,15 @@ export default function App() {
               </svg>
             </button>
           )}
-          {!activeTrip && !activeSharedCollection && !isReadOnly && <button className="btn-icon btn-new-trip" onClick={() => setShowNewTrip(true)} title={T.newTrip} aria-label={T.newTrip}>+</button>}
-          {activeTrip && !isReadOnly && (
-            <button className="btn btn-accent" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? T.uploading(uploadCount.done, uploadCount.total) : T.addPhotos}
+          {!activeSharedCollection && (activeTrip ? canManageActiveTrip : !isReadOnly) && (
+            <button
+              className="btn-icon btn-new-trip"
+              onClick={() => activeTrip ? fileRef.current?.click() : setShowNewTrip(true)}
+              disabled={uploading}
+              title={activeTrip ? T.addPhotos : T.newTrip}
+              aria-label={activeTrip ? T.addPhotos : T.newTrip}
+            >
+              {uploading ? <span className="spinner header-upload-spinner" /> : '+'}
             </button>
           )}
           <ThemeToggle {...themeToggleProps} />
@@ -2964,6 +3069,16 @@ export default function App() {
                   <div className="stat-card">
                     <div className="stat-value">{totalPhotos}</div><div className="stat-label">{T.photosLabel}</div>
                   </div>
+                  {!isReadOnly && (
+                    <div className="stat-card stat-card-shares">
+                      <div className="stat-value">{sharedByMePhotos}</div><div className="stat-label">{T.sharedByMePhotosLabel}</div>
+                    </div>
+                  )}
+                  {!isReadOnly && (
+                    <div className="stat-card stat-card-shares">
+                      <div className="stat-value">{sharedWithMePhotos}</div><div className="stat-label">{T.sharedWithMePhotosLabel}</div>
+                    </div>
+                  )}
                   {countriesVisited > 0 && (
                     <div className={`stat-card stat-card-btn${statPanel === 'countries' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'countries' ? null : 'countries')}>
                       <div className="stat-value">{countriesVisited}</div><div className="stat-label">{T.countriesLabel}</div>
@@ -2982,7 +3097,7 @@ export default function App() {
                   )}
                   {!isReadOnly && topTrip && topTrip.photoCount > 0 && (
                     <div
-                      className="stat-card stat-card-wide stat-card-btn"
+                      className="stat-card stat-card-wide next-stop-card stat-card-btn"
                       style={{ position: 'relative' }}
                       onClick={() => !isReadOnly && !editingPanel && setEditingPanel(true)}
                       title={T.clickToEditName}
@@ -4138,6 +4253,17 @@ export default function App() {
         <div className="modal-overlay fade-scale" onClick={() => setPeopleModal(false)}>
           <div {...modalProps} className="modal people-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.peopleTitle}</p>
+            <div className="people-modal-actions">
+              <button
+                className="btn btn-accent"
+                onClick={() => setConfirmFullIndexation(true)}
+                disabled={fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running'}
+              >
+                {fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running'
+                  ? T.indexingFaces
+                  : T.fullIndexation}
+              </button>
+            </div>
             {peopleReferencePhoto && (
               <div className="person-reference-box">
                 <img src={peopleReferencePhoto.thumbUrl || peopleReferencePhoto.url} alt="" />
@@ -4203,6 +4329,61 @@ export default function App() {
             )}
             <div className="modal-actions" style={{ marginTop: 16 }}>
               <button className="btn btn-sm" onClick={() => setPeopleModal(false)}>{T.close}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canUseFaceRecognition && confirmFullIndexation && (
+        <div className="modal-overlay fade-scale" onClick={() => setConfirmFullIndexation(false)}>
+          <div {...modalProps} className="modal full-index-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.fullIndexationTitle}</p>
+            <p className="modal-sub">{T.fullIndexationText}</p>
+            <div className="modal-actions">
+              <button className="btn btn-sm" onClick={() => setConfirmFullIndexation(false)}>{T.cancel}</button>
+              <button className="btn btn-accent" onClick={startFullIndexation}>{T.startIndexation}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canUseFaceRecognition && fullIndexation && (
+        <div className="modal-overlay fade-scale" onClick={() => {
+          if (fullIndexation.status === 'done' || fullIndexation.status === 'cancelled') setFullIndexation(null);
+        }}>
+          <div {...modalProps} className="modal full-index-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.fullIndexation}</p>
+            <p className="modal-sub">
+              {fullIndexation.status === 'scanning'
+                ? T.preparingIndexation
+                : fullIndexation.status === 'done'
+                  ? T.fullIndexationDone
+                  : fullIndexation.status === 'cancelled'
+                    ? T.fullIndexationCancelled
+                    : T.fullIndexationProgress(fullIndexation.done + fullIndexation.skipped + fullIndexation.failed, fullIndexation.total)}
+            </p>
+            <div className="full-index-bar-wrap" aria-hidden="true">
+              <div
+                className="full-index-bar"
+                style={{ width: `${fullIndexation.total ? Math.min(100, ((fullIndexation.done + fullIndexation.skipped + fullIndexation.failed) / fullIndexation.total) * 100) : 0}%` }}
+              />
+            </div>
+            {fullIndexation.current && <div className="full-index-current">{fullIndexation.current}</div>}
+            <div className="full-index-stats">
+              <span>{T.fullIndexationIndexed(fullIndexation.done)}</span>
+              <span>{T.fullIndexationSkipped(fullIndexation.skipped)}</span>
+              <span>{T.fullIndexationFaces(fullIndexation.faces)}</span>
+              <span>{T.fullIndexationFailed(fullIndexation.failed)}</span>
+            </div>
+            {fullIndexation.etaMs !== null && fullIndexation.status === 'running' && (
+              <p className="full-index-eta">{T.fullIndexationEta(formatDuration(fullIndexation.etaMs))}</p>
+            )}
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              {fullIndexation.status === 'running' || fullIndexation.status === 'scanning' ? (
+                <button className="btn btn-sm" onClick={cancelFullIndexation}>{T.cancelIndexation}</button>
+              ) : (
+                <button className="btn btn-accent" onClick={() => setFullIndexation(null)}>{T.close}</button>
+              )}
             </div>
           </div>
         </div>
