@@ -517,9 +517,10 @@ a:focus-visible {
 .trip-private-badge { position: absolute; bottom: 10px; right: 10px; font-size: 13px; line-height: 1; z-index: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
 
 /* ─── Edit button on trip card ─── */
-.trip-edit-btn { background: none; border: none; color: var(--border-hover); cursor: pointer; font-size: 15px; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color .2s; }
-.trip-edit-btn:hover { color: var(--accent); }
-.trip-vis-icon { font-size: 13px; line-height: 1; opacity: .65; cursor: default; }
+.trip-edit-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; border: 0; background: transparent; color: color-mix(in srgb, var(--gold) 82%, var(--text)); cursor: pointer; font-size: 20px; font-weight: 800; padding: 2px; line-height: 1; flex-shrink: 0; transition: color .2s, transform .2s, opacity .2s; text-shadow: 0 1px 2px color-mix(in srgb, var(--bg) 70%, transparent); }
+.trip-edit-btn:hover { color: var(--accent); transform: translateY(-1px); }
+.trip-edit-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--gold) 74%, white); outline-offset: 2px; }
+.trip-vis-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; font-size: 15px; line-height: 1; opacity: .9; cursor: default; }
 .edit-modal { max-width: 780px; width: 90vw; text-align: left; }
 .edit-modal .modal-title { text-align: center; }
 .edit-modal-fields { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
@@ -716,6 +717,8 @@ a:focus-visible {
   .view-toggle { margin-left: auto; }
   .stat-panel { max-height: none; }
   .map-wrap { border-radius: var(--radius); }
+  .trip-edit-btn { min-width: 36px; min-height: 36px; font-size: 23px; padding: 4px; }
+  .trip-vis-icon { width: 32px; height: 32px; font-size: 17px; }
   .dashboard-notification { grid-template-columns: auto minmax(0, 1fr); }
   .dashboard-notification-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .dashboard-notification-copy span { white-space: normal; }
@@ -757,6 +760,8 @@ a:focus-visible {
 [data-theme="dark"] .btn-icon:hover { background: rgba(255,255,255,.11); border-color: #776d5d; color: #fff5e8; }
 [data-theme="dark"] .btn-new-trip { background: var(--accent); border-color: var(--accent); color: #fff; }
 [data-theme="dark"] .btn-new-trip:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+[data-theme="dark"] .trip-edit-btn { color: #d9c68e; text-shadow: 0 1px 3px rgba(0,0,0,.45); }
+[data-theme="dark"] .trip-edit-btn:hover { color: #f1dfaa; }
 [data-theme="dark"] .view-btn { background: var(--surface); border-color: var(--border); color: var(--text); }
 [data-theme="dark"] .view-btn:hover { background: var(--surface-2); border-color: var(--border-hover); color: var(--text); }
 [data-theme="dark"] .view-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
