@@ -119,6 +119,48 @@ function TripCoverLoader({ label }) {
   );
 }
 
+function HelpGuide({ type, T }) {
+  const isFacebook = type === 'facebook';
+  const steps = isFacebook ? T.fbHelpSteps : T.peopleHelpSteps;
+
+  return (
+    <div className={`help-guide help-guide-${type}`}>
+      <div className="help-visual" aria-hidden="true">
+        {isFacebook ? (
+          <>
+            <div className="help-folder">
+              <span />
+              <strong>your_facebook_activity</strong>
+            </div>
+            <div className="help-arrow" />
+            <div className="help-album-stack">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="help-import-dot" />
+          </>
+        ) : (
+          <>
+            <div className="help-photo-frame">
+              <div className="help-face-marker" />
+            </div>
+            <div className="help-arrow" />
+            <div className="help-person-chip">
+              <span />
+              <strong>Elena</strong>
+            </div>
+            <div className="help-match-pulse" />
+          </>
+        )}
+      </div>
+      <ol className="help-steps">
+        {steps.map(step => <li key={step}>{step}</li>)}
+      </ol>
+    </div>
+  );
+}
+
 const PHOTO_GRID_BATCH_SIZE = 24;
 const PHOTO_LIST_BATCH_SIZE = 40;
 
@@ -298,6 +340,7 @@ export default function App() {
   const [savingNotificationSettings, setSavingNotificationSettings] = useState(false);
   const [dashboardRequests, setDashboardRequests] = useState([]);
   const [peopleModal, setPeopleModal] = useState(false);
+  const [peopleHelpOpen, setPeopleHelpOpen] = useState(true);
   const [people, setPeople] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [personName, setPersonName] = useState('');
@@ -391,6 +434,7 @@ export default function App() {
 
   // ─── Facebook import ───
   const [fbModal, setFbModal] = useState(false);
+  const [fbHelpOpen, setFbHelpOpen] = useState(true);
   const [fbStep, setFbStep] = useState('folder'); // 'folder' | 'select' | 'import' | 'done'
   const [fbDirHandle, setFbDirHandle] = useState(null); // posts/ folder handle (for album HTMLs)
   const [fbMediaBase, setFbMediaBase] = useState(null); // handle used as base for media path navigation
@@ -438,6 +482,11 @@ export default function App() {
     fbCancelRef.current = true;
     fbAbortControllerRef.current?.abort();
     setFbStep(step => step === 'import' ? 'cancelled' : step);
+  }, []);
+
+  const closeFacebookModal = useCallback(() => {
+    setFbHelpOpen(true);
+    setFbModal(false);
   }, []);
 
   const dismissDashboardNotification = useCallback((id) => {
@@ -969,7 +1018,7 @@ export default function App() {
         else if (signOutConfirm) { setSignOutConfirm(null); }
         else if (confirmDelete) { setConfirmDelete(null); }
         else if (cityModal) { setCityModal(false); }
-        else if (fbModal) { if (fbStep === 'import') cancelFacebookImport(); else setFbModal(false); }
+        else if (fbModal) { if (fbStep === 'import') cancelFacebookImport(); else closeFacebookModal(); }
         else if (restorePreviousUiSnapshot()) {}
         else if (activeCity) { setActiveCity(null); }
         else if (activeTrip) { setActiveTrip(null); setStatPanel(null); }
@@ -2733,6 +2782,7 @@ export default function App() {
     setPeopleReferenceFaces([]);
     setSelectedReferenceFaceId('');
     setPersonName('');
+    setPeopleHelpOpen(true);
     setPeopleModal(true);
     loadPeople();
     if (referencePhoto) loadReferenceFaces(referencePhoto);
@@ -2834,6 +2884,7 @@ export default function App() {
       cancelRemoteOperation(refreshAllOperationRef.current);
       setRefreshAllPeople(null);
     }
+    setPeopleHelpOpen(true);
     setPeopleModal(false);
   };
 
@@ -4077,7 +4128,7 @@ export default function App() {
                 <>
                   <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setAdminDropdown(false)} />
                   <div className="admin-dropdown">
-                    <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); setFbStep('folder'); setFbError(''); setFbModal(true); }}>
+                    <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); setFbStep('folder'); setFbError(''); setFbHelpOpen(true); setFbModal(true); }}>
                       {T.importFbMenu}
                     </button>
                     <button className="admin-dropdown-item" onClick={() => {
@@ -5292,16 +5343,29 @@ export default function App() {
 
       {/* ═══ FACEBOOK IMPORT MODAL ═══ */}
       {!isReadOnly && fbModal && (
-        <div className="modal-overlay fade-scale" onClick={() => { if (fbStep === 'import') cancelFacebookImport(); else setFbModal(false); }}>
+        <div className="modal-overlay fade-scale" onClick={() => { if (fbStep === 'import') cancelFacebookImport(); else closeFacebookModal(); }}>
           <div {...modalProps} className="modal fb-import-modal" onClick={e => e.stopPropagation()}>
 
             {fbStep === 'folder' && (
               <>
-                <p className="modal-title">{T.importFbTitle}</p>
+                <div className="modal-title-row">
+                  <p className="modal-title">{T.importFbTitle}</p>
+                  <button
+                    type="button"
+                    className={`help-toggle${fbHelpOpen ? ' active' : ''}`}
+                    onClick={() => setFbHelpOpen(open => !open)}
+                    title={T.helpLabel}
+                    aria-label={T.helpLabel}
+                    aria-expanded={fbHelpOpen}
+                  >
+                    ?
+                  </button>
+                </div>
                 <p className="modal-sub">{T.fbFolderNote}</p>
+                {fbHelpOpen && <HelpGuide type="facebook" T={T} />}
                 {fbError && <p className="fb-error">{fbError}</p>}
                 <div className="modal-actions" style={{ marginTop: 20 }}>
-                  <button className="btn btn-sm" onClick={() => setFbModal(false)}>{T.cancel}</button>
+                  <button className="btn btn-sm" onClick={closeFacebookModal}>{T.cancel}</button>
                   <button className="btn btn-accent" onClick={scanFbFolder}>{T.scanFolder}</button>
                 </div>
               </>
@@ -5323,11 +5387,24 @@ export default function App() {
               const uniqueAlbums = new Set(availableRows.filter(r => fbSelected.has(r.id)).map(r => (fbAlbumNames[r.id] || r.rawTitle).trim())).size;
               return (
                 <>
-                  <p className="modal-title">{T.selectCitiesToImport}</p>
+                  <div className="modal-title-row">
+                    <p className="modal-title">{T.selectCitiesToImport}</p>
+                    <button
+                      type="button"
+                      className={`help-toggle${fbHelpOpen ? ' active' : ''}`}
+                      onClick={() => setFbHelpOpen(open => !open)}
+                      title={T.helpLabel}
+                      aria-label={T.helpLabel}
+                      aria-expanded={fbHelpOpen}
+                    >
+                      ?
+                    </button>
+                  </div>
                   <p className="modal-sub">
                     {availableRows.length} {T.citiesAvail} · {selectedCount} {T.selectedLabel} · {T.albumsLabel(uniqueAlbums)}
                     {hiddenCount > 0 && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>· {hiddenCount} {T.alreadyImported}</span>}
                   </p>
+                  {fbHelpOpen && <HelpGuide type="facebook" T={T} />}
                   <div className="fb-filter-bar">
                     <input className="input" value={fbFilter} onChange={e => setFbFilter(e.target.value)} placeholder={T.filterByCityOrAlbum} />
                     <button className="btn btn-sm" onClick={() => setFbSelected(new Set(availableRows.map(r => r.id)))}>{T.all}</button>
@@ -5361,7 +5438,7 @@ export default function App() {
                     ))}
                   </div>
                   <div className="modal-actions" style={{ marginTop: 12 }}>
-                    <button className="btn btn-sm" onClick={() => setFbModal(false)}>{T.cancel}</button>
+                    <button className="btn btn-sm" onClick={closeFacebookModal}>{T.cancel}</button>
                     <button className="btn btn-accent" onClick={handleFbImportClick} disabled={selectedCount === 0}>
                       {T.importNCities(selectedCount)}
                     </button>
@@ -5430,7 +5507,7 @@ export default function App() {
                 <p className="modal-title">{T.importCancelled}</p>
                 <p className="modal-sub">{T.importCancelledText}</p>
                 <div className="modal-actions" style={{ marginTop: 20 }}>
-                  <button className="btn btn-accent" onClick={() => { setFbModal(false); loadTrips(); }}>{T.doneBtn}</button>
+                  <button className="btn btn-accent" onClick={() => { closeFacebookModal(); loadTrips(); }}>{T.doneBtn}</button>
                 </div>
               </>
             )}
@@ -5440,7 +5517,7 @@ export default function App() {
                 <p className="modal-title">{T.importComplete}</p>
                 <p className="modal-sub">{T.importedPhotos(fbTotalDone, fbSelected.size)}</p>
                 <div className="modal-actions" style={{ marginTop: 20 }}>
-                  <button className="btn btn-accent" onClick={() => { setFbModal(false); loadTrips(); }}>{T.doneBtn}</button>
+                  <button className="btn btn-accent" onClick={() => { closeFacebookModal(); loadTrips(); }}>{T.doneBtn}</button>
                 </div>
               </>
             )}
@@ -5606,7 +5683,20 @@ export default function App() {
       {canUseFaceRecognition && peopleModal && (
         <div className="modal-overlay fade-scale" onClick={closePeopleTools}>
           <div {...modalProps} className="modal people-modal" onClick={e => e.stopPropagation()}>
-            <p className="modal-title">{T.peopleTitle}</p>
+            <div className="modal-title-row">
+              <p className="modal-title">{T.peopleTitle}</p>
+              <button
+                type="button"
+                className={`help-toggle${peopleHelpOpen ? ' active' : ''}`}
+                onClick={() => setPeopleHelpOpen(open => !open)}
+                title={T.helpLabel}
+                aria-label={T.helpLabel}
+                aria-expanded={peopleHelpOpen}
+              >
+                ?
+              </button>
+            </div>
+            {peopleHelpOpen && <HelpGuide type="people" T={T} />}
             <div className="people-modal-actions">
               <button
                 className="btn btn-accent"

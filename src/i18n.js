@@ -177,6 +177,16 @@ export function getTranslations(isSpanish) {
     fbFolderNote: isSpanish
       ? 'Selecciona tu carpeta your_facebook_activity (o su directorio padre) de tu exportación de datos de Facebook. Solo Chrome/Edge.'
       : 'Select your your_facebook_activity folder (or its parent) from your Facebook data export. Chrome/Edge only.',
+    helpLabel: isSpanish ? 'Ver instructivo' : 'View guide',
+    fbHelpSteps: isSpanish ? [
+      'Descarga tu informacion de Facebook y ubica la carpeta your_facebook_activity.',
+      'Selecciona esa carpeta, su carpeta padre o posts; la app encuentra posts/album automaticamente.',
+      'Revisa las ciudades detectadas, ajusta el nombre del album si hace falta e importa solo lo seleccionado.',
+    ] : [
+      'Download your Facebook information and locate the your_facebook_activity folder.',
+      'Select that folder, its parent folder, or posts; the app finds posts/album automatically.',
+      'Review the detected cities, adjust album names if needed, and import only the selected items.',
+    ],
     scanFolder: isSpanish ? 'Escanear carpeta…' : 'Scan folder…',
     selectCitiesToImport: isSpanish ? 'Seleccionar ciudades para importar' : 'Select cities to import',
     citiesAvail: isSpanish ? 'ciudades disponibles' : 'cities available',
@@ -308,6 +318,15 @@ export function getTranslations(isSpanish) {
     sharedByMePhotosLabel: isSpanish ? 'Compartidas por mi' : 'Shared by me',
     sharedWithMePhotosLabel: isSpanish ? 'Compartidas conmigo' : 'Shared with me',
     peopleTitle: isSpanish ? 'Personas' : 'People',
+    peopleHelpSteps: isSpanish ? [
+      'Abre Personas desde el menu o desde una foto para crear una referencia con nombre.',
+      'Si vienes desde una foto, selecciona el rostro correcto y guarda la persona.',
+      'Marca una o varias personas y usa Find Matches para encontrar sus fotos; luego puedes crear una presentacion.',
+    ] : [
+      'Open People from the menu or from a photo to create a named reference.',
+      'When starting from a photo, choose the correct face and save the person.',
+      'Select one or more people and use Find Matches to locate their photos; then you can create a presentation.',
+    ],
     personNameLabel: isSpanish ? 'Nombre' : 'Name',
     personNamePlaceholder: isSpanish ? 'ej. Elena' : 'e.g. Elena',
     loadingFaces: isSpanish ? 'Detectando caras...' : 'Detecting faces...',
