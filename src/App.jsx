@@ -27,6 +27,21 @@ import { compressImage, uploadPhotoVariants } from './utils/imageUtils';
 import { formatDuration } from './utils/format';
 import { isValidHttpUrl } from './utils/validation';
 
+const PUBLIC_APP_ORIGIN = 'https://pepiniperilmondo.web.app';
+const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+
+const emptyProfileForm = {
+  firstName: '',
+  lastName: '',
+  country: '',
+  birthDate: '',
+  sex: '',
+};
+
+function youtubeThumbUrl(videoId) {
+  return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';
+}
+
 function CrossfadeImage({ src, alt = '', className = '', currentClassName = '', incomingClassName = '', loading = 'lazy', decoding = 'async' }) {
   const [displaySrc, setDisplaySrc] = useState(src || '');
   const [incomingSrc, setIncomingSrc] = useState('');
@@ -193,6 +208,12 @@ export default function App() {
   const [lightbox, setLightbox] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [signOutConfirm, setSignOutConfirm] = useState(null);
+  const [profileModal, setProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState(emptyProfileForm);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [youtubeConnecting, setYoutubeConnecting] = useState(false);
+  const [youtubeAccessToken, setYoutubeAccessToken] = useState(() => sessionStorage.getItem('youtubeAccessToken') || '');
+  const [youtubeConnectedEmail, setYoutubeConnectedEmail] = useState(() => sessionStorage.getItem('youtubeConnectedEmail') || '');
   const [view, setView] = useState('grid');
   const [tripsView, setTripsView] = useState('grid');
   const [photoRenderLimit, setPhotoRenderLimit] = useState(PHOTO_GRID_BATCH_SIZE);
@@ -215,6 +236,9 @@ export default function App() {
   const fileRef = useRef();
   const photoLoadMoreRef = useRef(null);
   const publicPhotoLoadMoreRef = useRef(null);
+  const uiHistoryRef = useRef([]);
+  const lastUiSnapshotRef = useRef(null);
+  const restoringUiRef = useRef(false);
   const lastScrollYRef = useRef(0);
   const scrollFadeTimerRef = useRef(null);
   const loadingTripCoversRef = useRef(new Set());
@@ -288,6 +312,9 @@ export default function App() {
   const [confirmDeletePerson, setConfirmDeletePerson] = useState(null);
   const [personMatchesModal, setPersonMatchesModal] = useState(null);
   const [personSlideshow, setPersonSlideshow] = useState(null);
+  const [personPresentation, setPersonPresentation] = useState(null);
+  const [exportingPresentation, setExportingPresentation] = useState(false);
+  const [presentationExportProgress, setPresentationExportProgress] = useState(null);
   const [confirmFullIndexation, setConfirmFullIndexation] = useState(false);
   const [fullIndexation, setFullIndexation] = useState(null);
   const [faceClusterReport, setFaceClusterReport] = useState(null);
@@ -296,6 +323,11 @@ export default function App() {
   const [refreshAllPeople, setRefreshAllPeople] = useState(null);
   const [selectedMatchPersonIds, setSelectedMatchPersonIds] = useState(new Set());
   const fullIndexCancelRef = useRef(false);
+  const fullIndexDismissedRef = useRef(false);
+  const refreshAllCancelRef = useRef(false);
+  const presentationExportCancelRef = useRef(false);
+  const thumbMigrationCancelRef = useRef(false);
+  const autoDateCancelRef = useRef(false);
   const [dismissedNotifications, setDismissedNotifications] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('dismissedNotifications') || '[]')); }
     catch { return new Set(); }
@@ -331,6 +363,8 @@ export default function App() {
   const [publicShareLoading, setPublicShareLoading] = useState(false);
   const [publicLightbox, setPublicLightbox] = useState(null);
   const [publicLbIdx, setPublicLbIdx] = useState(-1);
+  const [publicPresentationIndex, setPublicPresentationIndex] = useState(0);
+  const [publicPresentationPlaying, setPublicPresentationPlaying] = useState(true);
 
   // ─── Lightbox description ───
   const [lbDesc, setLbDesc] = useState('');
@@ -543,17 +577,87 @@ export default function App() {
   const confirmSignOut = useCallback(() => {
     setSignOutConfirm(null);
     setGuestMode(false);
+    sessionStorage.removeItem('youtubeAccessToken');
+    sessionStorage.removeItem('youtubeConnectedEmail');
+    setYoutubeAccessToken('');
+    setYoutubeConnectedEmail('');
     signOut(auth).catch(() => {});
   }, []);
 
+  const saveUserProfile = useCallback(async () => {
+    if (!user || isReadOnly) return;
+    setSavingProfile(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'profile', 'settings'), {
+        profile: profileForm,
+        youtubeConnectedEmail: youtubeConnectedEmail || null,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      showNotice('success', T.profileSaved);
+      setProfileModal(false);
+    } catch (err) {
+      console.error('Save profile error:', err);
+      showNotice('error', T.profileSaveFailed);
+    } finally {
+      setSavingProfile(false);
+    }
+  }, [T.profileSaveFailed, T.profileSaved, isReadOnly, profileForm, showNotice, user, youtubeConnectedEmail]);
+
+  const connectYouTube = useCallback(async () => {
+    if (!user || isReadOnly) return;
+    setYoutubeConnecting(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope(YOUTUBE_UPLOAD_SCOPE);
+      provider.setCustomParameters({
+        prompt: 'consent',
+        login_hint: user.email || '',
+      });
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken || '';
+      if (!token) throw new Error('Missing YouTube access token');
+      const email = result.user?.email || user.email || '';
+      setYoutubeAccessToken(token);
+      setYoutubeConnectedEmail(email);
+      sessionStorage.setItem('youtubeAccessToken', token);
+      sessionStorage.setItem('youtubeConnectedEmail', email);
+      await setDoc(doc(db, 'users', user.uid, 'profile', 'settings'), {
+        youtubeConnectedEmail: email,
+        youtubeConnectedAt: serverTimestamp(),
+      }, { merge: true });
+      showNotice('success', T.youtubeConnectedNotice);
+    } catch (err) {
+      console.error('YouTube connect error:', err);
+      showNotice('error', T.youtubeConnectFailed);
+    } finally {
+      setYoutubeConnecting(false);
+    }
+  }, [T.youtubeConnectFailed, T.youtubeConnectedNotice, isReadOnly, showNotice, user]);
+
   useEffect(() => {
-    if (!user) { setCustomPanelLabel(''); setCustomPanelMiro(''); return; }
-    if (isReadOnly) { setCustomPanelLabel(''); setCustomPanelMiro(''); return; }
+    if (!user) {
+      setCustomPanelLabel('');
+      setCustomPanelMiro('');
+      setProfileForm(emptyProfileForm);
+      setYoutubeConnectedEmail('');
+      return;
+    }
+    if (isReadOnly) {
+      setCustomPanelLabel('');
+      setCustomPanelMiro('');
+      setProfileForm(emptyProfileForm);
+      setYoutubeConnectedEmail('');
+      return;
+    }
     getDoc(doc(db, 'users', user.uid, 'profile', 'settings'))
       .then(snap => {
         if (snap.exists()) {
-          setCustomPanelLabel(snap.data().panelLabel || '');
-          setCustomPanelMiro(snap.data().panelMiro || '');
+          const data = snap.data();
+          setCustomPanelLabel(data.panelLabel || '');
+          setCustomPanelMiro(data.panelMiro || '');
+          setProfileForm({ ...emptyProfileForm, ...(data.profile || {}) });
+          setYoutubeConnectedEmail(data.youtubeConnectedEmail || sessionStorage.getItem('youtubeConnectedEmail') || '');
         }
       })
       .catch(() => {});
@@ -561,9 +665,32 @@ export default function App() {
 
   // ─── Public share: check URL on mount ───
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('share');
-    if (!token) return;
+    const params = new URLSearchParams(window.location.search);
+    const presentationToken = params.get('presentation');
+    const token = params.get('share');
+    if (!token && !presentationToken) return;
     setPublicShareLoading(true);
+    if (presentationToken) {
+      getDoc(doc(db, 'sharedLinks', presentationToken))
+        .then(snap => {
+          if (!snap.exists()) {
+            setPublicShareData({ error: true });
+            return;
+          }
+          const data = snap.data();
+          setPublicShareData({
+            type: 'presentation',
+            ...data,
+            title: data.title || data.tripName,
+            personName: data.personName || data.tripName,
+          });
+          setPublicPresentationIndex(0);
+          setPublicPresentationPlaying(true);
+        })
+        .catch(() => setPublicShareData({ error: true }))
+        .finally(() => setPublicShareLoading(false));
+      return;
+    }
     getDoc(doc(db, 'sharedLinks', token))
       .then(async snap => {
         if (!snap.exists()) {
@@ -707,6 +834,79 @@ export default function App() {
   // ─── Sync lightbox description ───
   useEffect(() => { setLbDesc(lightbox?.description || ''); setLbCoverSet(false); }, [lightbox?.id]);
 
+  const closeThumbMigration = useCallback(() => {
+    if (thumbMigration?.status === 'running' || thumbMigration?.status === 'scanning') {
+      thumbMigrationCancelRef.current = true;
+    }
+    setThumbMigration(null);
+  }, [thumbMigration?.status]);
+
+  const closeFullIndexation = useCallback(() => {
+    if (fullIndexation?.status === 'running' || fullIndexation?.status === 'scanning') {
+      fullIndexCancelRef.current = true;
+    }
+    fullIndexDismissedRef.current = true;
+    setFaceClusterReport(null);
+    setFullIndexation(null);
+  }, [fullIndexation?.status]);
+
+  const closeAutoDateModal = useCallback(() => {
+    if (autoDateModal === 'running') autoDateCancelRef.current = true;
+    setAutoDateModal(false);
+  }, [autoDateModal]);
+
+  const buildUiSnapshot = useCallback(() => ({
+    activeTrip,
+    activeCity,
+    activeSharedCollection,
+    statPanel,
+    tripsView,
+    view,
+    showNewTrip,
+  }), [activeTrip, activeCity, activeSharedCollection, statPanel, tripsView, view, showNewTrip]);
+
+  const restoreUiSnapshot = useCallback((snapshot) => {
+    restoringUiRef.current = true;
+    setActiveTrip(snapshot.activeTrip);
+    setActiveCity(snapshot.activeCity);
+    setActiveSharedCollection(snapshot.activeSharedCollection);
+    setStatPanel(snapshot.statPanel);
+    setTripsView(snapshot.tripsView);
+    setView(snapshot.view);
+    setShowNewTrip(snapshot.showNewTrip);
+  }, []);
+
+  const restorePreviousUiSnapshot = useCallback(() => {
+    const snapshot = uiHistoryRef.current.pop();
+    if (!snapshot) return false;
+    restoreUiSnapshot(snapshot);
+    return true;
+  }, [restoreUiSnapshot]);
+
+  useEffect(() => {
+    const snapshot = buildUiSnapshot();
+    const snapshotKey = JSON.stringify(snapshot);
+    const lastSnapshot = lastUiSnapshotRef.current;
+    const lastSnapshotKey = lastSnapshot ? JSON.stringify(lastSnapshot) : '';
+
+    if (!lastSnapshot) {
+      lastUiSnapshotRef.current = snapshot;
+      return;
+    }
+
+    if (snapshotKey === lastSnapshotKey) return;
+
+    if (restoringUiRef.current) {
+      restoringUiRef.current = false;
+      lastUiSnapshotRef.current = snapshot;
+      return;
+    }
+
+    uiHistoryRef.current.push(lastSnapshot);
+    if (uiHistoryRef.current.length > 40) uiHistoryRef.current.shift();
+    lastUiSnapshotRef.current = snapshot;
+  }, [buildUiSnapshot]);
+
   // ─── Keyboard nav ───
   useEffect(() => {
     const handler = (e) => {
@@ -725,16 +925,19 @@ export default function App() {
       if (e.key === 'Escape') {
         if (shareSuccess) { setShareSuccess(null); }
         else if (confirmUserAction) { setConfirmUserAction(null); }
+        else if (personPresentation) { closePersonPresentation(); }
         else if (personSlideshow) { setPersonSlideshow(null); }
         else if (personMatchesModal) { setPersonMatchesModal(null); }
         else if (confirmDeletePerson) { setConfirmDeletePerson(null); }
-        else if (peopleModal) { setPeopleModal(false); }
+        else if (peopleModal) { closePeopleTools(); }
         else if (notificationsModal) { setNotificationsModal(false); }
         else if (usersModal) { setUsersModal(false); }
         else if (pendingRequestsModal) { setPendingRequestsModal(false); }
         else if (manageAccessesModal) { setManageAccessesModal(false); }
-        else if (thumbMigration && thumbMigration.status !== 'running' && thumbMigration.status !== 'scanning') { setThumbMigration(null); }
+        else if (profileModal) { setProfileModal(false); }
+        else if (thumbMigration) { closeThumbMigration(); }
         else if (shareAlbumsModal) { closeShareAlbumsModal(); }
+        else if (autoDateModal) { closeAutoDateModal(); }
         else if (adminDropdown) { setAdminDropdown(false); }
         else if (editTrip) { setEditTrip(null); }
         else if (editCity) { setEditCity(null); }
@@ -742,7 +945,8 @@ export default function App() {
         else if (signOutConfirm) { setSignOutConfirm(null); }
         else if (confirmDelete) { setConfirmDelete(null); }
         else if (cityModal) { setCityModal(false); }
-        else if (fbModal && fbStep !== 'import') { setFbModal(false); }
+        else if (fbModal) { if (fbStep === 'import') fbCancelRef.current = true; setFbModal(false); }
+        else if (restorePreviousUiSnapshot()) {}
         else if (activeCity) { setActiveCity(null); }
         else if (activeTrip) { setActiveTrip(null); setStatPanel(null); }
         else if (activeSharedCollection) { setActiveSharedCollection(false); }
@@ -991,46 +1195,112 @@ export default function App() {
     });
   }, []);
 
+  const uploadVideoToYouTube = useCallback(async (file, trip) => {
+    if (!youtubeAccessToken) throw new Error('YOUTUBE_NOT_CONNECTED');
+    const cleanName = file.name.replace(/\.[^.]+$/, '') || file.name;
+    const metadata = {
+      snippet: {
+        title: cleanName,
+        description: `Uploaded privately from Pepini per il mondo${trip?.name ? ` - ${trip.name}` : ''}.`,
+        categoryId: '22',
+      },
+      status: {
+        privacyStatus: 'private',
+        selfDeclaredMadeForKids: false,
+      },
+    };
+    const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${youtubeAccessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': file.type || 'application/octet-stream',
+        'X-Upload-Content-Length': String(file.size),
+      },
+      body: JSON.stringify(metadata),
+    });
+    if (init.status === 401 || init.status === 403) {
+      sessionStorage.removeItem('youtubeAccessToken');
+      setYoutubeAccessToken('');
+      throw new Error('YOUTUBE_RECONNECT');
+    }
+    if (!init.ok) throw new Error(`YouTube upload init failed (${init.status})`);
+    const uploadUrl = init.headers.get('Location');
+    if (!uploadUrl) throw new Error('YouTube upload URL missing');
+
+    const uploaded = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+    if (uploaded.status === 401 || uploaded.status === 403) {
+      sessionStorage.removeItem('youtubeAccessToken');
+      setYoutubeAccessToken('');
+      throw new Error('YOUTUBE_RECONNECT');
+    }
+    if (!uploaded.ok) throw new Error(`YouTube upload failed (${uploaded.status})`);
+    const data = await uploaded.json();
+    const youtubeId = data.id;
+    if (!youtubeId) throw new Error('YouTube video id missing');
+    return {
+      type: 'video',
+      videoProvider: 'youtube',
+      youtubeId,
+      url: `https://www.youtube.com/watch?v=${youtubeId}`,
+      embedUrl: `https://www.youtube.com/embed/${youtubeId}`,
+      thumbUrl: youtubeThumbUrl(youtubeId),
+      privacyStatus: 'private',
+    };
+  }, [youtubeAccessToken]);
+
   const handleFiles = useCallback(async (files) => {
     if (isReadOnly) return;
     if (!activeTrip || !files.length) return;
-    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (!imageFiles.length) {
-      showNotice('error', validationText('noImageFiles'));
+    const mediaFiles = Array.from(files).filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    if (!mediaFiles.length) {
+      showNotice('error', T.noSupportedMediaFiles);
       return;
     }
     clearNotice();
     setUploading(true);
-    setUploadCount({ done: 0, total: imageFiles.length });
+    setUploadCount({ done: 0, total: mediaFiles.length });
     const newPhotos = [];
     let failed = 0;
-    for (let i = 0; i < imageFiles.length; i++) {
-      const file = imageFiles[i];
+    let youtubeUploadBlocked = false;
+    const trip = trips.find(t => t.id === activeTrip);
+    for (let i = 0; i < mediaFiles.length; i++) {
+      const file = mediaFiles[i];
       try {
         const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const uploaded = await uploadPhotoVariants(file, `users/${user.uid}/trips/${activeTrip}`, fileName);
+        const uploaded = file.type.startsWith('video/')
+          ? await uploadVideoToYouTube(file, trip)
+          : await uploadPhotoVariants(file, `users/${user.uid}/trips/${activeTrip}`, fileName);
         const photoData = { name: file.name, ...uploaded, createdAt: serverTimestamp() };
         const docRef = await addDoc(photosCol(activeTrip), photoData);
         newPhotos.push({ id: docRef.id, ...photoData });
       } catch (err) {
         failed++;
         console.error('Upload error:', err);
+        if (err.message === 'YOUTUBE_NOT_CONNECTED' || err.message === 'YOUTUBE_RECONNECT') {
+          youtubeUploadBlocked = true;
+          showNotice('error', err.message === 'YOUTUBE_RECONNECT' ? T.youtubeReconnectRequired : T.connectYouTubeBeforeVideo);
+          setProfileModal(true);
+        }
       }
       setUploadCount(prev => ({ ...prev, done: i + 1 }));
     }
     setPhotos(prev => [...prev, ...newPhotos]);
-    const trip = trips.find(t => t.id === activeTrip);
     if (trip) {
       const updates = { photoCount: (trip.photoCount || 0) + newPhotos.length };
-      if (!trip.cover && newPhotos.length) updates.cover = newPhotos[0].url;
+      if (!trip.cover && newPhotos.length) updates.cover = newPhotos[0].thumbUrl || newPhotos[0].url;
       await updateDoc(doc(db, 'trips', activeTrip), updates);
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, ...updates } : t));
     }
-    if (failed > 0) {
-      showNotice('error', failed === imageFiles.length ? validationText('uploadFailedAll') : validationText('uploadFailedSome', failed));
+    if (failed > 0 && !youtubeUploadBlocked) {
+      showNotice('error', failed === mediaFiles.length ? validationText('uploadFailedAll') : validationText('uploadFailedSome', failed));
     }
     setUploading(false);
-  }, [activeTrip, user, trips, isReadOnly, showNotice, clearNotice, validationText]);
+  }, [T.connectYouTubeBeforeVideo, T.noSupportedMediaFiles, T.youtubeReconnectRequired, activeTrip, clearNotice, isReadOnly, showNotice, trips, uploadVideoToYouTube, user, validationText]);
 
   const deletePhoto = async (photo) => {
     if (isReadOnly) return;
@@ -1042,7 +1312,7 @@ export default function App() {
     if (trip) {
       const newCount = Math.max(0, (trip.photoCount || 1) - 1);
       const updates = { photoCount: newCount };
-      if (trip.cover === photo.url) updates.cover = null;
+      if (trip.cover === photo.url || trip.cover === photo.thumbUrl) updates.cover = null;
       await updateDoc(doc(db, 'trips', activeTrip), updates);
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, ...updates } : t));
     }
@@ -1128,6 +1398,7 @@ export default function App() {
   // ─── Auto-set dates from Facebook ───
   const autoSetDatesFromFb = async () => {
     if (isReadOnly) return;
+    autoDateCancelRef.current = false;
     setAutoDateModal('running');
     setAutoDateUpdated(0);
     try {
@@ -1141,6 +1412,7 @@ export default function App() {
       const dateMap = {};
       let scanned = 0;
       for await (const [name, handle] of albumDirHandle.entries()) {
+        if (autoDateCancelRef.current) return;
         if (handle.kind !== 'file' || !name.endsWith('.html')) continue;
         try {
           const albumDoc = new DOMParser().parseFromString(await (await handle.getFile()).text(), 'text/html');
@@ -1201,6 +1473,7 @@ export default function App() {
       let updated = 0;
       const tripsWithoutDate = trips.filter(t => !t.date && (!t.ownerId || t.ownerId === user.uid));
       await Promise.all(tripsWithoutDate.map(async (trip) => {
+        if (autoDateCancelRef.current) return;
         const ts = dateMap[trip.name];
         if (!ts) return;
         const isoDate = new Date(ts).toISOString().split('T')[0];
@@ -1211,6 +1484,7 @@ export default function App() {
         } catch {}
       }));
 
+      if (autoDateCancelRef.current) return;
       setAutoDateUpdated(updated);
       setAutoDateScanned(scanned);
       setAutoDateModal('done');
@@ -1563,7 +1837,7 @@ export default function App() {
       }
     }
 
-    setFbStep('done');
+    if (!fbCancelRef.current) setFbStep('done');
   };
 
   // ─── Photo reorder ───
@@ -1608,6 +1882,14 @@ export default function App() {
   useEffect(() => {
     setPublicPhotoRenderLimit(PHOTO_GRID_BATCH_SIZE);
   }, [publicShareData?.tripId, publicShareData?.photos?.length]);
+
+  useEffect(() => {
+    if (publicShareData?.type !== 'presentation' || !publicPresentationPlaying || (publicShareData.photos || []).length <= 1) return undefined;
+    const timer = window.setInterval(() => {
+      setPublicPresentationIndex(index => (index + 1) % publicShareData.photos.length);
+    }, 4200);
+    return () => window.clearInterval(timer);
+  }, [publicShareData?.type, publicShareData?.photos, publicPresentationPlaying]);
 
   useEffect(() => {
     const node = photoLoadMoreRef.current;
@@ -1928,13 +2210,16 @@ export default function App() {
   const runThumbnailMigration = async () => {
     if (!user || isReadOnly) return;
     setAdminDropdown(false);
+    thumbMigrationCancelRef.current = false;
     setThumbMigration({ status: 'scanning', done: 0, total: 0, error: '' });
     try {
       const rootHandle = await window.showDirectoryPicker({ mode: 'read' });
       const localImages = await indexLocalImagesByName(rootHandle);
+      if (thumbMigrationCancelRef.current) return;
       const jobs = [];
       let missing = 0;
       for (const trip of trips) {
+        if (thumbMigrationCancelRef.current) return;
         const snap = await getDocs(photosCol(trip.id));
         snap.docs.forEach(photoDoc => {
           const photo = { id: photoDoc.id, ...photoDoc.data() };
@@ -1958,6 +2243,7 @@ export default function App() {
       let nextJob = 0;
       const concurrency = Math.min(12, Math.max(4, navigator.hardwareConcurrency || 6));
       const reportProgress = () => {
+        if (thumbMigrationCancelRef.current) return;
         setThumbMigration({
           status: 'running',
           done,
@@ -1973,6 +2259,7 @@ export default function App() {
       };
 
       const processJob = async ({ trip, photoDoc, photo, fileHandle }) => {
+        if (thumbMigrationCancelRef.current) return;
         try {
           const sourceBlob = await fileHandle.getFile();
           const thumbBlob = await compressImage(sourceBlob, 420, 0.68);
@@ -1988,18 +2275,24 @@ export default function App() {
           failed++;
           console.warn('Thumbnail migration failed:', photo.id, err);
         }
-        done++;
-        reportProgress();
+        if (!thumbMigrationCancelRef.current) {
+          done++;
+          reportProgress();
+        }
       };
 
       const worker = async () => {
-        while (nextJob < jobs.length) {
+        while (nextJob < jobs.length && !thumbMigrationCancelRef.current) {
           const job = jobs[nextJob++];
           await processJob(job);
         }
       };
 
       await Promise.all(Array.from({ length: concurrency }, worker));
+      if (thumbMigrationCancelRef.current) {
+        setThumbMigration(null);
+        return;
+      }
       setThumbMigration({
         status: 'done',
         done: jobs.length - failed,
@@ -2340,7 +2633,7 @@ export default function App() {
       const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setPeople(rows);
-      setSelectedMatchPersonIds(new Set(rows.map(person => person.id)));
+      setSelectedMatchPersonIds(new Set());
     } catch (err) {
       console.error('Error loading people:', err);
       showNotice('error', validationText('accessLoadFailed'));
@@ -2493,21 +2786,32 @@ export default function App() {
     }
   };
 
+  const closePeopleTools = () => {
+    if (refreshAllPeople?.status === 'running') {
+      refreshAllCancelRef.current = true;
+      setRefreshAllPeople(null);
+    }
+    setPeopleModal(false);
+  };
+
   const refreshAllPersonMatches = async () => {
     if (!canUseFaceRecognition || refreshAllPeople?.status === 'running' || selectedMatchPeople.length === 0) return;
+    refreshAllCancelRef.current = false;
     let updated = 0;
     let failed = 0;
     setRefreshAllPeople({ status: 'running', done: 0, total: selectedMatchPeople.length, current: '', updated, failed });
 
-    for (let index = 0; index < selectedMatchPeople.length; index++) {
+    for (let index = 0; index < selectedMatchPeople.length && !refreshAllCancelRef.current; index++) {
       const person = selectedMatchPeople[index];
       setRefreshAllPeople({ status: 'running', done: index, total: selectedMatchPeople.length, current: person.name, updated, failed });
       const matches = await fetchPersonMatches(person, { silent: true });
+      if (refreshAllCancelRef.current) return;
       if (matches) updated++;
       else failed++;
       setRefreshAllPeople({ status: 'running', done: index + 1, total: selectedMatchPeople.length, current: person.name, updated, failed });
     }
 
+    if (refreshAllCancelRef.current) return;
     setRefreshAllPeople({ status: 'done', done: selectedMatchPeople.length, total: selectedMatchPeople.length, current: '', updated, failed });
     showNotice(failed > 0 ? 'error' : 'success', T.refreshAllComplete(updated, failed));
   };
@@ -2574,6 +2878,326 @@ export default function App() {
       photos: matches.map(match => match.photo),
       index: 0,
     });
+  };
+
+  const openPersonPresentation = async (person) => {
+    if (!canUseFaceRecognition || !person?.id || (person.matchCount || 0) === 0) return;
+    setFaceAction(`presentation:${person.id}`);
+    setPersonPresentation({ person, loading: true, photos: [], index: 0, playing: true });
+    const rawMatches = await fetchStoredPersonMatches(person);
+    if (!rawMatches) {
+      setPersonPresentation({ person, loading: false, photos: [], index: 0, playing: false });
+      setFaceAction(null);
+      return;
+    }
+    const matches = await hydratePersonMatches(rawMatches);
+    const photos = matches
+      .map(match => match.photo)
+      .filter(photo => photo?.url || photo?.thumbUrl)
+      .sort((a, b) => {
+        const aDate = a.tripDate ? Date.parse(a.tripDate) : (a.createdAt?.seconds || 0) * 1000;
+        const bDate = b.tripDate ? Date.parse(b.tripDate) : (b.createdAt?.seconds || 0) * 1000;
+        return (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate);
+      });
+    setPersonPresentation({ person, loading: false, photos, index: 0, playing: photos.length > 1 });
+    setFaceAction(null);
+  };
+
+  const closePersonPresentation = () => {
+    if (exportingPresentation) presentationExportCancelRef.current = true;
+    setPersonPresentation(null);
+  };
+
+  const navigatePersonPresentation = (dir) => {
+    setPersonPresentation(prev => {
+      if (!prev || prev.photos.length === 0) return prev;
+      const next = (prev.index + dir + prev.photos.length) % prev.photos.length;
+      return { ...prev, index: next };
+    });
+  };
+
+  useEffect(() => {
+    if (!personPresentation?.playing || personPresentation.photos.length <= 1) return undefined;
+    const timer = window.setInterval(() => navigatePersonPresentation(1), 4200);
+    return () => window.clearInterval(timer);
+  }, [personPresentation?.playing, personPresentation?.photos?.length]);
+
+  const downloadPersonPresentation = () => {
+    if (!personPresentation?.photos?.length) return;
+    const escapeHtml = (value) => String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const jsString = (value) => JSON.stringify(String(value || ''));
+    const photos = personPresentation.photos.map(photo => ({
+      src: photo.url || photo.thumbUrl,
+      title: photo.tripName || '',
+      subtitle: [photo.tripDate, photo.city].filter(Boolean).join(' · '),
+    }));
+    const title = T.presentationTitle(personPresentation.person.name);
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #111; color: #f6f1e8; font-family: Arial, sans-serif; overflow: hidden; }
+    .stage { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 20%, #2d281f, #090909 70%); }
+    img { max-width: 100vw; max-height: 100vh; object-fit: contain; filter: drop-shadow(0 24px 60px rgba(0,0,0,.65)); animation: photo 5s ease-in-out both; }
+    .caption { position: fixed; left: 0; right: 0; bottom: 0; padding: 28px 34px; background: linear-gradient(to top, rgba(0,0,0,.72), transparent); text-shadow: 0 2px 12px rgba(0,0,0,.7); }
+    h1 { margin: 0 0 6px; font-size: clamp(26px, 4vw, 58px); }
+    p { margin: 0; color: rgba(246,241,232,.78); font-size: clamp(14px, 1.6vw, 20px); }
+    @keyframes photo { from { opacity: 0; transform: scale(1.04); } 12%, 88% { opacity: 1; } to { opacity: 0; transform: scale(1); } }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <img id="photo" alt="" />
+    <section class="caption">
+      <h1 id="title"></h1>
+      <p id="subtitle"></p>
+    </section>
+  </main>
+  <script>
+    const slides = ${JSON.stringify(photos)};
+    let index = 0;
+    const photo = document.getElementById('photo');
+    const title = document.getElementById('title');
+    const subtitle = document.getElementById('subtitle');
+    function show() {
+      const slide = slides[index];
+      photo.style.animation = 'none';
+      void photo.offsetWidth;
+      photo.src = slide.src;
+      title.textContent = ${jsString(title)} + (slide.title ? ' · ' + slide.title : '');
+      subtitle.textContent = slide.subtitle || '';
+      photo.style.animation = '';
+      index = (index + 1) % slides.length;
+    }
+    show();
+    setInterval(show, 5000);
+  </script>
+</body>
+</html>`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${String(personPresentation.person.name || 'presentation').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'presentation'}-presentation.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const sharePersonPresentationVideo = async () => {
+    if (!personPresentation?.photos?.length) return;
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+      showNotice('error', T.videoShareUnsupported);
+      return;
+    }
+
+    const mimeType = [
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8',
+      'video/webm',
+      'video/mp4;codecs=h264',
+      'video/mp4',
+    ].find(type => MediaRecorder.isTypeSupported(type));
+
+    if (!mimeType) {
+      showNotice('error', T.videoShareUnsupported);
+      return;
+    }
+
+    presentationExportCancelRef.current = false;
+    setExportingPresentation(true);
+    setPresentationExportProgress({ done: 0, total: personPresentation.photos.length });
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280;
+    canvas.height = 720;
+    const ctx = canvas.getContext('2d');
+    const stream = canvas.captureStream(30);
+    const chunks = [];
+    let recorder;
+    try {
+      recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
+    } catch (err) {
+      stream.getTracks().forEach(track => track.stop());
+      setExportingPresentation(false);
+      setPresentationExportProgress(null);
+      showNotice('error', T.videoShareUnsupported);
+      return;
+    }
+    const wait = (ms) => new Promise(resolve => window.setTimeout(resolve, ms));
+    const loadImage = (src) => new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+    const drawSlide = (img, photo, progress) => {
+      const w = canvas.width;
+      const h = canvas.height;
+      const zoom = 1.04 - (progress * 0.04);
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, w, h);
+      const bg = ctx.createRadialGradient(w / 2, h * .2, 0, w / 2, h * .2, w);
+      bg.addColorStop(0, '#2d281f');
+      bg.addColorStop(1, '#080808');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight) * zoom;
+      const dw = img.naturalWidth * scale;
+      const dh = img.naturalHeight * scale;
+      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+
+      const gradient = ctx.createLinearGradient(0, h * .58, 0, h);
+      gradient.addColorStop(0, 'rgba(0,0,0,0)');
+      gradient.addColorStop(1, 'rgba(0,0,0,.78)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, h * .58, w, h * .42);
+
+      ctx.fillStyle = '#f6f1e8';
+      ctx.font = '700 34px Arial, sans-serif';
+      ctx.fillText(photo.tripName || personPresentation.person.name, 42, h - 70);
+      const subtitle = [photo.tripDate, photo.city].filter(Boolean).join(' - ');
+      ctx.fillStyle = 'rgba(246,241,232,.78)';
+      ctx.font = '18px Arial, sans-serif';
+      ctx.fillText(subtitle || T.personMatchCount(personPresentation.photos.length), 42, h - 38);
+    };
+
+    try {
+      recorder.ondataavailable = event => {
+        if (event.data?.size) chunks.push(event.data);
+      };
+      const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+      recorder.start(250);
+
+      let exported = 0;
+      for (const photo of personPresentation.photos) {
+        if (presentationExportCancelRef.current) break;
+        let img;
+        try {
+          img = await loadImage(photo.url || photo.thumbUrl);
+        } catch (err) {
+          console.warn('Skipping presentation image export:', photo, err);
+          setPresentationExportProgress(prev => prev ? { ...prev, done: prev.done + 1 } : prev);
+          continue;
+        }
+        for (let frame = 0; frame < 75 && !presentationExportCancelRef.current; frame++) {
+          drawSlide(img, photo, frame / 74);
+          await wait(1000 / 30);
+        }
+        if (presentationExportCancelRef.current) break;
+        exported++;
+        setPresentationExportProgress(prev => prev ? { ...prev, done: prev.done + 1 } : prev);
+      }
+
+      recorder.stop();
+      await stopped;
+      stream.getTracks().forEach(track => track.stop());
+      if (presentationExportCancelRef.current) return;
+
+      const blob = new Blob(chunks, { type: mimeType });
+      if (!exported || blob.size === 0) {
+        showNotice('error', T.videoExportFailed);
+        return;
+      }
+      const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const filename = `${String(personPresentation.person.name || 'presentation').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'presentation'}-presentation.${ext}`;
+      const file = new File([blob], filename, { type: mimeType });
+      const title = T.presentationTitle(personPresentation.person.name);
+      const text = T.sharePresentationText(personPresentation.person.name);
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title, text, files: [file] });
+      } else if (navigator.share) {
+        await navigator.share({ title, text, url: window.location.href });
+      } else {
+        showNotice('error', T.videoShareUnsupported);
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      if (presentationExportCancelRef.current) return;
+      console.error('Presentation video export failed:', err);
+      showNotice('error', T.videoShareFailed);
+      stream.getTracks().forEach(track => track.stop());
+    } finally {
+      setExportingPresentation(false);
+      setPresentationExportProgress(null);
+      presentationExportCancelRef.current = false;
+    }
+  };
+
+  const publicAppOrigin = () => (
+    ['localhost', '127.0.0.1'].includes(window.location.hostname)
+      ? PUBLIC_APP_ORIGIN
+      : window.location.origin
+  );
+
+  const makeToken = () => {
+    const bytes = new Uint8Array(18);
+    window.crypto?.getRandomValues?.(bytes);
+    return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('') || `${Date.now()}${Math.random().toString(16).slice(2)}`;
+  };
+
+  const ensurePresentationShareLink = async () => {
+    if (!personPresentation?.person || !personPresentation?.photos?.length) return '';
+    if (personPresentation.shareUrl) return personPresentation.shareUrl;
+
+    const token = makeToken();
+    const title = T.presentationTitle(personPresentation.person.name);
+    const photos = personPresentation.photos.map(photo => ({
+      url: photo.url || photo.thumbUrl || '',
+      thumbUrl: photo.thumbUrl || photo.url || '',
+      name: photo.name || '',
+      tripName: photo.tripName || '',
+      tripDate: photo.tripDate || null,
+      city: photo.city || null,
+    })).filter(photo => photo.url);
+    await setDoc(doc(db, 'sharedLinks', token), {
+      tripName: title,
+      tripDate: null,
+      photos,
+      createdAt: serverTimestamp(),
+    });
+    const shareUrl = `${publicAppOrigin()}/?presentation=${token}`;
+    setPersonPresentation(prev => prev ? { ...prev, shareToken: token, shareUrl } : prev);
+    return shareUrl;
+  };
+
+  const sharePresentationToPlatform = async (platform) => {
+    if (!personPresentation?.person) return;
+    const popup = window.open('about:blank', '_blank');
+    if (popup) {
+      popup.document.write(`<p style="font-family:system-ui,sans-serif;padding:24px">Preparing share link...</p>`);
+      popup.document.close();
+    }
+    try {
+      const shareUrl = await ensurePresentationShareLink();
+      if (!shareUrl) return;
+      const url = encodeURIComponent(shareUrl);
+      const text = encodeURIComponent(T.sharePresentationText(personPresentation.person.name));
+      const links = {
+        whatsapp: `https://wa.me/?text=${text}%20${url}`,
+        facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+        x: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
+        telegram: `https://t.me/share/url?url=${url}&text=${text}`,
+      };
+      if (popup) popup.location.href = links[platform];
+      else window.open(links[platform], '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Create presentation share link failed:', err);
+      if (popup) popup.close();
+      showNotice('error', T.presentationShareFailed);
+    }
   };
 
   const navigatePersonSlideshow = (dir) => {
@@ -2682,6 +3306,7 @@ export default function App() {
     setFaceClusterReport(null);
     setFaceClusterNames({});
     fullIndexCancelRef.current = false;
+    fullIndexDismissedRef.current = false;
     const startedAt = Date.now();
     setFullIndexation({
       status: 'scanning',
@@ -2697,7 +3322,7 @@ export default function App() {
 
     const jobs = await collectPhotosForFullIndexation();
     if (fullIndexCancelRef.current) {
-      setFullIndexation(prev => ({ ...prev, status: 'cancelled', etaMs: 0, current: '' }));
+      if (!fullIndexDismissedRef.current) setFullIndexation(prev => ({ ...prev, status: 'cancelled', etaMs: 0, current: '' }));
       return;
     }
     const pendingJobs = jobs.filter(job => !job.photo.rekognition?.indexedAt);
@@ -2714,6 +3339,7 @@ export default function App() {
     const report = (current = '') => {
       const processed = done + skipped + failed;
       const elapsed = Date.now() - startedAt;
+      if (fullIndexDismissedRef.current) return;
       setFullIndexation({
         status: fullIndexCancelRef.current ? 'cancelled' : 'running',
         done,
@@ -2748,8 +3374,8 @@ export default function App() {
 
     await Promise.all(Array.from({ length: concurrency }, worker));
     const finalStatus = fullIndexCancelRef.current ? 'cancelled' : 'done';
-    setFullIndexation(prev => ({ ...prev, status: finalStatus, etaMs: 0, current: '' }));
-    if (finalStatus === 'done') await loadFullIndexationClusters(jobs, faces);
+    if (!fullIndexDismissedRef.current) setFullIndexation(prev => ({ ...prev, status: finalStatus, etaMs: 0, current: '' }));
+    if (finalStatus === 'done' && !fullIndexDismissedRef.current) await loadFullIndexationClusters(jobs, faces);
   };
 
   const cancelFullIndexation = () => {
@@ -3154,6 +3780,61 @@ export default function App() {
         <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{publicShareData.expired ? T.sharedLinkExpired : T.sharedLinkInvalid}</p>
       </div></div>
     );
+    if (publicShareData.type === 'presentation') {
+      const presentationPhotos = publicShareData.photos || [];
+      const photo = presentationPhotos[publicPresentationIndex] || presentationPhotos[0];
+      return (
+        <div>
+          <header className="header">
+            <div className="header-logo-wrap">
+              <img src={logoSrc} alt="Pepini per il mondo" className="header-logo-img" />
+              <span className="header-logo heading">Pepini per il mondo</span>
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{T.sharedPresentation}</span>
+          </header>
+          <div className="public-presentation-page fade-in">
+            <div
+              className={`presentation-stage public-presentation-stage${publicPresentationPlaying ? '' : ' presentation-paused'}`}
+              onClick={() => setPublicPresentationPlaying(v => !v)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setPublicPresentationPlaying(v => !v);
+                }
+              }}
+            >
+              {photo && (
+                <>
+                  <CrossfadeImage
+                    src={photo.url || photo.thumbUrl}
+                    alt={photo.name || ''}
+                    className="presentation-img"
+                    incomingClassName="presentation-img-incoming"
+                    loading="eager"
+                  />
+                  <div className="presentation-caption">
+                    <strong>{photo.tripName || publicShareData.personName || publicShareData.title}</strong>
+                    <span>{[photo.tripDate, photo.city].filter(Boolean).join(' · ') || T.personMatchCount(presentationPhotos.length)}</span>
+                  </div>
+                  {presentationPhotos.length > 1 && (
+                    <>
+                      <button className="person-slide-arrow person-slide-prev" onClick={e => { e.stopPropagation(); setPublicPresentationIndex(i => (i - 1 + presentationPhotos.length) % presentationPhotos.length); }} aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}>&lt;</button>
+                      <button className="person-slide-arrow person-slide-next" onClick={e => { e.stopPropagation(); setPublicPresentationIndex(i => (i + 1) % presentationPhotos.length); }} aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}>&gt;</button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="presentation-footer">
+              <span>{presentationPhotos.length ? `${publicPresentationIndex + 1} / ${presentationPhotos.length}` : T.noMatchesFound}</span>
+              <strong>{publicShareData.title || T.presentationTitle(publicShareData.personName || '')}</strong>
+            </div>
+          </div>
+        </div>
+      );
+    }
     const pubPhotos = publicShareData.photos || [];
     const renderedPubPhotos = pubPhotos.slice(0, publicPhotoRenderLimit);
     const hiddenPubPhotoCount = Math.max(0, pubPhotos.length - renderedPubPhotos.length);
@@ -3370,6 +4051,14 @@ export default function App() {
             </button>
           )}
           <ThemeToggle {...themeToggleProps} />
+          {!isReadOnly && (
+            <button className="btn-icon" onClick={() => setProfileModal(true)} title={T.myProfile} aria-label={T.myProfile}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 21a8 8 0 1 0-16 0"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </button>
+          )}
           <button className="btn-icon" onClick={handleSignOut} title={T.signOut}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -3378,7 +4067,7 @@ export default function App() {
             </svg>
           </button>
         </div>
-        <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+        <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
           onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
       </header>
       {appWallpaperUrl && <div className="app-wallpaper" aria-hidden="true" />}
@@ -4096,6 +4785,7 @@ export default function App() {
                               onLoad={() => markPhotoImageLoaded(p.id)}
                               onError={() => markPhotoImageLoaded(p.id)}
                             />
+                            {(p.type === 'video' || p.youtubeId) && <div className="media-play-badge" aria-hidden="true">▶</div>}
                             {canDrag && <div className="photo-drag-handle">⠿</div>}
                             {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
                           </div>
@@ -4126,15 +4816,17 @@ export default function App() {
                             onChange={() => togglePhotoSelection(p.id)}
                             onClick={e => e.stopPropagation()} />
                         )}
-                        <LazyPhotoImage
-                          src={p.thumbUrl || p.url}
-                          alt={p.name}
-                          className="photo-list-img"
-                          onLoad={() => markPhotoImageLoaded(p.id)}
-                          onError={() => markPhotoImageLoaded(p.id)}
-                          onClick={() => setLightbox(p)}
-                          style={{ cursor: 'pointer' }}
-                        />
+                        <div className="photo-list-media" onClick={() => setLightbox(p)}>
+                          <LazyPhotoImage
+                            src={p.thumbUrl || p.url}
+                            alt={p.name}
+                            className="photo-list-img"
+                            onLoad={() => markPhotoImageLoaded(p.id)}
+                            onError={() => markPhotoImageLoaded(p.id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          {(p.type === 'video' || p.youtubeId) && <div className="media-play-badge media-play-badge-sm" aria-hidden="true">▶</div>}
+                        </div>
                         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setLightbox(p)}>
                           <div className="photo-list-name">{p.name}</div>
                           {p.description && <div className="photo-list-desc">{p.description}</div>}
@@ -4160,13 +4852,23 @@ export default function App() {
       {lightbox && (
         <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
           <div className="lightbox-img-wrap" onClick={e => e.stopPropagation()}>
-            <CrossfadeImage
-              src={lightbox.url}
-              alt={lightbox.name}
-              className="lightbox-img"
-              incomingClassName="lightbox-img-incoming"
-              loading="eager"
-            />
+            {(lightbox.type === 'video' || lightbox.youtubeId) ? (
+              <iframe
+                className="lightbox-video"
+                src={lightbox.embedUrl || `https://www.youtube.com/embed/${lightbox.youtubeId}`}
+                title={lightbox.name || 'Video'}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : (
+              <CrossfadeImage
+                src={lightbox.url}
+                alt={lightbox.name}
+                className="lightbox-img"
+                incomingClassName="lightbox-img-incoming"
+                loading="eager"
+              />
+            )}
           </div>
           <button className="lb-close" aria-label={T.close} onClick={() => setLightbox(null)}>✕</button>
           {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); navLightbox(-1); }}>&lt;</button>}
@@ -4189,7 +4891,7 @@ export default function App() {
               title={T.setAsAlbumCoverTitle}
               onClick={async e => {
                 e.stopPropagation();
-                await setPhotoAsAlbumCover(lightbox.url);
+                await setPhotoAsAlbumCover(lightbox.thumbUrl || lightbox.url);
                 setLbCoverSet(true);
                 setTimeout(() => setLbCoverSet(false), 2000);
               }}
@@ -4236,7 +4938,7 @@ export default function App() {
           <div style={{ position: 'fixed', inset: 0, zIndex: 1099 }} onClick={() => setContextMenu(null)} onContextMenu={e => { e.preventDefault(); setContextMenu(null); }} />
           <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={e => e.stopPropagation()}>
             {contextMenu.canSetAlbumCover && (
-              <button onClick={async () => { await setPhotoAsAlbumCover(contextMenu.photo.url); setContextMenu(null); }}>
+              <button onClick={async () => { await setPhotoAsAlbumCover(contextMenu.photo.thumbUrl || contextMenu.photo.url); setContextMenu(null); }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                 {T.useAsAlbumCover}
               </button>
@@ -4256,6 +4958,59 @@ export default function App() {
       )}
 
       {/* ═══ DELETE TRIP ═══ */}
+      {profileModal && (
+        <div className="modal-overlay fade-scale" onClick={() => setProfileModal(false)}>
+          <div {...modalProps} className="modal profile-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.myProfile}</p>
+            <div className="profile-form">
+              <div className="form-group">
+                <label>{T.firstNameLabel}</label>
+                <input className="input" value={profileForm.firstName} onChange={e => setProfileForm(prev => ({ ...prev, firstName: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>{T.lastNameLabel}</label>
+                <input className="input" value={profileForm.lastName} onChange={e => setProfileForm(prev => ({ ...prev, lastName: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>{T.countryLabel}</label>
+                <input list="profile-countries-list" className="input" value={profileForm.country} onChange={e => setProfileForm(prev => ({ ...prev, country: e.target.value }))} />
+                <datalist id="profile-countries-list">{WORLD_COUNTRIES.map(c => <option key={c} value={c} />)}</datalist>
+              </div>
+              <div className="form-group">
+                <label>{T.birthDateLabel}</label>
+                <input type="date" className="input" value={profileForm.birthDate} onChange={e => setProfileForm(prev => ({ ...prev, birthDate: e.target.value }))} />
+              </div>
+              <div className="form-group profile-form-full">
+                <label>{T.sexLabel}</label>
+                <select className="input" value={profileForm.sex} onChange={e => setProfileForm(prev => ({ ...prev, sex: e.target.value }))}>
+                  <option value="">{T.selectOption}</option>
+                  <option value="female">{T.sexFemale}</option>
+                  <option value="male">{T.sexMale}</option>
+                  <option value="nonBinary">{T.sexNonBinary}</option>
+                  <option value="preferNotSay">{T.sexPreferNotSay}</option>
+                </select>
+              </div>
+            </div>
+            <div className="youtube-profile-box">
+              <div>
+                <strong>{T.youtubeAccount}</strong>
+                <p>{youtubeConnectedEmail ? T.youtubeConnectedAs(youtubeConnectedEmail) : T.youtubeNotConnected}</p>
+                <span>{T.youtubePrivateUploadNote}</span>
+              </div>
+              <button className="btn" onClick={connectYouTube} disabled={youtubeConnecting}>
+                {youtubeConnecting ? T.connecting : T.connectYouTube}
+              </button>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-sm" onClick={() => setProfileModal(false)}>{T.cancel}</button>
+              <button className="btn btn-accent" onClick={saveUserProfile} disabled={savingProfile}>
+                {savingProfile ? T.saving : T.save}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {signOutConfirm && (
         <div className="modal-overlay fade-scale" onClick={() => setSignOutConfirm(null)}>
           <div {...modalProps} className="modal signout-modal" onClick={e => e.stopPropagation()}>
@@ -4394,7 +5149,7 @@ export default function App() {
 
       {/* ═══ AUTO-DATE MODAL ═══ */}
       {!isReadOnly && autoDateModal && (
-        <div className="modal-overlay fade-scale" onClick={() => autoDateModal === 'done' && setAutoDateModal(false)}>
+        <div className="modal-overlay fade-scale" onClick={closeAutoDateModal}>
           <div {...modalProps} className="modal" onClick={e => e.stopPropagation()}>
             {autoDateModal === 'running' && (
               <>
@@ -4414,7 +5169,7 @@ export default function App() {
                       : T.autoDateNoDates(autoDateScanned)}
                 </p>
                 <div className="modal-actions" style={{ marginTop: 16 }}>
-                  <button className="btn btn-accent" onClick={() => setAutoDateModal(false)}>{T.close}</button>
+                  <button className="btn btn-accent" onClick={closeAutoDateModal}>{T.close}</button>
                 </div>
               </>
             )}
@@ -4424,7 +5179,7 @@ export default function App() {
 
       {/* ═══ THUMBNAIL MIGRATION ═══ */}
       {!isReadOnly && thumbMigration && (
-        <div className="modal-overlay fade-scale" onClick={() => thumbMigration.status !== 'running' && thumbMigration.status !== 'scanning' && setThumbMigration(null)}>
+        <div className="modal-overlay fade-scale" onClick={closeThumbMigration}>
           <div {...modalProps} className="modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.thumbMigrationTitle}</p>
             <p className="modal-sub">
@@ -4451,7 +5206,7 @@ export default function App() {
             {(thumbMigration.status === 'done' || thumbMigration.status === 'error') && (
               <div className="modal-actions">
                 {thumbMigration.status === 'error' && <button className="btn btn-sm" onClick={runThumbnailMigration}>{T.retry}</button>}
-                <button className="btn btn-accent btn-sm" onClick={() => setThumbMigration(null)}>{T.doneBtn}</button>
+                <button className="btn btn-accent btn-sm" onClick={closeThumbMigration}>{T.doneBtn}</button>
               </div>
             )}
           </div>
@@ -4460,7 +5215,7 @@ export default function App() {
 
       {/* ═══ FACEBOOK IMPORT MODAL ═══ */}
       {!isReadOnly && fbModal && (
-        <div className="modal-overlay fade-scale" onClick={() => fbStep !== 'import' && setFbModal(false)}>
+        <div className="modal-overlay fade-scale" onClick={() => { if (fbStep === 'import') fbCancelRef.current = true; setFbModal(false); }}>
           <div {...modalProps} className="modal fb-import-modal" onClick={e => e.stopPropagation()}>
 
             {fbStep === 'folder' && (
@@ -4762,7 +5517,7 @@ export default function App() {
 
       {/* ═══ MANAGE ACCESSES MODAL ═══ */}
       {canUseFaceRecognition && peopleModal && (
-        <div className="modal-overlay fade-scale" onClick={() => setPeopleModal(false)}>
+        <div className="modal-overlay fade-scale" onClick={closePeopleTools}>
           <div {...modalProps} className="modal people-modal" onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.peopleTitle}</p>
             <div className="people-modal-actions">
@@ -4881,6 +5636,13 @@ export default function App() {
                       </span>
                     </div>
                     <div className="person-actions">
+                      <button
+                        className="btn btn-sm"
+                        onClick={e => { e.stopPropagation(); openPersonPresentation(person); }}
+                        disabled={refreshAllPeople?.status === 'running' || faceAction === `presentation:${person.id}` || faceAction === `delete:${person.id}` || (person.matchCount || 0) === 0}
+                      >
+                        {faceAction === `presentation:${person.id}` ? T.loadingPresentation : T.createPresentation}
+                      </button>
                       {isAdminUser && (
                         <button
                           className="btn btn-sm btn-danger"
@@ -4896,7 +5658,7 @@ export default function App() {
               </div>
             )}
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => setPeopleModal(false)}>{T.close}</button>
+              <button className="btn btn-sm" onClick={closePeopleTools}>{T.close}</button>
             </div>
           </div>
         </div>
@@ -4916,9 +5678,7 @@ export default function App() {
       )}
 
       {canUseFaceRecognition && fullIndexation && (
-        <div className="modal-overlay fade-scale" onClick={() => {
-          if ((fullIndexation.status === 'done' || fullIndexation.status === 'cancelled') && !faceClusterReport) setFullIndexation(null);
-        }}>
+        <div className="modal-overlay fade-scale" onClick={closeFullIndexation}>
           <div {...modalProps} className={`modal full-index-modal${faceClusterReport?.status === 'ready' ? ' full-index-report-modal' : ''}`} onClick={e => e.stopPropagation()}>
             <p className="modal-title">{T.fullIndexation}</p>
             <p className="modal-sub">
@@ -4992,7 +5752,7 @@ export default function App() {
                 <button className="btn btn-sm" onClick={cancelFullIndexation}>{T.cancelIndexation}</button>
               ) : faceClusterReport?.status === 'ready' && faceClusterReport.clusters.length > 0 ? (
                 <>
-                  <button className="btn btn-sm" onClick={() => { setFaceClusterReport(null); setFullIndexation(null); }} disabled={savingClusterPeople}>{T.close}</button>
+                  <button className="btn btn-sm" onClick={closeFullIndexation} disabled={savingClusterPeople}>{T.close}</button>
                   <button
                     className="btn btn-accent"
                     onClick={createPeopleFromClusters}
@@ -5002,7 +5762,7 @@ export default function App() {
                   </button>
                 </>
               ) : (
-                <button className="btn btn-accent" onClick={() => { setFaceClusterReport(null); setFullIndexation(null); }}>{T.close}</button>
+                <button className="btn btn-accent" onClick={closeFullIndexation}>{T.close}</button>
               )}
             </div>
           </div>
@@ -5020,6 +5780,86 @@ export default function App() {
                 {faceAction === `delete:${confirmDeletePerson.id}` ? T.saving : T.deleteBtn}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {canUseFaceRecognition && personPresentation && (
+        <div className="modal-overlay fade-scale presentation-overlay" onClick={closePersonPresentation}>
+          <div {...modalProps} className="modal presentation-modal" onClick={e => e.stopPropagation()}>
+            <div className="presentation-header">
+              <p className="modal-title">{T.presentationTitle(personPresentation.person.name)}</p>
+              <button className="stat-panel-close" onClick={closePersonPresentation} aria-label={T.close}>✕</button>
+            </div>
+            {personPresentation.loading ? (
+              <div className="presentation-loading">
+                <span className="spinner" />
+                <span>{T.loadingPresentation}</span>
+              </div>
+            ) : personPresentation.photos.length === 0 ? (
+              <p className="modal-sub">{T.noMatchesFound}</p>
+            ) : (
+              <>
+                {(() => {
+                  const photo = personPresentation.photos[personPresentation.index] || personPresentation.photos[0];
+                  return (
+                    <div
+                      className={`presentation-stage${personPresentation.playing ? '' : ' presentation-paused'}`}
+                      onClick={() => setPersonPresentation(prev => prev ? { ...prev, playing: !prev.playing } : prev)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setPersonPresentation(prev => prev ? { ...prev, playing: !prev.playing } : prev);
+                        }
+                      }}
+                      title={personPresentation.playing ? T.pausePresentation : T.playPresentation}
+                    >
+                      <CrossfadeImage
+                        src={photo.url || photo.thumbUrl}
+                        alt={photo.name || ''}
+                        className="presentation-img"
+                        incomingClassName="presentation-img-incoming"
+                        loading="eager"
+                      />
+                      <div className="presentation-caption">
+                        <strong>{photo.tripName || personPresentation.person.name}</strong>
+                        <span>{[photo.tripDate, photo.city].filter(Boolean).join(' · ') || T.personMatchCount(personPresentation.photos.length)}</span>
+                      </div>
+                      {personPresentation.photos.length > 1 && (
+                        <>
+                          <button className="person-slide-arrow person-slide-prev" onClick={e => { e.stopPropagation(); navigatePersonPresentation(-1); }} aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}>&lt;</button>
+                          <button className="person-slide-arrow person-slide-next" onClick={e => { e.stopPropagation(); navigatePersonPresentation(1); }} aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}>&gt;</button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+                <div className="presentation-footer">
+                  <span>
+                    {exportingPresentation && presentationExportProgress
+                      ? T.presentationExportProgress(presentationExportProgress.done, presentationExportProgress.total)
+                      : `${personPresentation.index + 1} / ${personPresentation.photos.length}`}
+                  </span>
+                </div>
+                <div className="presentation-share-buttons" aria-label={T.shareOnSocial}>
+                  <span>{T.shareOnSocial}</span>
+                  <button type="button" className="social-share-btn whatsapp" onClick={() => sharePresentationToPlatform('whatsapp')} title="WhatsApp" aria-label="WhatsApp">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.76.46 3.47 1.34 4.98L2 22l5.25-1.38a9.86 9.86 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.51 2 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-3.11.82.83-3.03-.2-.31a8.18 8.18 0 1 1 6.97 3.84Zm4.49-6.13c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.56.12-.16.25-.64.8-.78.96-.14.16-.29.18-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.16.04-.31-.02-.43-.06-.12-.56-1.35-.76-1.85-.2-.48-.41-.42-.56-.43h-.48c-.16 0-.43.06-.66.31-.23.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.64 4.19 3.7.59.25 1.04.4 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.46-.6 1.66-1.17.21-.57.21-1.06.14-1.17-.06-.1-.23-.16-.47-.29Z"/></svg>
+                  </button>
+                  <button type="button" className="social-share-btn facebook" onClick={() => sharePresentationToPlatform('facebook')} title="Facebook" aria-label="Facebook">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.2 8.4V6.7c0-.82.55-1.01.94-1.01h2.39V2.05L14.24 2C10.59 2 9.76 4.74 9.76 6.49V8.4H7v3.75h2.76V22h4.44v-9.85h3.01l.45-3.75H14.2Z"/></svg>
+                  </button>
+                  <button type="button" className="social-share-btn x" onClick={() => sharePresentationToPlatform('x')} title="X" aria-label="X">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.68 10.62 20.24 3h-1.55l-5.7 6.62L8.44 3H3.2l6.88 10.01L3.2 21h1.55l6.02-6.99L15.56 21h5.24l-7.12-10.38Zm-2.13 2.47-.7-1L5.31 4.17H7.7l4.48 6.41.7 1 5.81 8.31H16.3l-4.75-6.8Z"/></svg>
+                  </button>
+                  <button type="button" className="social-share-btn telegram" onClick={() => sharePresentationToPlatform('telegram')} title="Telegram" aria-label="Telegram">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.54 3.6 18.2 19.36c-.25 1.12-.91 1.4-1.84.87l-5.08-3.75-2.45 2.36c-.27.27-.5.5-1.02.5l.36-5.17 9.4-8.49c.41-.36-.09-.56-.63-.2L5.32 12.8.31 11.23c-1.09-.34-1.11-1.09.23-1.61L20.13 2.08c.91-.34 1.7.2 1.41 1.52Z"/></svg>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
