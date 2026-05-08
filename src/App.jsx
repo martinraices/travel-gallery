@@ -324,7 +324,9 @@ export default function App() {
   const [selectedMatchPersonIds, setSelectedMatchPersonIds] = useState(new Set());
   const fullIndexCancelRef = useRef(false);
   const fullIndexDismissedRef = useRef(false);
+  const fullIndexOperationRef = useRef(null);
   const refreshAllCancelRef = useRef(false);
+  const refreshAllOperationRef = useRef(null);
   const presentationExportCancelRef = useRef(false);
   const thumbMigrationCancelRef = useRef(false);
   const autoDateCancelRef = useRef(false);
@@ -403,6 +405,7 @@ export default function App() {
   const [fbFilter, setFbFilter] = useState('');
   const [fbError, setFbError] = useState('');
   const fbCancelRef = useRef(false);
+  const fbAbortControllerRef = useRef(null);
   const fbImportStartRef = useRef(null);
   const pendingCityRef = useRef(null);
 
@@ -416,6 +419,26 @@ export default function App() {
   }, []);
 
   const clearNotice = useCallback(() => setAppNotice(null), []);
+
+  const createOperationId = useCallback((prefix) => (
+    `${prefix}_${Date.now()}_${window.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`
+  ), []);
+
+  const cancelRemoteOperation = useCallback(async (operationId) => {
+    if (!operationId) return;
+    try {
+      const cancelOperation = httpsCallable(firebaseFunctions, 'cancelOperation');
+      await cancelOperation({ operationId });
+    } catch (err) {
+      console.warn('Could not mark operation as cancelled:', err);
+    }
+  }, []);
+
+  const cancelFacebookImport = useCallback(() => {
+    fbCancelRef.current = true;
+    fbAbortControllerRef.current?.abort();
+    setFbStep(step => step === 'import' ? 'cancelled' : step);
+  }, []);
 
   const dismissDashboardNotification = useCallback((id) => {
     setDismissedNotifications(prev => {
@@ -842,13 +865,14 @@ export default function App() {
   }, [thumbMigration?.status]);
 
   const closeFullIndexation = useCallback(() => {
-    if (fullIndexation?.status === 'running' || fullIndexation?.status === 'scanning') {
+    if (fullIndexation?.status === 'running' || fullIndexation?.status === 'scanning' || faceClusterReport?.status === 'loading') {
       fullIndexCancelRef.current = true;
+      cancelRemoteOperation(fullIndexOperationRef.current);
     }
     fullIndexDismissedRef.current = true;
     setFaceClusterReport(null);
     setFullIndexation(null);
-  }, [fullIndexation?.status]);
+  }, [cancelRemoteOperation, faceClusterReport?.status, fullIndexation?.status]);
 
   const closeAutoDateModal = useCallback(() => {
     if (autoDateModal === 'running') autoDateCancelRef.current = true;
@@ -945,7 +969,7 @@ export default function App() {
         else if (signOutConfirm) { setSignOutConfirm(null); }
         else if (confirmDelete) { setConfirmDelete(null); }
         else if (cityModal) { setCityModal(false); }
-        else if (fbModal) { if (fbStep === 'import') fbCancelRef.current = true; setFbModal(false); }
+        else if (fbModal) { if (fbStep === 'import') cancelFacebookImport(); else setFbModal(false); }
         else if (restorePreviousUiSnapshot()) {}
         else if (activeCity) { setActiveCity(null); }
         else if (activeTrip) { setActiveTrip(null); setStatPanel(null); }
@@ -1699,6 +1723,9 @@ export default function App() {
   const startFbImport = async (postsHandle, mediaBase, pathPrefix) => {
     if (isReadOnly) return;
     fbCancelRef.current = false;
+    fbAbortControllerRef.current?.abort();
+    fbAbortControllerRef.current = new AbortController();
+    const { signal } = fbAbortControllerRef.current;
     setFbStep('import');
     setFbTotalDone(0);
 
@@ -1725,9 +1752,11 @@ export default function App() {
     const groupPaths = {}; // tripName → [{city, path}]
     const groupLatestDate = {}; // tripName → ISO date string (most recent Taken date)
     for (const { tripName, albums } of toImport) {
+      if (fbCancelRef.current || signal.aborted) break;
       const allPaths = [];
       let latestTs = null;
       for (const album of albums) {
+        if (fbCancelRef.current || signal.aborted) break;
         try {
           const parts = album.albumHref.split('/');
           let dh = postsHandle;
@@ -1763,7 +1792,15 @@ export default function App() {
       }
       groupPaths[tripName] = allPaths;
       if (latestTs !== null) groupLatestDate[tripName] = new Date(latestTs).toISOString().split('T')[0];
-      setFbProgress(prev => ({ ...prev, [tripName]: { done: 0, total: allPaths.length, scanning: false } }));
+      if (!fbCancelRef.current && !signal.aborted) {
+        setFbProgress(prev => ({ ...prev, [tripName]: { done: 0, total: allPaths.length, scanning: false } }));
+      }
+    }
+
+    if (fbCancelRef.current || signal.aborted) {
+      setFbStep('cancelled');
+      fbAbortControllerRef.current = null;
+      return;
     }
 
     // ── Phase 2: Upload all photos with ETA tracking ──
@@ -1771,7 +1808,7 @@ export default function App() {
     let totalUploaded = 0;
 
     for (const { tripName, country, albums } of toImport) {
-      if (fbCancelRef.current) break;
+      if (fbCancelRef.current || signal.aborted) break;
 
       // Find or create Firestore trip
       let tripId;
@@ -1800,7 +1837,7 @@ export default function App() {
       let coverUrl = null;
 
       for (const { city, path } of allPaths) {
-        if (fbCancelRef.current) break;
+        if (fbCancelRef.current || signal.aborted) break;
         try {
           const navPath = (pathPrefix && path.startsWith(pathPrefix)) ? path.slice(pathPrefix.length) : path;
           const pathParts = navPath.split('/');
@@ -1808,9 +1845,11 @@ export default function App() {
           for (let i = 0; i < pathParts.length - 1; i++) handle = await handle.getDirectoryHandle(pathParts[i]);
           const fileHandle = await handle.getFileHandle(pathParts[pathParts.length - 1]);
           const file = await fileHandle.getFile();
+          if (fbCancelRef.current || signal.aborted) break;
 
           const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          const uploaded = await uploadPhotoVariants(file, `users/${user.uid}/trips/${tripId}`, safeName);
+          const uploaded = await uploadPhotoVariants(file, `users/${user.uid}/trips/${tripId}`, safeName, { signal });
+          if (fbCancelRef.current || signal.aborted) break;
           const { url } = uploaded;
           if (!coverUrl) coverUrl = url;
 
@@ -1818,6 +1857,7 @@ export default function App() {
           doneCount++;
           totalUploaded++;
         } catch (err) {
+          if (err.name === 'AbortError' || fbCancelRef.current || signal.aborted) break;
           console.warn('Upload failed:', path, err);
           doneCount++;
         }
@@ -1825,7 +1865,7 @@ export default function App() {
         setFbTotalDone(totalUploaded);
       }
 
-      if (doneCount > 0) {
+      if (!fbCancelRef.current && !signal.aborted && doneCount > 0) {
         const newCities = [...new Set(albums.map(a => a.city).filter(Boolean))];
         const existingCities = trips.find(t => t.id === tripId)?.cities || [];
         const mergedCities = [...new Set([...existingCities, ...newCities])];
@@ -1837,7 +1877,8 @@ export default function App() {
       }
     }
 
-    if (!fbCancelRef.current) setFbStep('done');
+    setFbStep(fbCancelRef.current || signal.aborted ? 'cancelled' : 'done');
+    fbAbortControllerRef.current = null;
   };
 
   // ─── Photo reorder ───
@@ -2748,15 +2789,16 @@ export default function App() {
 
   const fetchPersonMatches = async (person, options = {}) => {
     if (!canUseFaceRecognition || !person?.id) return;
-    const { silent = false } = options;
+    const { silent = false, operationId = null } = options;
     if (!silent) setFaceAction(`search:${person.id}`);
     try {
       const searchMatches = httpsCallable(firebaseFunctions, 'searchPersonMatches');
-      const result = await searchMatches({ personId: person.id, threshold: 90 });
+      const result = await searchMatches({ personId: person.id, threshold: 90, operationId });
       const matches = result.data?.matches || [];
       setPeople(prev => prev.map(p => p.id === person.id ? { ...p, matchCount: result.data?.matchCount || matches.length } : p));
       return matches;
     } catch (err) {
+      if (err.code === 'functions/cancelled') return null;
       console.error('Search person matches error:', err);
       if (!silent) showNotice('error', err.message || T.faceActionFailed);
       return null;
@@ -2789,14 +2831,24 @@ export default function App() {
   const closePeopleTools = () => {
     if (refreshAllPeople?.status === 'running') {
       refreshAllCancelRef.current = true;
+      cancelRemoteOperation(refreshAllOperationRef.current);
       setRefreshAllPeople(null);
     }
     setPeopleModal(false);
   };
 
+  const cancelRefreshAllPeople = () => {
+    refreshAllCancelRef.current = true;
+    cancelRemoteOperation(refreshAllOperationRef.current);
+    refreshAllOperationRef.current = null;
+    setRefreshAllPeople(prev => prev ? { ...prev, status: 'cancelled', current: '' } : prev);
+  };
+
   const refreshAllPersonMatches = async () => {
     if (!canUseFaceRecognition || refreshAllPeople?.status === 'running' || selectedMatchPeople.length === 0) return;
     refreshAllCancelRef.current = false;
+    const operationId = createOperationId('find_matches');
+    refreshAllOperationRef.current = operationId;
     let updated = 0;
     let failed = 0;
     setRefreshAllPeople({ status: 'running', done: 0, total: selectedMatchPeople.length, current: '', updated, failed });
@@ -2804,15 +2856,22 @@ export default function App() {
     for (let index = 0; index < selectedMatchPeople.length && !refreshAllCancelRef.current; index++) {
       const person = selectedMatchPeople[index];
       setRefreshAllPeople({ status: 'running', done: index, total: selectedMatchPeople.length, current: person.name, updated, failed });
-      const matches = await fetchPersonMatches(person, { silent: true });
-      if (refreshAllCancelRef.current) return;
+      const matches = await fetchPersonMatches(person, { silent: true, operationId });
+      if (refreshAllCancelRef.current) {
+        refreshAllOperationRef.current = null;
+        return;
+      }
       if (matches) updated++;
       else failed++;
       setRefreshAllPeople({ status: 'running', done: index + 1, total: selectedMatchPeople.length, current: person.name, updated, failed });
     }
 
-    if (refreshAllCancelRef.current) return;
+    if (refreshAllCancelRef.current) {
+      refreshAllOperationRef.current = null;
+      return;
+    }
     setRefreshAllPeople({ status: 'done', done: selectedMatchPeople.length, total: selectedMatchPeople.length, current: '', updated, failed });
+    refreshAllOperationRef.current = null;
     showNotice(failed > 0 ? 'error' : 'success', T.refreshAllComplete(updated, failed));
   };
 
@@ -3212,6 +3271,7 @@ export default function App() {
   const collectPhotosForFullIndexation = async () => {
     const jobs = [];
     for (const trip of trips) {
+      if (fullIndexCancelRef.current) break;
       try {
         const snap = await getDocs(query(photosCol(trip.id), orderBy('createdAt', 'asc')));
         snap.docs.forEach(photoDoc => {
@@ -3244,14 +3304,19 @@ export default function App() {
     return { faceCount: knownFaces, text };
   };
 
-  const loadFullIndexationClusters = async (jobs, newlyIndexedFaces = 0) => {
+  const loadFullIndexationClusters = async (jobs, newlyIndexedFaces = 0, operationId = null) => {
     const tripIds = [...new Set((jobs || []).map(job => job.tripId))];
     const estimate = estimateFaceClusterReport(jobs, newlyIndexedFaces);
     setFaceClusterReport({ status: 'loading', clusters: [], faceCount: estimate.faceCount, error: '', estimateText: estimate.text });
     setFaceClusterNames({});
     try {
       const getClusters = httpsCallable(firebaseFunctions, 'getIndexedFaceClusters', { timeout: 1800000 });
-      const result = await getClusters({ tripIds, threshold: 90 });
+      const result = await getClusters({ tripIds, threshold: 90, operationId });
+      if (fullIndexCancelRef.current) {
+        setFaceClusterReport(null);
+        if (!fullIndexDismissedRef.current) setFullIndexation(prev => ({ ...prev, status: 'cancelled', etaMs: 0, current: '' }));
+        return;
+      }
       const clusters = result.data?.clusters || [];
       setFaceClusterReport({
         status: 'ready',
@@ -3261,6 +3326,11 @@ export default function App() {
       });
       setFaceClusterNames(Object.fromEntries(clusters.map(cluster => [cluster.clusterId, ''])));
     } catch (err) {
+      if (err.code === 'functions/cancelled' || fullIndexCancelRef.current) {
+        setFaceClusterReport(null);
+        if (!fullIndexDismissedRef.current) setFullIndexation(prev => ({ ...prev, status: 'cancelled', etaMs: 0, current: '' }));
+        return;
+      }
       console.error('Face cluster report failed:', err);
       setFaceClusterReport({
         status: 'error',
@@ -3307,6 +3377,8 @@ export default function App() {
     setFaceClusterNames({});
     fullIndexCancelRef.current = false;
     fullIndexDismissedRef.current = false;
+    const operationId = createOperationId('full_index');
+    fullIndexOperationRef.current = operationId;
     const startedAt = Date.now();
     setFullIndexation({
       status: 'scanning',
@@ -3334,7 +3406,7 @@ export default function App() {
     let nextJob = 0;
     const total = jobs.length;
     const indexFaces = httpsCallable(firebaseFunctions, 'indexPhotoFaces');
-    const concurrency = 2;
+    const concurrency = 1;
 
     const report = (current = '') => {
       const processed = done + skipped + failed;
@@ -3360,11 +3432,12 @@ export default function App() {
         const job = pendingJobs[nextJob++];
         try {
           report(job.tripName);
-          const result = await indexFaces({ tripId: job.tripId, photoId: job.photoId });
+          const result = await indexFaces({ tripId: job.tripId, photoId: job.photoId, operationId });
           if (result.data?.skipped) skipped++;
           else done++;
           faces += result.data?.faceCount || 0;
         } catch (err) {
+          if (err.code === 'functions/cancelled' || fullIndexCancelRef.current) break;
           failed++;
           console.warn('Face indexation failed:', job.tripId, job.photoId, err);
         }
@@ -3375,11 +3448,15 @@ export default function App() {
     await Promise.all(Array.from({ length: concurrency }, worker));
     const finalStatus = fullIndexCancelRef.current ? 'cancelled' : 'done';
     if (!fullIndexDismissedRef.current) setFullIndexation(prev => ({ ...prev, status: finalStatus, etaMs: 0, current: '' }));
-    if (finalStatus === 'done' && !fullIndexDismissedRef.current) await loadFullIndexationClusters(jobs, faces);
+    if (finalStatus === 'done' && !fullIndexDismissedRef.current) await loadFullIndexationClusters(jobs, faces, operationId);
+    if (fullIndexOperationRef.current === operationId) fullIndexOperationRef.current = null;
   };
 
   const cancelFullIndexation = () => {
     fullIndexCancelRef.current = true;
+    cancelRemoteOperation(fullIndexOperationRef.current);
+    setFullIndexation(prev => prev ? ({ ...prev, status: 'cancelled', etaMs: 0, current: '' }) : prev);
+    setFaceClusterReport(null);
   };
 
   const deletePersonFromIndex = async (person) => {
@@ -5215,7 +5292,7 @@ export default function App() {
 
       {/* ═══ FACEBOOK IMPORT MODAL ═══ */}
       {!isReadOnly && fbModal && (
-        <div className="modal-overlay fade-scale" onClick={() => { if (fbStep === 'import') fbCancelRef.current = true; setFbModal(false); }}>
+        <div className="modal-overlay fade-scale" onClick={() => { if (fbStep === 'import') cancelFacebookImport(); else setFbModal(false); }}>
           <div {...modalProps} className="modal fb-import-modal" onClick={e => e.stopPropagation()}>
 
             {fbStep === 'folder' && (
@@ -5342,11 +5419,21 @@ export default function App() {
                     })}
                   </div>
                   <div className="modal-actions" style={{ marginTop: 12 }}>
-                    <button className="btn btn-sm btn-danger" onClick={() => { fbCancelRef.current = true; }}>{T.stopImport}</button>
+                    <button className="btn btn-sm btn-danger" onClick={cancelFacebookImport}>{T.stopImport}</button>
                   </div>
                 </>
               );
             })()}
+
+            {fbStep === 'cancelled' && (
+              <>
+                <p className="modal-title">{T.importCancelled}</p>
+                <p className="modal-sub">{T.importCancelledText}</p>
+                <div className="modal-actions" style={{ marginTop: 20 }}>
+                  <button className="btn btn-accent" onClick={() => { setFbModal(false); loadTrips(); }}>{T.doneBtn}</button>
+                </div>
+              </>
+            )}
 
             {fbStep === 'done' && (
               <>
@@ -5538,10 +5625,17 @@ export default function App() {
                 {refreshAllPeople?.status === 'running' ? T.refreshingAll : T.refreshAll}
               </button>
             </div>
-            {refreshAllPeople?.status === 'running' && (
-              <p className="modal-sub refresh-all-status">
-                {T.refreshAllProgress(refreshAllPeople.done, refreshAllPeople.total, refreshAllPeople.current)}
-              </p>
+            {(refreshAllPeople?.status === 'running' || refreshAllPeople?.status === 'cancelled') && (
+              <div className="refresh-all-status">
+                <p className="modal-sub">
+                  {refreshAllPeople.status === 'cancelled'
+                    ? T.refreshAllCancelled
+                    : T.refreshAllProgress(refreshAllPeople.done, refreshAllPeople.total, refreshAllPeople.current)}
+                </p>
+                {refreshAllPeople.status === 'running' && (
+                  <button className="btn btn-sm btn-danger" onClick={cancelRefreshAllPeople}>{T.cancelMatches}</button>
+                )}
+              </div>
             )}
             {peopleReferencePhoto && (
               <div className="person-reference-box">
@@ -5748,7 +5842,7 @@ export default function App() {
               </div>
             )}
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              {fullIndexation.status === 'running' || fullIndexation.status === 'scanning' ? (
+              {fullIndexation.status === 'running' || fullIndexation.status === 'scanning' || faceClusterReport?.status === 'loading' ? (
                 <button className="btn btn-sm" onClick={cancelFullIndexation}>{T.cancelIndexation}</button>
               ) : faceClusterReport?.status === 'ready' && faceClusterReport.clusters.length > 0 ? (
                 <>

@@ -200,6 +200,10 @@ export function getTranslations(isSpanish) {
     scanningEllipsis: isSpanish ? 'Escaneando…' : 'Scanning…',
     waiting: isSpanish ? 'Esperando…' : 'Waiting…',
     stopImport: isSpanish ? 'Detener importación' : 'Stop import',
+    importCancelled: isSpanish ? 'Importación cancelada' : 'Import cancelled',
+    importCancelledText: isSpanish
+      ? 'La importación se detuvo. Las fotos que ya habían terminado de subirse se conservan.'
+      : 'The import stopped. Photos that had already finished uploading were kept.',
     importComplete: isSpanish ? 'Importación completa' : 'Import complete',
     importedPhotos: (p, t) => isSpanish
       ? `${p} foto${p !== 1 ? 's' : ''} importada${p !== 1 ? 's' : ''} en ${t} viaje${t !== 1 ? 's' : ''}.`
@@ -324,6 +328,8 @@ export function getTranslations(isSpanish) {
     refreshAllComplete: (updated, failed) => isSpanish
       ? `Matches buscados en ${updated} persona${updated !== 1 ? 's' : ''}${failed ? `, ${failed} con error` : ''}.`
       : `Matches found for ${updated} ${updated !== 1 ? 'people' : 'person'}${failed ? `, ${failed} failed` : ''}.`,
+    cancelMatches: isSpanish ? 'Cancelar matches' : 'Cancel matches',
+    refreshAllCancelled: isSpanish ? 'Busqueda de matches cancelada.' : 'Match search cancelled.',
     faceActionFailed: isSpanish ? 'No se pudo completar la accion de reconocimiento facial.' : 'Could not complete the face recognition action.',
     faceIndexComplete: (n) => isSpanish ? `${n} rostro${n !== 1 ? 's' : ''} indexado${n !== 1 ? 's' : ''}.` : `${n} face${n !== 1 ? 's' : ''} indexed.`,
     faceSearchComplete: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''} encontrada${n !== 1 ? 's' : ''}.` : `${n} matching photo${n !== 1 ? 's' : ''} found.`,

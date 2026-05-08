@@ -193,6 +193,20 @@ async function readFaceIndexForTrips(tripIds) {
   return faces;
 }
 
+async function operationIsCancelled(request, operationId) {
+  if (!operationId) return false;
+  const snap = await db.collection('operationCancellations').doc(String(operationId)).get();
+  if (!snap.exists) return false;
+  const data = snap.data() || {};
+  return data.uid === request.auth?.uid || data.email === request.auth?.token?.email?.toLowerCase();
+}
+
+async function throwIfOperationCancelled(request, operationId) {
+  if (await operationIsCancelled(request, operationId)) {
+    throw new HttpsError('cancelled', 'Operation cancelled.');
+  }
+}
+
 async function enrichFaceCluster(root, faceIds, faces) {
   const faceRows = faceIds.map(faceId => faces.get(faceId)).filter(Boolean);
   const photoKeys = [...new Set(faceRows.map(face => `${face.tripId}:${face.photoId}`))];
@@ -219,8 +233,9 @@ exports.indexPhotoFaces = onCall(
   { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 120, memory: '512MiB' },
   async (request) => {
     const email = assertSignedIn(request);
-    const { tripId, photoId } = request.data || {};
+    const { tripId, photoId, operationId } = request.data || {};
     if (!tripId || !photoId) throw new HttpsError('invalid-argument', 'tripId and photoId are required.');
+    await throwIfOperationCancelled(request, operationId);
 
     const { photoRef, trip, photo } = await readPhoto(tripId, photoId);
     if (!canAccessTrip(request, trip)) {
@@ -244,6 +259,7 @@ exports.indexPhotoFaces = onCall(
       QualityFilter: 'AUTO',
       DetectionAttributes: [],
     }));
+    await throwIfOperationCancelled(request, operationId);
 
     const faceRecords = result.FaceRecords || [];
     const faceIds = faceRecords.map(record => record.Face?.FaceId).filter(Boolean);
@@ -353,8 +369,9 @@ exports.searchPersonMatches = onCall(
   { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 120, memory: '512MiB' },
   async (request) => {
     assertSignedIn(request);
-    const { personId, threshold = 90 } = request.data || {};
+    const { personId, threshold = 90, operationId } = request.data || {};
     if (!personId) throw new HttpsError('invalid-argument', 'personId is required.');
+    await throwIfOperationCancelled(request, operationId);
 
     const personRef = db.collection('people').doc(personId);
     const personSnap = await personRef.get();
@@ -366,6 +383,7 @@ exports.searchPersonMatches = onCall(
     const client = rekognitionClient();
     const matches = new Map();
     for (const faceId of referenceFaceIds) {
+      await throwIfOperationCancelled(request, operationId);
       let result;
       try {
         result = await client.send(new SearchFacesCommand({
@@ -380,6 +398,7 @@ exports.searchPersonMatches = onCall(
       }
 
       for (const match of result.FaceMatches || []) {
+        await throwIfOperationCancelled(request, operationId);
         const matchedFaceId = match.Face?.FaceId;
         if (!matchedFaceId) continue;
         if (person.referenceFaceSource !== 'indexed' && referenceFaceIds.includes(matchedFaceId)) continue;
@@ -395,6 +414,7 @@ exports.searchPersonMatches = onCall(
         });
       }
     }
+    await throwIfOperationCancelled(request, operationId);
 
     const batch = db.batch();
     const now = admin.firestore.FieldValue.serverTimestamp();
@@ -418,7 +438,8 @@ exports.getIndexedFaceClusters = onCall(
   { secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY], timeoutSeconds: 1800, memory: '2GiB' },
   async (request) => {
     assertSignedIn(request);
-    const { tripIds, threshold = 90 } = request.data || {};
+    const { tripIds, threshold = 90, operationId } = request.data || {};
+    await throwIfOperationCancelled(request, operationId);
     const accessibleTrips = await loadAccessibleTrips(request, tripIds);
     const faces = await readFaceIndexForTrips([...accessibleTrips.keys()]);
     const faceIds = [...faces.keys()];
@@ -429,6 +450,7 @@ exports.getIndexedFaceClusters = onCall(
       const uf = makeUnionFind(faceIds);
       const ungrouped = new Set(faceIds);
       for (const faceId of faceIds) {
+        await throwIfOperationCancelled(request, operationId);
         if (!ungrouped.has(faceId)) continue;
         ungrouped.delete(faceId);
         const result = await searchFacesWithRetry(client, faceId, threshold);
@@ -440,6 +462,7 @@ exports.getIndexedFaceClusters = onCall(
           ungrouped.delete(matchedFaceId);
         }
       }
+      await throwIfOperationCancelled(request, operationId);
 
       const grouped = new Map();
       for (const faceId of faceIds) {
@@ -466,6 +489,22 @@ exports.getIndexedFaceClusters = onCall(
       }
       throw new HttpsError('internal', err.message || 'Could not group indexed faces.');
     }
+  }
+);
+
+exports.cancelOperation = onCall(
+  { timeoutSeconds: 30, memory: '128MiB' },
+  async (request) => {
+    const email = assertSignedIn(request);
+    const { operationId } = request.data || {};
+    if (!operationId) throw new HttpsError('invalid-argument', 'operationId is required.');
+    await db.collection('operationCancellations').doc(String(operationId)).set({
+      operationId: String(operationId),
+      uid: request.auth.uid,
+      email,
+      cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { cancelled: true };
   }
 );
 
