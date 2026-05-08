@@ -289,22 +289,23 @@ export function getTranslations(isSpanish) {
     noSelectableFaces: isSpanish ? 'No se encontraron caras seleccionables en esta foto.' : 'No selectable faces were found in this photo.',
     noPeopleYet: isSpanish ? 'Aun no hay personas.' : 'No people yet.',
     personMatchCount: (n) => isSpanish ? `${n} coincidencia${n !== 1 ? 's' : ''}` : `${n} match${n !== 1 ? 'es' : ''}`,
-    searchFaces: isSpanish ? 'Buscar' : 'Search',
+    searchFaces: isSpanish ? 'Encontrar matches' : 'Find Matches',
     searchingFaces: isSpanish ? 'Buscando...' : 'Searching...',
-    refreshAll: isSpanish ? 'Refresh All' : 'Refresh All',
-    refreshingAll: isSpanish ? 'Refrescando...' : 'Refreshing...',
+    refreshAll: isSpanish ? 'Find Matches' : 'Find Matches',
+    refreshingAll: isSpanish ? 'Buscando...' : 'Finding...',
+    checkAll: isSpanish ? 'Check all' : 'Check all',
+    selectPersonForMatches: (name) => isSpanish ? `Seleccionar ${name} para buscar matches` : `Select ${name} to find matches`,
     refreshAllProgress: (done, total, name) => isSpanish
-      ? `Refrescando ${done}/${total}${name ? `: ${name}` : ''}`
-      : `Refreshing ${done}/${total}${name ? `: ${name}` : ''}`,
+      ? `Buscando ${done}/${total}${name ? `: ${name}` : ''}`
+      : `Finding ${done}/${total}${name ? `: ${name}` : ''}`,
     refreshAllComplete: (updated, failed) => isSpanish
-      ? `${updated} persona${updated !== 1 ? 's' : ''} refrescada${updated !== 1 ? 's' : ''}${failed ? `, ${failed} con error` : ''}.`
-      : `${updated} ${updated !== 1 ? 'people' : 'person'} refreshed${failed ? `, ${failed} failed` : ''}.`,
+      ? `Matches buscados en ${updated} persona${updated !== 1 ? 's' : ''}${failed ? `, ${failed} con error` : ''}.`
+      : `Matches found for ${updated} ${updated !== 1 ? 'people' : 'person'}${failed ? `, ${failed} failed` : ''}.`,
     faceActionFailed: isSpanish ? 'No se pudo completar la accion de reconocimiento facial.' : 'Could not complete the face recognition action.',
     faceIndexComplete: (n) => isSpanish ? `${n} rostro${n !== 1 ? 's' : ''} indexado${n !== 1 ? 's' : ''}.` : `${n} face${n !== 1 ? 's' : ''} indexed.`,
     faceSearchComplete: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''} encontrada${n !== 1 ? 's' : ''}.` : `${n} matching photo${n !== 1 ? 's' : ''} found.`,
     personFilterLabel: (name, n) => isSpanish ? `${name}: ${n} foto${n !== 1 ? 's' : ''}` : `${name}: ${n} photo${n !== 1 ? 's' : ''}`,
     clearFilter: isSpanish ? 'Limpiar filtro' : 'Clear filter',
-    viewMatches: isSpanish ? 'Ver matches' : 'View Matches',
     personMatchesTitle: (name) => isSpanish ? `Matches de ${name}` : `${name} matches`,
     noMatchesFound: isSpanish ? 'No se encontraron matches.' : 'No matches found.',
     viewAllMatches: isSpanish ? 'Ver todos los matches' : 'View all matches',

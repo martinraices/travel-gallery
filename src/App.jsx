@@ -203,6 +203,7 @@ export default function App() {
   const [loadingTripPreviews, setLoadingTripPreviews] = useState(new Set());
   const [loadingTripCovers, setLoadingTripCovers] = useState(new Set());
   const [tripSort, setTripSort] = useState(null);
+  const [tripSortDirection, setTripSortDirection] = useState('desc');
   const [albumSearch, setAlbumSearch] = useState('');
   const [personSearchPhotos, setPersonSearchPhotos] = useState([]);
   const [personSearchLoading, setPersonSearchLoading] = useState(false);
@@ -293,6 +294,7 @@ export default function App() {
   const [faceClusterNames, setFaceClusterNames] = useState({});
   const [savingClusterPeople, setSavingClusterPeople] = useState(false);
   const [refreshAllPeople, setRefreshAllPeople] = useState(null);
+  const [selectedMatchPersonIds, setSelectedMatchPersonIds] = useState(new Set());
   const fullIndexCancelRef = useRef(false);
   const [dismissedNotifications, setDismissedNotifications] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('dismissedNotifications') || '[]')); }
@@ -2338,6 +2340,7 @@ export default function App() {
       const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setPeople(rows);
+      setSelectedMatchPersonIds(new Set(rows.map(person => person.id)));
     } catch (err) {
       console.error('Error loading people:', err);
       showNotice('error', validationText('accessLoadFailed'));
@@ -2469,33 +2472,44 @@ export default function App() {
     }
   };
 
+  const selectedMatchPeople = people.filter(person => selectedMatchPersonIds.has(person.id));
+  const allMatchPeopleSelected = people.length > 0 && people.every(person => selectedMatchPersonIds.has(person.id));
+  const someMatchPeopleSelected = selectedMatchPersonIds.size > 0 && !allMatchPeopleSelected;
+
+  const togglePersonForMatches = (personId) => {
+    setSelectedMatchPersonIds(prev => {
+      const next = new Set(prev);
+      if (next.has(personId)) next.delete(personId);
+      else next.add(personId);
+      return next;
+    });
+  };
+
+  const toggleAllPeopleForMatches = () => {
+    if (allMatchPeopleSelected || someMatchPeopleSelected) {
+      setSelectedMatchPersonIds(new Set());
+    } else {
+      setSelectedMatchPersonIds(new Set(people.map(person => person.id)));
+    }
+  };
+
   const refreshAllPersonMatches = async () => {
-    if (!canUseFaceRecognition || refreshAllPeople?.status === 'running' || people.length === 0) return;
+    if (!canUseFaceRecognition || refreshAllPeople?.status === 'running' || selectedMatchPeople.length === 0) return;
     let updated = 0;
     let failed = 0;
-    setRefreshAllPeople({ status: 'running', done: 0, total: people.length, current: '', updated, failed });
+    setRefreshAllPeople({ status: 'running', done: 0, total: selectedMatchPeople.length, current: '', updated, failed });
 
-    for (let index = 0; index < people.length; index++) {
-      const person = people[index];
-      setRefreshAllPeople({ status: 'running', done: index, total: people.length, current: person.name, updated, failed });
+    for (let index = 0; index < selectedMatchPeople.length; index++) {
+      const person = selectedMatchPeople[index];
+      setRefreshAllPeople({ status: 'running', done: index, total: selectedMatchPeople.length, current: person.name, updated, failed });
       const matches = await fetchPersonMatches(person, { silent: true });
       if (matches) updated++;
       else failed++;
-      setRefreshAllPeople({ status: 'running', done: index + 1, total: people.length, current: person.name, updated, failed });
+      setRefreshAllPeople({ status: 'running', done: index + 1, total: selectedMatchPeople.length, current: person.name, updated, failed });
     }
 
-    setRefreshAllPeople({ status: 'done', done: people.length, total: people.length, current: '', updated, failed });
+    setRefreshAllPeople({ status: 'done', done: selectedMatchPeople.length, total: selectedMatchPeople.length, current: '', updated, failed });
     showNotice(failed > 0 ? 'error' : 'success', T.refreshAllComplete(updated, failed));
-  };
-
-  const searchPersonMatches = async (person) => {
-    const matches = await fetchPersonMatches(person);
-    if (!matches) return;
-    if (activeTrip) {
-      setActivePersonFilter(person);
-      setPersonMatchPhotoIds(new Set(matches.filter(m => m.tripId === activeTrip).map(m => m.photoId)));
-    }
-    showNotice('success', T.faceSearchComplete(matches.length));
   };
 
   const hydratePersonMatches = async (matches) => {
@@ -2508,7 +2522,7 @@ export default function App() {
         ]);
         if (!tripSnap.exists() || !photoSnap.exists()) continue;
         const trip = { id: tripSnap.id, ...tripSnap.data() };
-        const photo = { id: photoSnap.id, ...photoSnap.data(), tripId: trip.id, tripName: trip.name };
+        const photo = { id: photoSnap.id, ...photoSnap.data(), tripId: trip.id, tripName: trip.name, tripDate: trip.date || null };
         hydrated.push({ ...match, trip, photo });
       } catch (err) {
         console.warn('Could not hydrate match:', match, err);
@@ -2795,17 +2809,21 @@ export default function App() {
 
     if (tripSort === 'date') {
       return [...trips].sort((a, b) => {
-        const byDate = tripTime(b) - tripTime(a);
+        const byDate = tripSortDirection === 'asc'
+          ? tripTime(a) - tripTime(b)
+          : tripTime(b) - tripTime(a);
         return byDate || nameCompare(a, b);
       });
     }
 
     if (tripSort === 'az') {
-      return [...trips].sort((a, b) => nameCompare(a, b));
+      return [...trips].sort((a, b) => (
+        tripSortDirection === 'asc' ? nameCompare(a, b) : nameCompare(b, a)
+      ));
     }
 
     return trips;
-  }, [trips, tripSort]);
+  }, [trips, tripSort, tripSortDirection]);
 
   const ownTrips = useMemo(() => sortedTrips.filter(t => !isSharedToMeTrip(t)), [sortedTrips, isSharedToMeTrip]);
   const sharedToMeTrips = useMemo(() => sortedTrips.filter(t => isSharedToMeTrip(t)), [sortedTrips, isSharedToMeTrip]);
@@ -2831,6 +2849,55 @@ export default function App() {
     const source = activeSharedCollection ? sharedToMeTrips : albumSearchText ? sortedTrips : ownTrips;
     return isPersonSearch ? [] : source.filter(tripMatchesAlbumSearch);
   }, [activeSharedCollection, albumSearchText, sortedTrips, sharedToMeTrips, ownTrips, tripMatchesAlbumSearch, isPersonSearch]);
+  const updateTripSort = (sortType) => {
+    if (tripSort === sortType) {
+      setTripSortDirection(direction => direction === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setTripSort(sortType);
+    setTripSortDirection(sortType === 'date' ? 'desc' : 'asc');
+  };
+  const sortArrow = (sortType) => (
+    tripSort === sortType
+      ? (tripSortDirection === 'asc' ? '↑' : '↓')
+      : '↕'
+  );
+  const sortedPersonSearchPhotos = useMemo(() => {
+    const photoTime = (photo) => {
+      if (photo.tripDate) {
+        const parsed = Date.parse(photo.tripDate);
+        if (!Number.isNaN(parsed)) return parsed;
+      }
+      return photo.createdAt?.seconds ? photo.createdAt.seconds * 1000 : 0;
+    };
+    const textCompare = (a, b) => String(a || '').localeCompare(String(b || ''), undefined, {
+      sensitivity: 'base',
+      numeric: true,
+    });
+
+    if (tripSort === 'date') {
+      return [...personSearchPhotos].sort((a, b) => {
+        const byDate = tripSortDirection === 'asc'
+          ? photoTime(a) - photoTime(b)
+          : photoTime(b) - photoTime(a);
+        return byDate || textCompare(a.tripName, b.tripName) || textCompare(a.name, b.name);
+      });
+    }
+
+    if (tripSort === 'az') {
+      return [...personSearchPhotos].sort((a, b) => (
+        tripSortDirection === 'asc'
+          ? textCompare(a.tripName, b.tripName) ||
+            textCompare(a.personName, b.personName) ||
+            textCompare(a.name, b.name)
+          : textCompare(b.tripName, a.tripName) ||
+            textCompare(b.personName, a.personName) ||
+            textCompare(b.name, a.name)
+      ));
+    }
+
+    return personSearchPhotos;
+  }, [personSearchPhotos, tripSort, tripSortDirection]);
 
   useEffect(() => {
     if (!albumSearchText || !canUseFaceRecognition) {
@@ -3575,15 +3642,15 @@ export default function App() {
                     </div>
                     <button
                       className={`sort-btn ${tripSort === 'date' ? 'active' : ''}`}
-                      onClick={() => setTripSort('date')}
+                      onClick={() => updateTripSort('date')}
                     >
-                      {T.sortByDate}
+                      {T.sortByDate} <span className="sort-arrow">{sortArrow('date')}</span>
                     </button>
                     <button
                       className={`sort-btn ${tripSort === 'az' ? 'active' : ''}`}
-                      onClick={() => setTripSort('az')}
+                      onClick={() => updateTripSort('az')}
                     >
-                      {T.sortAZ}
+                      {T.sortAZ} <span className="sort-arrow">{sortArrow('az')}</span>
                     </button>
                   </div>
                   <div className="view-toggle">
@@ -3688,7 +3755,7 @@ export default function App() {
                       <span className="spinner" style={{ width: 16, height: 16 }} /> {T.searchingFaces}
                     </div>
                   )}
-                  {personSearchPhotos.map((photo, i) => (
+                  {sortedPersonSearchPhotos.map((photo, i) => (
                     <div
                       key={`${photo.tripId}:${photo.id}`}
                       className="photo-thumb person-search-thumb fade-in"
@@ -3696,7 +3763,7 @@ export default function App() {
                       onClick={() => setPersonSlideshow({
                         person: { name: personSearchNames.join(', ') },
                         title: T.personSearchResultsTitle(personSearchNames.join(', ')),
-                        photos: personSearchPhotos,
+                        photos: sortedPersonSearchPhotos,
                         index: i,
                       })}
                     >
@@ -4711,7 +4778,7 @@ export default function App() {
               <button
                 className="btn btn-accent"
                 onClick={refreshAllPersonMatches}
-                disabled={refreshAllPeople?.status === 'running' || loadingPeople || people.length === 0 || fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running'}
+                disabled={refreshAllPeople?.status === 'running' || loadingPeople || selectedMatchPeople.length === 0 || fullIndexation?.status === 'scanning' || fullIndexation?.status === 'running'}
               >
                 {refreshAllPeople?.status === 'running' ? T.refreshingAll : T.refreshAll}
               </button>
@@ -4780,9 +4847,33 @@ export default function App() {
               <p className="modal-sub">{T.noPeopleYet}</p>
             ) : (
               <div className="people-list">
+                <div className={`person-row person-select-all-row${allMatchPeopleSelected ? ' person-row-selected' : ''}`}>
+                  <div className="person-main">
+                    <input
+                      type="checkbox"
+                      className="person-select-check"
+                      checked={allMatchPeopleSelected}
+                      ref={el => { if (el) el.indeterminate = someMatchPeopleSelected; }}
+                      onChange={toggleAllPeopleForMatches}
+                      disabled={refreshAllPeople?.status === 'running' || loadingPeople || people.length === 0}
+                      aria-label={T.checkAll}
+                    />
+                    <span>
+                      <strong>{T.checkAll}</strong>
+                    </span>
+                  </div>
+                </div>
                 {people.map(person => (
-                  <div key={person.id} className="person-row">
+                  <div key={person.id} className={`person-row${selectedMatchPersonIds.has(person.id) ? ' person-row-selected' : ''}`}>
                     <div className="person-main">
+                      <input
+                        type="checkbox"
+                        className="person-select-check"
+                        checked={selectedMatchPersonIds.has(person.id)}
+                        onChange={() => togglePersonForMatches(person.id)}
+                        disabled={refreshAllPeople?.status === 'running' || faceAction === `delete:${person.id}`}
+                        aria-label={T.selectPersonForMatches(person.name)}
+                      />
                       {person.referenceImageUrl && <img src={person.referenceImageUrl} alt="" />}
                       <span>
                         <strong>{person.name}</strong>
@@ -4790,20 +4881,6 @@ export default function App() {
                       </span>
                     </div>
                     <div className="person-actions">
-                      <button
-                        className="btn btn-sm"
-                        onClick={e => { e.stopPropagation(); searchPersonMatches(person); }}
-                        disabled={refreshAllPeople?.status === 'running' || faceAction === `search:${person.id}` || faceAction === `delete:${person.id}`}
-                      >
-                        {faceAction === `search:${person.id}` ? T.searchingFaces : T.searchFaces}
-                      </button>
-                      <button
-                        className="btn btn-accent btn-sm"
-                        onClick={() => openPersonMatches(person)}
-                        disabled={refreshAllPeople?.status === 'running' || (person.matchCount || 0) === 0 || faceAction === `search:${person.id}` || faceAction === `delete:${person.id}`}
-                      >
-                        {T.viewMatches}
-                      </button>
                       {isAdminUser && (
                         <button
                           className="btn btn-sm btn-danger"
