@@ -27,6 +27,7 @@ export function getTranslations(isSpanish) {
     shareAlbumsBtn: (n) => isSpanish ? `Compartir álbumes (${n})` : `Share Albums (${n})`,
     tripsLabel: isSpanish ? 'Viajes' : 'Trips',
     photosLabel: isSpanish ? 'Fotos' : 'Photos',
+    dashboardStatsTitle: isSpanish ? 'Resumen' : 'Summary',
     countriesLabel: isSpanish ? 'Países' : 'Countries',
     wishlistLabel: isSpanish ? 'Lista de deseos' : 'Wishlist',
     countriesVisited: isSpanish ? 'Países visitados' : 'Countries Visited',
@@ -65,11 +66,15 @@ export function getTranslations(isSpanish) {
     gridView: isSpanish ? 'Vista de cuadrícula' : 'Grid view',
     sortByDate: 'Sort by Date',
     sortAZ: 'Sort A-Z',
-    albumSearchPlaceholder: isSpanish ? 'Buscar album o ciudad...' : 'Search album or city...',
+    albumSearchPlaceholder: isSpanish ? 'Buscar album, ciudad o persona...' : 'Search album, city, or person...',
     clearSearch: isSpanish ? 'Limpiar busqueda' : 'Clear search',
     noAlbumSearchResults: (query) => isSpanish
       ? `No se encontraron albumes para "${query}".`
       : `No albums found for "${query}".`,
+    personSearchResultsTitle: (name) => isSpanish ? `Fotos de ${name}` : `${name} photos`,
+    noPersonPhotoResults: (name) => isSpanish
+      ? `No hay fotos guardadas para ${name}.`
+      : `No stored photos found for ${name}.`,
     privateTitle: isSpanish ? 'Privado' : 'Private',
     sharedTitle: isSpanish ? 'Compartido' : 'Shared',
     editTripBtn: isSpanish ? 'Editar viaje' : 'Edit trip',

@@ -204,6 +204,10 @@ export default function App() {
   const [loadingTripCovers, setLoadingTripCovers] = useState(new Set());
   const [tripSort, setTripSort] = useState(null);
   const [albumSearch, setAlbumSearch] = useState('');
+  const [personSearchPhotos, setPersonSearchPhotos] = useState([]);
+  const [personSearchLoading, setPersonSearchLoading] = useState(false);
+  const [personSearchNames, setPersonSearchNames] = useState([]);
+  const [mobileStatsCollapsed, setMobileStatsCollapsed] = useState(() => window.matchMedia?.('(max-width: 640px)').matches ?? false);
   const [appWallpaperUrl, setAppWallpaperUrl] = useState('');
   const [scrollFade, setScrollFade] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -2810,6 +2814,11 @@ export default function App() {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase(), []);
   const albumSearchText = normalizeSearchText(albumSearch.trim());
+  const matchingSearchPeople = useMemo(() => {
+    if (!albumSearchText || !canUseFaceRecognition) return [];
+    return people.filter(person => normalizeSearchText(person.name).includes(albumSearchText));
+  }, [albumSearchText, canUseFaceRecognition, people, normalizeSearchText]);
+  const isPersonSearch = matchingSearchPeople.length > 0;
   const tripMatchesAlbumSearch = useCallback((trip) => {
     if (!albumSearchText) return true;
     return [
@@ -2820,8 +2829,57 @@ export default function App() {
   }, [albumSearchText, normalizeSearchText]);
   const visibleGridTrips = useMemo(() => {
     const source = activeSharedCollection ? sharedToMeTrips : albumSearchText ? sortedTrips : ownTrips;
-    return source.filter(tripMatchesAlbumSearch);
-  }, [activeSharedCollection, albumSearchText, sortedTrips, sharedToMeTrips, ownTrips, tripMatchesAlbumSearch]);
+    return isPersonSearch ? [] : source.filter(tripMatchesAlbumSearch);
+  }, [activeSharedCollection, albumSearchText, sortedTrips, sharedToMeTrips, ownTrips, tripMatchesAlbumSearch, isPersonSearch]);
+
+  useEffect(() => {
+    if (!albumSearchText || !canUseFaceRecognition) {
+      setPersonSearchPhotos([]);
+      setPersonSearchNames([]);
+      setPersonSearchLoading(false);
+      return;
+    }
+    if (people.length === 0 && !loadingPeople) {
+      loadPeople();
+      return;
+    }
+    if (matchingSearchPeople.length === 0) {
+      setPersonSearchPhotos([]);
+      setPersonSearchNames([]);
+      setPersonSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPersonSearchLoading(true);
+    setPersonSearchNames(matchingSearchPeople.map(person => person.name));
+    (async () => {
+      const uniquePhotos = new Map();
+      for (const person of matchingSearchPeople) {
+        const rawMatches = await fetchStoredPersonMatches(person);
+        if (!rawMatches || cancelled) continue;
+        const hydrated = await hydratePersonMatches(rawMatches);
+        if (cancelled) return;
+        hydrated.forEach(match => {
+          if (!match.photo?.id) return;
+          uniquePhotos.set(`${match.tripId}:${match.photoId}`, {
+            ...match.photo,
+            personName: person.name,
+            personId: person.id,
+          });
+        });
+      }
+      if (!cancelled) setPersonSearchPhotos([...uniquePhotos.values()]);
+    })().finally(() => {
+      if (!cancelled) setPersonSearchLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [albumSearchText, canUseFaceRecognition, people.length, loadingPeople, matchingSearchPeople]);
+
+  useEffect(() => {
+    if (isPersonSearch && tripsView !== 'grid') setTripsView('grid');
+  }, [isPersonSearch, tripsView]);
   const dashboardNotifications = useMemo(() => {
     if (!user || isReadOnly || activeTrip || activeSharedCollection) return [];
     const email = user.email?.toLowerCase();
@@ -3244,17 +3302,6 @@ export default function App() {
               </svg>
             </button>
           )}
-          {!activeSharedCollection && (activeTrip ? canManageActiveTrip : !isReadOnly) && (
-            <button
-              className="btn-icon btn-new-trip"
-              onClick={() => activeTrip ? fileRef.current?.click() : setShowNewTrip(true)}
-              disabled={uploading}
-              title={activeTrip ? T.addPhotos : T.newTrip}
-              aria-label={activeTrip ? T.addPhotos : T.newTrip}
-            >
-              {uploading ? <span className="spinner header-upload-spinner" /> : '+'}
-            </button>
-          )}
           <ThemeToggle {...themeToggleProps} />
           <button className="btn-icon" onClick={handleSignOut} title={T.signOut}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -3358,8 +3405,19 @@ export default function App() {
 
             {/* ─ Stats + View toggle ─ */}
             {!activeSharedCollection && trips.length > 0 && (
-              <div className="sticky-header-zone">
-                <div className="stats-bar fade-in">
+              <div className={`sticky-header-zone${mobileStatsCollapsed ? ' stats-mobile-collapsed' : ''}`}>
+                <div className="stats-mobile-shell fade-in">
+                  <button
+                    type="button"
+                    className="stats-mobile-toggle"
+                    onClick={() => setMobileStatsCollapsed(v => !v)}
+                    aria-expanded={!mobileStatsCollapsed}
+                  >
+                    <span>{T.dashboardStatsTitle}</span>
+                    <strong>{mobileStatsCollapsed ? '+' : '−'}</strong>
+                  </button>
+                  <div className="stats-mobile-body">
+                    <div className="stats-bar">
                   <div className={`stat-card stat-card-btn${statPanel === 'trips' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'trips' ? null : 'trips')}>
                     <div className="stat-value">{trips.length}</div><div className="stat-label">{T.tripsLabel}</div>
                   </div>
@@ -3392,7 +3450,7 @@ export default function App() {
                       <div className="guest-info-text">{T.guestBannerText}</div>
                     </div>
                   )}
-                  {!isReadOnly && topTrip && topTrip.photoCount > 0 && (
+                  {!isGuest && !isReadOnly && topTrip && topTrip.photoCount > 0 && (
                     <div
                       className="stat-card stat-card-wide next-stop-card stat-card-btn"
                       style={{ position: 'relative' }}
@@ -3489,6 +3547,8 @@ export default function App() {
                       {!isReadOnly && !editingPanel && <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 12, opacity: 0.4 }}>✎</span>}
                     </div>
                   )}
+                    </div>
+                  </div>
                 </div>
                 {renderStatPanel()}
                 <div className="trips-view-header">
@@ -3527,6 +3587,16 @@ export default function App() {
                     </button>
                   </div>
                   <div className="view-toggle">
+                    {!activeSharedCollection && !isReadOnly && (
+                      <button
+                        className="view-btn btn-new-trip trip-toolbar-add"
+                        onClick={() => setShowNewTrip(true)}
+                        title={T.newTrip}
+                        aria-label={T.newTrip}
+                      >
+                        +
+                      </button>
+                    )}
                     <button className={`view-btn ${tripsView === 'grid' ? 'active' : ''}`} onClick={() => setTripsView('grid')} title={T.gridView}>
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="0" width="6" height="6" rx="1"/><rect x="8" y="0" width="6" height="6" rx="1"/><rect x="0" y="8" width="6" height="6" rx="1"/><rect x="8" y="8" width="6" height="6" rx="1"/></svg>
                     </button>
@@ -3611,8 +3681,41 @@ export default function App() {
 
             {/* ─ Grid view ─ */}
             {tripsView === 'grid' && (
-              <div className="trips-grid">
-                {!activeSharedCollection && sharedToMeTrips.length > 0 && !albumSearchText && (
+              isPersonSearch ? (
+                <div className="photo-grid person-search-grid">
+                  {personSearchLoading && personSearchPhotos.length === 0 && (
+                    <div className="album-search-empty fade-in">
+                      <span className="spinner" style={{ width: 16, height: 16 }} /> {T.searchingFaces}
+                    </div>
+                  )}
+                  {personSearchPhotos.map((photo, i) => (
+                    <div
+                      key={`${photo.tripId}:${photo.id}`}
+                      className="photo-thumb person-search-thumb fade-in"
+                      style={{ animationDelay: `${i * 20}ms` }}
+                      onClick={() => setPersonSlideshow({
+                        person: { name: personSearchNames.join(', ') },
+                        title: T.personSearchResultsTitle(personSearchNames.join(', ')),
+                        photos: personSearchPhotos,
+                        index: i,
+                      })}
+                    >
+                      <LazyPhotoImage src={photo.thumbUrl || photo.url} alt={photo.name} />
+                      <div className="person-search-photo-meta">
+                        <strong>{photo.personName}</strong>
+                        <span>{photo.tripName}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {!personSearchLoading && personSearchPhotos.length === 0 && (
+                    <div className="album-search-empty fade-in">
+                      {T.noPersonPhotoResults(personSearchNames.join(', '))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="trips-grid">
+                  {!activeSharedCollection && sharedToMeTrips.length > 0 && !albumSearchText && (
                   <div className="trip-card shared-to-me-card fade-in" onClick={() => { setActiveSharedCollection(true); setTripsView('grid'); }}>
                     <div className="trip-cover shared-to-me-cover">
                       {sharedToMeTrips.slice(0, 4).map((trip, idx) => {
@@ -3725,7 +3828,8 @@ export default function App() {
                     {T.noAlbumSearchResults(albumSearch.trim())}
                   </div>
                 )}
-              </div>
+                </div>
+              )
             )}
           </div>
         )}
