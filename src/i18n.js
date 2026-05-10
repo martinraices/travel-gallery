@@ -54,6 +54,7 @@ export function getTranslations(isSpanish) {
     shareAlbumsBtn: (n) => isSpanish ? `Compartir álbumes (${n})` : `Share Albums (${n})`,
     tripsLabel: isSpanish ? 'Viajes' : 'Trips',
     photosLabel: isSpanish ? 'Fotos' : 'Photos',
+    videosLabel: isSpanish ? 'Videos' : 'Videos',
     dashboardStatsTitle: isSpanish ? 'Resumen' : 'Summary',
     countriesLabel: isSpanish ? 'Países' : 'Countries',
     wishlistLabel: isSpanish ? 'Lista de deseos' : 'Wishlist',
@@ -112,6 +113,13 @@ export function getTranslations(isSpanish) {
     whoCreated: isSpanish ? '¿Quién creó este álbum? (ingresa su usuario o email de Gmail)' : 'Who created this album? (enter their Gmail username or email)',
     couldNotSave: isSpanish ? 'No se pudo guardar: ' : 'Could not save: ',
     photoCount: (n) => isSpanish ? `${n} foto${n !== 1 ? 's' : ''}` : `${n} photo${n !== 1 ? 's' : ''}`,
+    videoCount: (n) => isSpanish ? `${n} video${n !== 1 ? 's' : ''}` : `${n} video${n !== 1 ? 's' : ''}`,
+    mediaCount: (photos, videos) => {
+      const parts = [];
+      if (photos > 0) parts.push(isSpanish ? `${photos} foto${photos !== 1 ? 's' : ''}` : `${photos} photo${photos !== 1 ? 's' : ''}`);
+      if (videos > 0) parts.push(isSpanish ? `${videos} video${videos !== 1 ? 's' : ''}` : `${videos} video${videos !== 1 ? 's' : ''}`);
+      return parts.length ? parts.join(' · ') : (isSpanish ? '0 fotos' : '0 photos');
+    },
     // Gallery header
     backToTrips: isSpanish ? '← Viajes' : '← Trips',
     noCityAssigned: isSpanish ? 'Sin ciudad asignada' : 'No city assigned',
@@ -131,6 +139,7 @@ export function getTranslations(isSpanish) {
     noSupportedMediaFiles: isSpanish ? 'Selecciona imagenes o videos.' : 'Select image or video files.',
     connectYouTubeBeforeVideo: isSpanish ? 'Conecta YouTube en Mi perfil antes de subir videos.' : 'Connect YouTube in My Profile before uploading videos.',
     youtubeReconnectRequired: isSpanish ? 'El permiso de YouTube vencio. Conectalo nuevamente.' : 'The YouTube permission expired. Connect it again.',
+    youtubeUploadFailed: (details) => isSpanish ? `No se pudo iniciar la subida a YouTube.${details ? ` ${details}` : ''}` : `Could not start the YouTube upload.${details ? ` ${details}` : ''}`,
     loadingTrips: isSpanish ? 'Cargando viajes' : 'Loading trips',
     loadingPhotos: isSpanish ? 'Cargando fotos' : 'Loading photos',
     clickToEditName: isSpanish ? 'Clic para editar el nombre' : 'Click to edit the name',
@@ -140,10 +149,24 @@ export function getTranslations(isSpanish) {
     useAsAlbumCover: isSpanish ? 'Usar como portada del álbum' : 'Use as album cover',
     useAsAppWallpaper: isSpanish ? 'Usar como fondo de pantalla' : 'Use as app wallpaper',
     deletePhotoMenu: isSpanish ? 'Eliminar foto' : 'Delete photo',
+    deleteVideoMenu: isSpanish ? 'Eliminar video' : 'Delete video',
     // Lightbox
     addDescriptionPh: isSpanish ? 'Añadir una descripción…' : 'Add a description…',
     setAsAlbumCoverTitle: isSpanish ? 'Usar como portada del álbum' : 'Set as album cover',
     deletePhotoTitle: isSpanish ? 'Eliminar foto' : 'Delete photo',
+    deleteVideoTitle: isSpanish ? 'Eliminar video' : 'Delete video',
+    deleteYouTubeVideoQuestion: isSpanish ? 'Eliminar este video?' : 'Delete this video?',
+    deleteYouTubeVideoWarn: isSpanish
+      ? 'Este video esta en el album y tambien fue subido a YouTube como privado. Elige donde quieres eliminarlo.'
+      : 'This video is in the album and was also uploaded to YouTube as private. Choose where you want to delete it.',
+    deleteOnlyFromApp: isSpanish ? 'Solo de la app' : 'Only from app',
+    deleteFromAppAndYouTube: isSpanish ? 'De la app y YouTube' : 'From app and YouTube',
+    deleteFromYouTubeNeedsReconnect: isSpanish
+      ? 'Para borrar de YouTube, conecta YouTube nuevamente y acepta el permiso de administracion de videos.'
+      : 'To delete from YouTube, connect YouTube again and accept the video management permission.',
+    youtubeVideoDeleteFailed: (details) => isSpanish
+      ? `No se pudo borrar el video de YouTube.${details ? ` ${details}` : ''}`
+      : `Could not delete the video from YouTube.${details ? ` ${details}` : ''}`,
     createPersonFromPhoto: isSpanish ? 'Crear persona desde esta foto' : 'Create person from this photo',
     indexFacesInPhoto: isSpanish ? 'Indexar rostros de esta foto' : 'Index faces in this photo',
     // Delete trip modal

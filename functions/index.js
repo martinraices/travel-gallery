@@ -110,6 +110,14 @@ exports.initYouTubeUpload = onCall(
     if (!response.ok || !uploadUrl) {
       let details = '';
       try { details = await response.text(); } catch (_) {}
+      console.error('YouTube upload init failed', {
+        status: response.status,
+        statusText: response.statusText,
+        details,
+        hasUploadUrl: Boolean(uploadUrl),
+        contentType: contentType || 'application/octet-stream',
+        contentLength: contentLength || 0,
+      });
       const code = response.status === 401 || response.status === 403 ? 'permission-denied' : 'internal';
       throw new HttpsError(code, `YouTube upload init failed (${response.status}).`, { status: response.status, details });
     }

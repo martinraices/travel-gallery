@@ -29,6 +29,7 @@ import { isValidHttpUrl } from './utils/validation';
 
 const PUBLIC_APP_ORIGIN = 'https://pepiniperilmondo.web.app';
 const YOUTUBE_UPLOAD_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+const YOUTUBE_DELETE_SCOPE = 'https://www.googleapis.com/auth/youtube.force-ssl';
 
 const emptyProfileForm = {
   firstName: '',
@@ -39,7 +40,60 @@ const emptyProfileForm = {
 };
 
 function youtubeThumbUrl(videoId) {
-  return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';
+  return videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '';
+}
+
+function isVideoMedia(item) {
+  return item?.type === 'video' || !!item?.youtubeId || item?.videoProvider === 'youtube';
+}
+
+function mediaCounts(items = []) {
+  return items.reduce((counts, item) => {
+    if (isVideoMedia(item)) counts.videos += 1;
+    else counts.photos += 1;
+    return counts;
+  }, { photos: 0, videos: 0 });
+}
+
+function createVideoThumbnailBlob(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const objectUrl = URL.createObjectURL(file);
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl);
+      video.removeAttribute('src');
+      video.load();
+    };
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      video.currentTime = Math.min(1, Math.max(0, (video.duration || 1) / 4));
+    };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const maxWidth = 960;
+        const ratio = video.videoWidth && video.videoHeight ? video.videoHeight / video.videoWidth : 9 / 16;
+        canvas.width = Math.min(maxWidth, video.videoWidth || maxWidth);
+        canvas.height = Math.round(canvas.width * ratio);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          cleanup();
+          blob ? resolve(blob) : reject(new Error('Could not create video thumbnail'));
+        }, 'image/jpeg', 0.82);
+      } catch (err) {
+        cleanup();
+        reject(err);
+      }
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error('Could not read video for thumbnail'));
+    };
+    video.src = objectUrl;
+  });
 }
 
 function CrossfadeImage({ src, alt = '', className = '', currentClassName = '', incomingClassName = '', loading = 'lazy', decoding = 'async' }) {
@@ -305,6 +359,175 @@ function LazyPhotoImage({ src, alt = '', className = '', onLoad, onError, onClic
   );
 }
 
+function PrivacyPolicyPage({ logoSrc }) {
+  return (
+    <div className="public-doc-page">
+      <header className="header">
+        <a className="header-logo-wrap" href="/" aria-label="Pepini per il mondo">
+          <img src={logoSrc} alt="Pepini per il mondo" className="header-logo-img" />
+          <span className="header-logo heading">Pepini per il mondo</span>
+        </a>
+      </header>
+      <main className="public-doc-content fade-in">
+        <p className="public-doc-kicker">Privacy Policy</p>
+        <h1 className="heading">Pepini per il mondo Privacy Policy</h1>
+        <p className="public-doc-updated">Last updated: May 10, 2026</p>
+
+        <section>
+          <h2>Overview</h2>
+          <p>
+            Pepini per il mondo is a private travel gallery used to organize, upload, and share travel photos and
+            videos. The app is operated by Martin Raices and is intended for invited users and guests with shared links.
+          </p>
+        </section>
+
+        <section>
+          <h2>Information We Collect</h2>
+          <p>
+            When you sign in with Google, we receive basic account information such as your email address, display
+            name, and Google user identifier. Inside the app, users may add profile details, album metadata, photos,
+            videos, descriptions, city labels, and sharing preferences.
+          </p>
+        </section>
+
+        <section>
+          <h2>Google and YouTube API Use</h2>
+          <p>
+            If you choose to connect YouTube, the app requests YouTube permissions for uploading private videos
+            (https://www.googleapis.com/auth/youtube.upload) and, when you explicitly choose it, deleting those uploaded
+            videos from YouTube (https://www.googleapis.com/auth/youtube.force-ssl).
+          </p>
+          <p>
+            The app does not read your YouTube channel content, does not publish videos publicly, and does not sell or
+            share YouTube API data with third parties. If you choose to delete an uploaded video from YouTube inside
+            the app, the app uses your permission only for that requested deletion. YouTube access tokens are kept in
+            browser session storage and are used only during the active upload flow.
+          </p>
+          <p>
+            Pepini per il mondo's use and transfer of information received from Google APIs adheres to the Google API
+            Services User Data Policy, including the Limited Use requirements.
+          </p>
+        </section>
+
+        <section>
+          <h2>How We Use Information</h2>
+          <p>
+            We use app data to provide the travel gallery experience: authentication, album creation, media upload,
+            private or shared album access, profile settings, notifications, and optional YouTube private video upload.
+          </p>
+        </section>
+
+        <section>
+          <h2>Sharing</h2>
+          <p>
+            Albums are shared only according to the settings selected in the app, such as guest visibility, specific
+            invited email addresses, or public share links. We do not sell personal information.
+          </p>
+        </section>
+
+        <section>
+          <h2>Storage and Security</h2>
+          <p>
+            Photos, videos, album data, and profile settings are stored using Firebase services. Access is controlled
+            by Firebase Authentication and security rules that limit users to the albums and files they own or have
+            been granted access to.
+          </p>
+        </section>
+
+        <section>
+          <h2>Revoking Access</h2>
+          <p>
+            You can disconnect the app from your Google account at any time from your Google Account permissions page:
+            {' '}
+            <a href="https://myaccount.google.com/permissions" target="_blank" rel="noreferrer">
+              https://myaccount.google.com/permissions
+            </a>
+            .
+          </p>
+        </section>
+
+        <section>
+          <h2>Contact</h2>
+          <p>
+            For privacy questions or access requests, contact:
+            {' '}
+            <a href="mailto:raicesm@gmail.com">raicesm@gmail.com</a>.
+          </p>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function TermsOfServicePage({ logoSrc }) {
+  return (
+    <div className="public-doc-page">
+      <header className="header">
+        <a className="header-logo-wrap" href="/" aria-label="Pepini per il mondo">
+          <img src={logoSrc} alt="Pepini per il mondo" className="header-logo-img" />
+          <span className="header-logo heading">Pepini per il mondo</span>
+        </a>
+      </header>
+      <main className="public-doc-content fade-in">
+        <p className="public-doc-kicker">Terms of Service</p>
+        <h1 className="heading">Pepini per il mondo Terms of Service</h1>
+        <p className="public-doc-updated">Last updated: May 10, 2026</p>
+
+        <section>
+          <h2>Use of the App</h2>
+          <p>
+            Pepini per il mondo is a private travel gallery for invited users. By using the app, you agree to use it
+            only for lawful personal photo and video organization, upload, and sharing.
+          </p>
+        </section>
+
+        <section>
+          <h2>User Content</h2>
+          <p>
+            You are responsible for the photos, videos, descriptions, album details, and other content you upload or
+            share through the app. You should only upload content you own or have permission to use.
+          </p>
+        </section>
+
+        <section>
+          <h2>YouTube Uploads</h2>
+          <p>
+            If you connect YouTube, Pepini per il mondo may upload videos you explicitly select to your own YouTube
+            account as private videos. If you choose the delete-from-YouTube option, the app may also delete that video
+            from your YouTube account. You remain responsible for your YouTube account, uploaded videos, and compliance
+            with YouTube's Terms of Service.
+          </p>
+        </section>
+
+        <section>
+          <h2>Sharing and Access</h2>
+          <p>
+            Album owners control whether albums are private, shared with invited users, visible to guests, or available
+            through a share link. Do not share links or content with people who should not have access.
+          </p>
+        </section>
+
+        <section>
+          <h2>Availability</h2>
+          <p>
+            The app is provided as a private service and may change, pause, or become unavailable without notice. We do
+            not guarantee uninterrupted operation or permanent storage of uploaded content.
+          </p>
+        </section>
+
+        <section>
+          <h2>Contact</h2>
+          <p>
+            Questions about these terms can be sent to:
+            {' '}
+            <a href="mailto:raicesm@gmail.com">raicesm@gmail.com</a>.
+          </p>
+        </section>
+      </main>
+    </div>
+  );
+}
+
 export default function App() {
   // ─── Language (IP-based, falls back to browser language) ───
   const [isSpanish, setIsSpanish] = useState(() => (navigator.language || '').startsWith('es'));
@@ -352,6 +575,8 @@ export default function App() {
   const [newTripVisibility, setNewTripVisibility] = useState('shared');
   const [lightbox, setLightbox] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmDeleteMedia, setConfirmDeleteMedia] = useState(null);
+  const [deletingMedia, setDeletingMedia] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(null);
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState(emptyProfileForm);
@@ -810,6 +1035,7 @@ export default function App() {
     try {
       const provider = new GoogleAuthProvider();
       provider.addScope(YOUTUBE_UPLOAD_SCOPE);
+      provider.addScope(YOUTUBE_DELETE_SCOPE);
       provider.setCustomParameters({
         prompt: 'consent',
         login_hint: user.email || '',
@@ -974,11 +1200,40 @@ export default function App() {
     };
   }, []);
 
+  const refreshTripMediaCounts = useCallback(async (sourceTrips) => {
+    if (!sourceTrips.length) return;
+    const refreshed = await Promise.all(sourceTrips.map(async (trip) => {
+      try {
+        const snap = await getDocs(photosCol(trip.id));
+        const media = snap.docs.map(d => d.data());
+        const counts = mediaCounts(media);
+        const firstVideo = media.find(item => item.youtubeId);
+        const cover = firstVideo && counts.photos === 0 ? youtubeThumbUrl(firstVideo.youtubeId) : trip.cover;
+        const next = { ...trip, photoCount: counts.photos, videoCount: counts.videos, cover };
+        const updates = {};
+        if ((trip.photoCount || 0) !== counts.photos) updates.photoCount = counts.photos;
+        if ((trip.videoCount || 0) !== counts.videos) updates.videoCount = counts.videos;
+        if (cover && cover !== trip.cover) updates.cover = cover;
+        if (Object.keys(updates).length) {
+          updateDoc(doc(db, 'trips', trip.id), updates).catch(() => {});
+        }
+        return next;
+      } catch (err) {
+        console.warn('Could not refresh media counts:', trip.id, err);
+        return { ...trip, videoCount: trip.videoCount || 0 };
+      }
+    }));
+    setTrips(prev => {
+      const byId = new Map(refreshed.map(trip => [trip.id, trip]));
+      return prev.map(trip => byId.get(trip.id) || trip);
+    });
+  }, []);
+
   const resolveMissingTripCovers = useCallback(async (sourceTrips) => {
     if (!user || isReadOnly || sourceTrips.length === 0) return;
 
     const needsFix = sourceTrips.filter(t =>
-      (t.photoCount || 0) > 0
+      ((t.photoCount || 0) + (t.videoCount || 0)) > 0
       && t.ownerId
       && !t.cover
       && !loadingTripCoversRef.current.has(t.id)
@@ -1117,6 +1372,10 @@ export default function App() {
   // ─── Keyboard nav ───
   useEffect(() => {
     const handler = (e) => {
+      if (confirmDeleteMedia) {
+        if (e.key === 'Escape') setConfirmDeleteMedia(null);
+        return;
+      }
       if (lightbox) {
         if (e.key === 'Escape') setLightbox(null);
         if (e.key === 'ArrowLeft') navLightbox(-1);
@@ -1276,6 +1535,7 @@ export default function App() {
       }
       merged.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setTrips(merged);
+      refreshTripMediaCounts(merged);
 
       // Fetch public profiles for all foreign trip owners
       const unknownUids = [...new Set(
@@ -1320,7 +1580,7 @@ export default function App() {
       ownerId: user.uid,
       ownerEmail: user.email,
       visibility: newTripVisibility,
-      cover: null, photoCount: 0, createdAt: serverTimestamp(),
+      cover: null, photoCount: 0, videoCount: 0, createdAt: serverTimestamp(),
     };
     try {
       const docRef = await addDoc(tripsCol(), tripData);
@@ -1400,7 +1660,7 @@ export default function App() {
 
   const navigateTripPreview = useCallback(async (e, trip, dir) => {
     e.stopPropagation();
-    if ((trip.photoCount || 0) < 2) return;
+    if (((trip.photoCount || 0) + (trip.videoCount || 0)) < 2) return;
     const loaded = tripPreviewPhotos[trip.id] || await loadTripPreviewPhotos(trip.id);
     if (!loaded.length) return;
     setTripPreviewIndexes(prev => {
@@ -1421,6 +1681,22 @@ export default function App() {
 
   const uploadVideoToYouTube = useCallback(async (file, trip) => {
     if (!youtubeAccessToken) throw new Error('YOUTUBE_NOT_CONNECTED');
+    const clearYouTubeSession = () => {
+      sessionStorage.removeItem('youtubeAccessToken');
+      sessionStorage.removeItem('youtubeTokenExpiresAt');
+      setYoutubeAccessToken('');
+      setYoutubeTokenExpiresAt(0);
+    };
+    const readYouTubeError = async (response) => {
+      let detail = '';
+      try {
+        const payload = await response.clone().json();
+        detail = payload?.error?.message || payload?.error_description || '';
+      } catch (_) {
+        try { detail = await response.text(); } catch (__) {}
+      }
+      return detail ? `YouTube upload failed (${response.status}): ${detail}` : `YouTube upload failed (${response.status})`;
+    };
     const cleanName = file.name.replace(/\.[^.]+$/, '') || file.name;
     const metadata = {
       snippet: {
@@ -1433,53 +1709,55 @@ export default function App() {
         selfDeclaredMadeForKids: false,
       },
     };
-    let uploadUrl = '';
-    try {
-      const initUpload = httpsCallable(firebaseFunctions, 'initYouTubeUpload');
-      const result = await initUpload({
-        accessToken: youtubeAccessToken,
-        metadata,
-        contentType: file.type || 'application/octet-stream',
-        contentLength: file.size,
-      });
-      uploadUrl = result.data?.uploadUrl || '';
-    } catch (err) {
-      if (err.code === 'functions/permission-denied' || err.code === 'functions/unauthenticated') {
-        sessionStorage.removeItem('youtubeAccessToken');
-        sessionStorage.removeItem('youtubeTokenExpiresAt');
-        setYoutubeAccessToken('');
-        setYoutubeTokenExpiresAt(0);
-        throw new Error('YOUTUBE_RECONNECT');
-      }
-      throw err;
-    }
-    if (!uploadUrl) throw new Error('YouTube upload URL missing');
-
-    const uploaded = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type || 'application/octet-stream' },
-      body: file,
+    const initResponse = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${youtubeAccessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': file.type || 'application/octet-stream',
+        'X-Upload-Content-Length': String(file.size),
+      },
+      body: JSON.stringify(metadata),
     });
-    if (uploaded.status === 401 || uploaded.status === 403) {
-      sessionStorage.removeItem('youtubeAccessToken');
-      sessionStorage.removeItem('youtubeTokenExpiresAt');
-      setYoutubeAccessToken('');
-      setYoutubeTokenExpiresAt(0);
+    if (initResponse.status === 401 || initResponse.status === 403) {
+      clearYouTubeSession();
       throw new Error('YOUTUBE_RECONNECT');
     }
-    if (!uploaded.ok) throw new Error(`YouTube upload failed (${uploaded.status})`);
-    const data = await uploaded.json();
-    const youtubeId = data.id;
-    if (!youtubeId) throw new Error('YouTube video id missing');
-    return {
-      type: 'video',
-      videoProvider: 'youtube',
-      youtubeId,
-      url: `https://www.youtube.com/watch?v=${youtubeId}`,
-      embedUrl: `https://www.youtube.com/embed/${youtubeId}`,
-      thumbUrl: youtubeThumbUrl(youtubeId),
-      privacyStatus: 'private',
-    };
+    if (!initResponse.ok) throw new Error(await readYouTubeError(initResponse));
+
+    const uploadUrl = initResponse.headers.get('Location');
+    if (!uploadUrl) throw new Error('YouTube upload URL missing');
+
+    try {
+      const uploaded = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${youtubeAccessToken}`,
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+        body: file,
+      });
+      if (uploaded.status === 401 || uploaded.status === 403) {
+        clearYouTubeSession();
+        throw new Error('YOUTUBE_RECONNECT');
+      }
+      if (!uploaded.ok) throw new Error(await readYouTubeError(uploaded));
+      const data = await uploaded.json();
+      const youtubeId = data.id;
+      if (!youtubeId) throw new Error('YouTube video id missing');
+      return {
+        type: 'video',
+        videoProvider: 'youtube',
+        youtubeId,
+        url: `https://www.youtube.com/watch?v=${youtubeId}`,
+        embedUrl: `https://www.youtube.com/embed/${youtubeId}`,
+        thumbUrl: youtubeThumbUrl(youtubeId),
+        privacyStatus: 'private',
+      };
+    } catch (err) {
+      console.error('YouTube media upload failed:', err);
+      throw err;
+    }
   }, [youtubeAccessToken]);
 
   const handleFiles = useCallback(async (files) => {
@@ -1501,9 +1779,21 @@ export default function App() {
       const file = mediaFiles[i];
       try {
         const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const uploaded = file.type.startsWith('video/')
+        let uploaded = file.type.startsWith('video/')
           ? await uploadVideoToYouTube(file, trip)
           : await uploadPhotoVariants(file, `users/${user.uid}/trips/${activeTrip}`, fileName);
+        if (file.type.startsWith('video/')) {
+          try {
+            const thumbBlob = await createVideoThumbnailBlob(file);
+            const thumbStoragePath = `users/${user.uid}/trips/${activeTrip}/video-thumbs/${fileName}.jpg`;
+            const thumbStorageRef = ref(storage, thumbStoragePath);
+            await uploadBytes(thumbStorageRef, thumbBlob);
+            const thumbUrl = await getDownloadURL(thumbStorageRef);
+            uploaded = { ...uploaded, thumbUrl, thumbStoragePath };
+          } catch (thumbErr) {
+            console.warn('Video thumbnail generation failed:', thumbErr);
+          }
+        }
         const photoData = { name: file.name, ...uploaded, createdAt: serverTimestamp() };
         const docRef = await addDoc(photosCol(activeTrip), photoData);
         newPhotos.push({ id: docRef.id, ...photoData });
@@ -1514,13 +1804,20 @@ export default function App() {
           youtubeUploadBlocked = true;
           showNotice('error', err.message === 'YOUTUBE_RECONNECT' ? T.youtubeReconnectRequired : T.connectYouTubeBeforeVideo);
           setProfileModal(true);
+        } else if (file.type.startsWith('video/')) {
+          youtubeUploadBlocked = true;
+          showNotice('error', T.youtubeUploadFailed(err.message || ''));
         }
       }
       setUploadCount(prev => ({ ...prev, done: i + 1 }));
     }
     setPhotos(prev => [...prev, ...newPhotos]);
     if (trip) {
-      const updates = { photoCount: (trip.photoCount || 0) + newPhotos.length };
+      const addedCounts = mediaCounts(newPhotos);
+      const updates = {
+        photoCount: (trip.photoCount || 0) + addedCounts.photos,
+        videoCount: (trip.videoCount || 0) + addedCounts.videos,
+      };
       if (!trip.cover && newPhotos.length) updates.cover = newPhotos[0].thumbUrl || newPhotos[0].url;
       await updateDoc(doc(db, 'trips', activeTrip), updates);
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, ...updates } : t));
@@ -1531,21 +1828,79 @@ export default function App() {
     setUploading(false);
   }, [T.connectYouTubeBeforeVideo, T.noSupportedMediaFiles, T.youtubeReconnectRequired, activeTrip, clearNotice, isReadOnly, showNotice, trips, uploadVideoToYouTube, user, validationText]);
 
-  const deletePhoto = async (photo) => {
+  const isYouTubeVideo = (photo) => !!photo?.youtubeId || photo?.videoProvider === 'youtube';
+
+  const clearYouTubeSession = () => {
+    sessionStorage.removeItem('youtubeAccessToken');
+    sessionStorage.removeItem('youtubeTokenExpiresAt');
+    setYoutubeAccessToken('');
+    setYoutubeTokenExpiresAt(0);
+  };
+
+  const deleteVideoFromYouTube = async (photo) => {
+    if (!photo?.youtubeId) return;
+    if (!youtubeAccessToken) throw new Error('YOUTUBE_RECONNECT');
+    const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?id=${encodeURIComponent(photo.youtubeId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${youtubeAccessToken}` },
+    });
+    if (response.status === 401 || response.status === 403) {
+      clearYouTubeSession();
+      throw new Error('YOUTUBE_RECONNECT');
+    }
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const payload = await response.clone().json();
+        detail = payload?.error?.message || '';
+      } catch (_) {
+        try { detail = await response.text(); } catch (__) {}
+      }
+      throw new Error(detail || `YouTube delete failed (${response.status})`);
+    }
+  };
+
+  const requestDeletePhoto = (photo) => {
+    if (isReadOnly || !photo) return;
+    if (isYouTubeVideo(photo)) {
+      setConfirmDeleteMedia(photo);
+      return;
+    }
+    deletePhoto(photo);
+  };
+
+  const deletePhoto = async (photo, options = {}) => {
     if (isReadOnly) return;
+    setDeletingMedia(true);
+    try {
+    if (options.deleteFromYouTube) await deleteVideoFromYouTube(photo);
     if (photo.storagePath) { try { await deleteObject(ref(storage, photo.storagePath)); } catch {} }
     if (photo.thumbStoragePath) { try { await deleteObject(ref(storage, photo.thumbStoragePath)); } catch {} }
     await deleteDoc(doc(db, 'trips', activeTrip, 'photos', photo.id));
     setPhotos(prev => prev.filter(p => p.id !== photo.id));
     const trip = trips.find(t => t.id === activeTrip);
     if (trip) {
-      const newCount = Math.max(0, (trip.photoCount || 1) - 1);
-      const updates = { photoCount: newCount };
+      const deletingVideo = isVideoMedia(photo);
+      const updates = deletingVideo
+        ? { videoCount: Math.max(0, (trip.videoCount || 1) - 1) }
+        : { photoCount: Math.max(0, (trip.photoCount || 1) - 1) };
       if (trip.cover === photo.url || trip.cover === photo.thumbUrl) updates.cover = null;
       await updateDoc(doc(db, 'trips', activeTrip), updates);
       setTrips(prev => prev.map(t => t.id === activeTrip ? { ...t, ...updates } : t));
     }
     setLightbox(null);
+    setConfirmDeleteMedia(null);
+    } catch (err) {
+      if (err.message === 'YOUTUBE_RECONNECT') {
+        showNotice('error', T.deleteFromYouTubeNeedsReconnect);
+        setProfileModal(true);
+      } else {
+        showNotice('error', T.youtubeVideoDeleteFailed(err.message || ''));
+      }
+      console.error('Delete media error:', err);
+    } finally {
+      setDeletingMedia(false);
+    }
   };
 
   const savePhotoDesc = async (photoId, desc) => {
@@ -2030,7 +2385,7 @@ export default function App() {
       } else {
         const tripData = {
           name: tripName, date: autoDate, country: country || null, miroUrl: null,
-          ownerId: user.uid, ownerEmail: user.email, visibility: 'private', cover: null, photoCount: 0, createdAt: serverTimestamp(),
+            ownerId: user.uid, ownerEmail: user.email, visibility: 'private', cover: null, photoCount: 0, videoCount: 0, createdAt: serverTimestamp(),
         };
         const docRef = await addDoc(tripsCol(), tripData);
         tripId = docRef.id;
@@ -3891,12 +4246,13 @@ export default function App() {
   ]);
 
   const totalPhotos = trips.reduce((s, t) => s + (t.photoCount || 0), 0);
+  const ownVideos = ownTrips.reduce((s, t) => s + (t.videoCount || 0), 0);
   const sharedByMePhotos = ownTrips
     .filter(tripIsShared)
     .reduce((s, t) => s + (t.photoCount || 0), 0);
   const sharedWithMePhotos = sharedToMeTrips.reduce((s, t) => s + (t.photoCount || 0), 0);
   const countriesVisited = new Set(trips.map(t => t.country).filter(Boolean)).size;
-  const topTrip = trips.reduce((best, t) => (!best || (t.photoCount || 0) > (best.photoCount || 0)) ? t : best, null);
+  const topTrip = trips.reduce((best, t) => (!best || ((t.photoCount || 0) + (t.videoCount || 0)) > ((best.photoCount || 0) + (best.videoCount || 0))) ? t : best, null);
 
   // ─── Map: visited ISO set + lookup ───
   const visitedIsos = new Set(trips.map(t => COUNTRY_ISO[t.country]).filter(Boolean));
@@ -4068,6 +4424,12 @@ export default function App() {
   };
   const modalProps = { role: 'dialog', 'aria-modal': 'true', tabIndex: -1 };
 
+  if (window.location.pathname === '/privacy') {
+    return <PrivacyPolicyPage logoSrc={logoSrc} />;
+  }
+  if (window.location.pathname === '/terms') {
+    return <TermsOfServicePage logoSrc={logoSrc} />;
+  }
 
   if (publicShareLoading) return <div className="login-page"><span className="spinner" style={{ width: 28, height: 28 }} /></div>;
 
@@ -4430,6 +4792,11 @@ export default function App() {
                     <div className="stat-value">{totalPhotos}</div><div className="stat-label">{T.photosLabel}</div>
                   </div>
                   {!isReadOnly && (
+                    <div className="stat-card">
+                      <div className="stat-value">{ownVideos}</div><div className="stat-label">{T.videosLabel}</div>
+                    </div>
+                  )}
+                  {!isReadOnly && (
                     <div className="stat-card stat-card-shares">
                       <div className="stat-value">{sharedByMePhotos}</div><div className="stat-label">{T.sharedByMePhotosLabel}</div>
                     </div>
@@ -4455,7 +4822,7 @@ export default function App() {
                       <div className="guest-info-text">{T.guestBannerText}</div>
                     </div>
                   )}
-                  {!isGuest && !isReadOnly && topTrip && topTrip.photoCount > 0 && (
+                  {!isGuest && !isReadOnly && topTrip && ((topTrip.photoCount || 0) + (topTrip.videoCount || 0)) > 0 && (
                     <div
                       className="stat-card stat-card-wide next-stop-card stat-card-btn"
                       style={{ position: 'relative' }}
@@ -4766,14 +5133,22 @@ export default function App() {
                   const previewPhotos = tripPreviewPhotos[trip.id] || [];
                   const previewIndex = tripPreviewIndexes[trip.id] ?? 0;
                   const previewPhoto = previewPhotos[previewIndex];
-                  const previewUrl = previewPhoto?.thumbUrl || previewPhoto?.url || trip.cover;
-                  const canSlide = (trip.photoCount || 0) > 1;
+                  const previewUrl = (previewPhoto?.youtubeId ? youtubeThumbUrl(previewPhoto.youtubeId) : '') || previewPhoto?.thumbUrl || previewPhoto?.url || trip.cover;
+                  const tripMediaCount = (trip.photoCount || 0) + (trip.videoCount || 0);
+                  const canSlide = tripMediaCount > 1;
+                  const previewIsVideo = isVideoMedia(previewPhoto) || (!!trip.cover && previewUrl === trip.cover && (trip.videoCount || 0) > 0 && (trip.photoCount || 0) === 0);
                   const previewLoading = loadingTripPreviews.has(trip.id);
                   const coverLoading = loadingTripCovers.has(trip.id) || (!previewUrl && previewLoading);
                   return (
                   <div key={trip.id} className="trip-card fade-in" style={{ animationDelay: `${i * 60}ms` }} onClick={() => setActiveTrip(trip.id)}>
                     <div className={`trip-cover ${previewUrl || coverLoading ? '' : 'trip-cover-empty'}${coverLoading ? ' trip-cover-loading' : ''}`}>
                       {previewUrl && <TripCoverImage src={previewUrl} />}
+                      {previewIsVideo && (
+                        <>
+                          <div className="media-play-badge trip-video-play-badge" aria-hidden="true">▶</div>
+                          <div className="youtube-video-badge" aria-label="YouTube">YouTube</div>
+                        </>
+                      )}
                       {coverLoading && !previewUrl && <TripCoverLoader label={T.loadingTrips} />}
                       {!previewUrl && !coverLoading && <span>🗺</span>}
                       {isOwner && <button className="trip-delete" onClick={e => { e.stopPropagation(); setConfirmDelete(trip.id); }}>✕</button>}
@@ -4798,7 +5173,7 @@ export default function App() {
                           <div className="trip-slider-indicator">
                             {previewLoading
                               ? <span className="trip-slider-spinner" />
-                              : `${previewPhotos.length ? previewIndex + 1 : 1}/${trip.photoCount || previewPhotos.length}`}
+                              : `${previewPhotos.length ? previewIndex + 1 : 1}/${tripMediaCount || previewPhotos.length}`}
                           </div>
                         </>
                       )}
@@ -4822,9 +5197,9 @@ export default function App() {
                         </div>
                       </div>
                       <div className="trip-meta">
-                        {trip.country ? `${trip.country}${trip.date || trip.photoCount ? ' · ' : ''}` : ''}
+                        {trip.country ? `${trip.country}${trip.date || tripMediaCount ? ' · ' : ''}` : ''}
                         {trip.date ? `${trip.date} · ` : ''}
-                        {T.photoCount(trip.photoCount || 0)}
+                        {T.mediaCount(trip.photoCount || 0, trip.videoCount || 0)}
                       </div>
                       {creatorUsername
                         ? <div className="trip-creator">{T.createdBy(creatorUsername)}</div>
@@ -4967,7 +5342,7 @@ export default function App() {
                             )}
                           </div>
                         </div>
-                        <div className="trip-meta">{T.photoCount(cityGroups[city].length)}</div>
+                        <div className="trip-meta">{T.mediaCount(mediaCounts(cityGroups[city]).photos, mediaCounts(cityGroups[city]).videos)}</div>
                       </div>
                     </div>
                   );
@@ -5007,7 +5382,7 @@ export default function App() {
                       </div>
                       <div className="trip-info">
                         <div className="trip-name" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{T.noCityAssigned}</div>
-                        <div className="trip-meta">{T.photoCount(cityUncategorized.length)}</div>
+                        <div className="trip-meta">{T.mediaCount(mediaCounts(cityUncategorized).photos, mediaCounts(cityUncategorized).videos)}</div>
                       </div>
                     </div>
                   );
@@ -5047,14 +5422,15 @@ export default function App() {
                             onDragLeave={canDrag ? () => setDragOverIdx(null) : undefined}
                             onDrop={canDrag ? e => { e.preventDefault(); e.stopPropagation(); reorderPhotos(flatIdx); setDragOverIdx(null); } : undefined}
                             onClick={() => setLightbox(p)}
-                            onContextMenu={!isReadOnly ? e => openPhotoContextMenu(e, p, { canSetAlbumCover: activeCity && canManageActiveTrip, canManagePhoto: canManageActiveTrip }) : undefined}>
+                            onContextMenu={!isReadOnly ? e => openPhotoContextMenu(e, p, { canSetAlbumCover: canManageActiveTrip, canManagePhoto: canManageActiveTrip }) : undefined}>
                             <LazyPhotoImage
-                              src={p.thumbUrl || p.url}
+                              src={(p.youtubeId ? youtubeThumbUrl(p.youtubeId) : '') || p.thumbUrl || p.url}
                               alt={p.name}
                               onLoad={() => markPhotoImageLoaded(p.id)}
                               onError={() => markPhotoImageLoaded(p.id)}
                             />
-                            {(p.type === 'video' || p.youtubeId) && <div className="media-play-badge" aria-hidden="true">▶</div>}
+                            {isVideoMedia(p) && <div className="media-play-badge" aria-hidden="true">▶</div>}
+                            {p.youtubeId && <div className="youtube-video-badge photo-youtube-badge" aria-label="YouTube">YouTube</div>}
                             {canDrag && <div className="photo-drag-handle">⠿</div>}
                             {p.description && <div className="photo-desc-badge" title={p.description}>✎</div>}
                           </div>
@@ -5078,7 +5454,7 @@ export default function App() {
                       <div key={p.id}
                         className={`photo-list-item fade-in${selectedPhotos.has(p.id) ? ' selected' : ''}`}
                         style={{ animationDelay: `${i * 25}ms` }}
-                        onContextMenu={!isReadOnly ? e => openPhotoContextMenu(e, p, { canSetAlbumCover: activeCity && canManageActiveTrip, canManagePhoto: canManageActiveTrip }) : undefined}>
+                        onContextMenu={!isReadOnly ? e => openPhotoContextMenu(e, p, { canSetAlbumCover: canManageActiveTrip, canManagePhoto: canManageActiveTrip }) : undefined}>
                         {!isReadOnly && (
                           <input type="checkbox" className="photo-list-check"
                             checked={selectedPhotos.has(p.id)}
@@ -5087,14 +5463,15 @@ export default function App() {
                         )}
                         <div className="photo-list-media" onClick={() => setLightbox(p)}>
                           <LazyPhotoImage
-                            src={p.thumbUrl || p.url}
+                            src={(p.youtubeId ? youtubeThumbUrl(p.youtubeId) : '') || p.thumbUrl || p.url}
                             alt={p.name}
                             className="photo-list-img"
                             onLoad={() => markPhotoImageLoaded(p.id)}
                             onError={() => markPhotoImageLoaded(p.id)}
                             style={{ cursor: 'pointer' }}
                           />
-                          {(p.type === 'video' || p.youtubeId) && <div className="media-play-badge media-play-badge-sm" aria-hidden="true">▶</div>}
+                          {isVideoMedia(p) && <div className="media-play-badge media-play-badge-sm" aria-hidden="true">▶</div>}
+                          {p.youtubeId && <div className="youtube-video-badge photo-youtube-badge" aria-label="YouTube">YouTube</div>}
                         </div>
                         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setLightbox(p)}>
                           <div className="photo-list-name">{p.name}</div>
@@ -5180,7 +5557,7 @@ export default function App() {
             </>
           )}
           {!isReadOnly && (
-            <button className="lb-delete" onClick={e => { e.stopPropagation(); deletePhoto(lightbox); }} title={T.deletePhotoTitle}>
+            <button className="lb-delete" onClick={e => { e.stopPropagation(); requestDeletePhoto(lightbox); }} title={isYouTubeVideo(lightbox) ? T.deleteVideoTitle : T.deletePhotoTitle}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
               </svg>
@@ -5205,9 +5582,9 @@ export default function App() {
               {T.useAsAppWallpaper}
             </button>
             {contextMenu.canManagePhoto && (
-              <button className="context-menu-danger" onClick={async () => { await deletePhoto(contextMenu.photo); setContextMenu(null); }}>
+              <button className="context-menu-danger" onClick={() => { requestDeletePhoto(contextMenu.photo); setContextMenu(null); }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                {T.deletePhotoMenu}
+                {isYouTubeVideo(contextMenu.photo) ? T.deleteVideoMenu : T.deletePhotoMenu}
               </button>
             )}
           </div>
@@ -5215,6 +5592,24 @@ export default function App() {
       )}
 
       {/* ═══ DELETE TRIP ═══ */}
+      {!isReadOnly && confirmDeleteMedia && (
+        <div className="modal-overlay fade-scale" onClick={() => !deletingMedia && setConfirmDeleteMedia(null)}>
+          <div {...modalProps} className="modal confirm-modal media-delete-modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">{T.deleteYouTubeVideoQuestion}</p>
+            <p className="modal-sub">{T.deleteYouTubeVideoWarn}</p>
+            <div className="modal-actions">
+              <button className="btn btn-sm" onClick={() => setConfirmDeleteMedia(null)} disabled={deletingMedia}>{T.cancel}</button>
+              <button className="btn btn-sm" onClick={() => deletePhoto(confirmDeleteMedia, { deleteFromYouTube: false })} disabled={deletingMedia}>
+                {deletingMedia ? T.saving : T.deleteOnlyFromApp}
+              </button>
+              <button className="btn btn-danger" onClick={() => deletePhoto(confirmDeleteMedia, { deleteFromYouTube: true })} disabled={deletingMedia}>
+                {deletingMedia ? T.saving : T.deleteFromAppAndYouTube}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {profileModal && (
         <div className="modal-overlay fade-scale" onClick={() => setProfileModal(false)}>
           <div {...modalProps} className="modal profile-modal" onClick={e => e.stopPropagation()}>

@@ -155,6 +155,17 @@ a:focus-visible {
 
 .content { padding: 28px; max-width: 1200px; margin: 0 auto; }
 
+.public-doc-page { min-height: 100vh; background: var(--bg); color: var(--text); }
+.public-doc-page .header-logo-wrap { text-decoration: none; }
+.public-doc-content { max-width: 780px; margin: 0 auto; padding: 42px 24px 72px; }
+.public-doc-kicker { margin-bottom: 8px; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.public-doc-content h1 { margin-bottom: 6px; font-size: 34px; color: var(--text); }
+.public-doc-updated { margin-bottom: 28px; color: var(--text-muted); font-size: 13px; }
+.public-doc-content section { padding: 20px 0; border-top: 1px solid var(--border); }
+.public-doc-content h2 { margin-bottom: 8px; color: var(--text); font-size: 16px; }
+.public-doc-content p { color: var(--text-muted); font-size: 14px; line-height: 1.7; }
+.public-doc-content a { color: var(--accent); font-weight: 700; word-break: break-word; }
+
 .trips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
 .trip-card { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden; cursor: pointer; transition: all .3s; position: relative; box-shadow: 0 2px 12px rgba(42,37,32,.06); }
 .trip-card:hover { border-color: var(--border-hover); transform: translateY(-3px); box-shadow: 0 8px 30px rgba(42,37,32,.12); }
@@ -344,6 +355,9 @@ a:focus-visible {
 .photo-thumb:hover img { transform: scale(1.04); opacity: .88; }
 .media-play-badge { position: absolute; inset: 0; margin: auto; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.48); color: #fff; font-size: 20px; line-height: 1; padding-left: 3px; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,.32); }
 .media-play-badge-sm { width: 26px; height: 26px; font-size: 12px; }
+.trip-video-play-badge { width: 52px; height: 52px; font-size: 23px; z-index: 2; }
+.youtube-video-badge { position: absolute; left: 10px; top: 10px; z-index: 3; padding: 4px 7px; border-radius: 6px; background: #ff0033; color: #fff; font-size: 10px; line-height: 1; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.28); }
+.photo-youtube-badge { left: 7px; top: 7px; padding: 3px 6px; font-size: 9px; border-radius: 5px; }
 .photo-thumb[draggable="true"] { cursor: grab; }
 .photo-thumb[draggable="true"]:active { cursor: grabbing; }
 .photo-thumb.drag-over { outline: 2.5px solid var(--accent); outline-offset: -2px; opacity: .7; }
@@ -630,6 +644,10 @@ a:focus-visible {
 .modal-title { font-size: 16px; margin-bottom: 6px; }
 .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 .modal-actions { display: flex; gap: 10px; justify-content: center; }
+.media-delete-modal { width: min(520px, calc(100vw - 32px)); max-width: 520px; overflow-x: hidden; }
+.media-delete-modal .modal-actions { flex-wrap: wrap; align-items: center; }
+.media-delete-modal .modal-actions .btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.media-delete-modal .btn-danger { min-width: min(240px, 100%); }
 .modal-actions .btn,
 .new-trip-form > .btn {
   min-height: 38px;
