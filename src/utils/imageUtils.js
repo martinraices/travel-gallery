@@ -1,4 +1,5 @@
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase';
 
 function throwIfAborted(signal) {
   if (signal?.aborted) throw new DOMException('Operation cancelled', 'AbortError');
