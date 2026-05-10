@@ -2227,3 +2227,233 @@ Require stack:
 [info] 
 [info] Project Console: https://console.firebase.google.com/project/wanderlust-gallery/overview
 [info] Hosting URL: https://pepiniperilmondo.web.app
+[debug] [2026-05-10T04:39:55.762Z] ----------------------------------------------------------------------
+[debug] [2026-05-10T04:39:55.765Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting --project wanderlust-gallery
+[debug] [2026-05-10T04:39:55.765Z] CLI Version:   15.17.0
+[debug] [2026-05-10T04:39:55.765Z] Platform:      win32
+[debug] [2026-05-10T04:39:55.765Z] Node Version:  v24.15.0
+[debug] [2026-05-10T04:39:55.765Z] Time:          Sun May 10 2026 12:39:55 GMT+0800 (Singapore Standard Time)
+[debug] [2026-05-10T04:39:55.765Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-10T04:39:56.769Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-10T04:39:56.769Z] > authorizing via signed-in user (raicesm@gmail.com)
+[debug] [2026-05-10T04:39:56.769Z] [iam] checking project wanderlust-gallery for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-05-10T04:39:56.770Z] Checked if tokens are valid: false, expires at: 1778387775217
+[debug] [2026-05-10T04:39:56.770Z] Checked if tokens are valid: false, expires at: 1778387775217
+[debug] [2026-05-10T04:39:56.770Z] > refreshing access token with scopes: []
+[debug] [2026-05-10T04:39:56.771Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-10T04:39:56.771Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-10T04:39:56.845Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-05-10T04:39:56.846Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-10T04:39:56.853Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions [none]
+[debug] [2026-05-10T04:39:56.853Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-10T04:39:56.853Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-05-10T04:39:58.071Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions 200
+[debug] [2026-05-10T04:39:58.071Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-05-10T04:39:58.072Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:39:58.072Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:39:58.073Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery [none]
+[debug] [2026-05-10T04:39:58.480Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery 200
+[debug] [2026-05-10T04:39:58.481Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery {"projectId":"wanderlust-gallery","projectNumber":"582205452363","displayName":"pepiniperilmondo","name":"projects/wanderlust-gallery","resources":{"hostingSite":"wanderlust-gallery"},"state":"ACTIVE","etag":"1_41143ef4-bde8-491d-99d0-7892b91bb067"}
+[info] 
+[info] === Deploying to 'wanderlust-gallery'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2026-05-10T04:39:58.485Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:39:58.485Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:39:58.485Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/wanderlust-gallery/sites/pepiniperilmondo [none]
+[debug] [2026-05-10T04:39:59.290Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/wanderlust-gallery/sites/pepiniperilmondo 200
+[debug] [2026-05-10T04:39:59.290Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/wanderlust-gallery/sites/pepiniperilmondo {"name":"projects/wanderlust-gallery/sites/pepiniperilmondo","defaultUrl":"https://pepiniperilmondo.web.app","type":"USER_SITE"}
+[debug] [2026-05-10T04:39:59.292Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:39:59.293Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:39:59.293Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions [none]
+[debug] [2026-05-10T04:39:59.293Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-05-10T04:40:00.355Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions 200
+[debug] [2026-05-10T04:40:00.355Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions {"name":"projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[info] i  hosting[pepiniperilmondo]: beginning deploy... 
+[info] i  hosting[pepiniperilmondo]: found 8 files in dist 
+[debug] [2026-05-10T04:40:00.363Z] [hosting] uploading with 200 concurrency
+[debug] [2026-05-10T04:40:00.377Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:00.377Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:00.378Z] [hosting] hash cache [ZGlzdA] stored for 8 files
+[debug] [2026-05-10T04:40:00.378Z] [hosting][hash queue][FINAL] {"max":12,"min":1,"avg":4.375,"active":0,"complete":8,"success":8,"errored":0,"retried":0,"total":8,"elapsed":15}
+[debug] [2026-05-10T04:40:00.378Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac:populateFiles [none]
+[debug] [2026-05-10T04:40:00.378Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac:populateFiles {"files":{"/logo.png":"5ec533293529afbc31bd65a5c21f1c08bb135e59cde245f77b545e8500faf1ec","/logo-dark.png":"990060b39a6f8eadc4e5422248ef11cbc194628ed72ad6191b803b96caf1f9a1","/index.html":"3fa3c75f53c147ffbbe4121c2f30cd896606ba6d08c2bff82a21fbeaff19071f","/assets/index-CPYjxnLL.css":"342d4362d7032b3d51fd765a403d7452552471c4e61913c1f1bd00f2d3de1b22","/assets/maps-_aQoCW1K.js":"7e0c1365ab5f84f9681247db872647b806591d59fe10c10dc31f22d1d7ae43a4","/assets/vendor-1ZKsmUH6.js":"734a4076a9230265771f29f3b1c2830e0a9c4114b731e00ed63472c75cabc613","/assets/index-CSh_nt4v.js":"ae3590673e2fd8261da89bb78241c21cea84cb627b00af25c7559733d787ae66","/assets/firebase-CA-asvLd.js":"1d4b59e8919f3938505737f55c1556a7790576e852659caffbd72fb31679fa99"}}
+[debug] [2026-05-10T04:40:00.980Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac:populateFiles 200
+[debug] [2026-05-10T04:40:00.980Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac:populateFiles {"uploadRequiredHashes":["ae3590673e2fd8261da89bb78241c21cea84cb627b00af25c7559733d787ae66","3fa3c75f53c147ffbbe4121c2f30cd896606ba6d08c2bff82a21fbeaff19071f","342d4362d7032b3d51fd765a403d7452552471c4e61913c1f1bd00f2d3de1b22"],"uploadUrl":"https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files"}
+[debug] [2026-05-10T04:40:00.981Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:00.981Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:00.981Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:00.981Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:00.981Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:00.981Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:00.981Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/ae3590673e2fd8261da89bb78241c21cea84cb627b00af25c7559733d787ae66 [none]
+[debug] [2026-05-10T04:40:00.981Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/ae3590673e2fd8261da89bb78241c21cea84cb627b00af25c7559733d787ae66 [stream]
+[debug] [2026-05-10T04:40:00.982Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/3fa3c75f53c147ffbbe4121c2f30cd896606ba6d08c2bff82a21fbeaff19071f [none]
+[debug] [2026-05-10T04:40:00.982Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/3fa3c75f53c147ffbbe4121c2f30cd896606ba6d08c2bff82a21fbeaff19071f [stream]
+[debug] [2026-05-10T04:40:00.983Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/342d4362d7032b3d51fd765a403d7452552471c4e61913c1f1bd00f2d3de1b22 [none]
+[debug] [2026-05-10T04:40:00.983Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/342d4362d7032b3d51fd765a403d7452552471c4e61913c1f1bd00f2d3de1b22 [stream]
+[debug] [2026-05-10T04:40:00.984Z] [hosting][populate queue][FINAL] {"max":604,"min":604,"avg":604,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":607}
+[debug] [2026-05-10T04:40:00.984Z] [hosting] uploads queued: 3
+[debug] [2026-05-10T04:40:02.367Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/3fa3c75f53c147ffbbe4121c2f30cd896606ba6d08c2bff82a21fbeaff19071f 200
+[debug] [2026-05-10T04:40:02.367Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/3fa3c75f53c147ffbbe4121c2f30cd896606ba6d08c2bff82a21fbeaff19071f [stream]
+[info] i  hosting: uploading new files [1/3] (33%) 
+[debug] [2026-05-10T04:40:02.369Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/ae3590673e2fd8261da89bb78241c21cea84cb627b00af25c7559733d787ae66 200
+[debug] [2026-05-10T04:40:02.369Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/ae3590673e2fd8261da89bb78241c21cea84cb627b00af25c7559733d787ae66 [stream]
+[debug] [2026-05-10T04:40:02.370Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/342d4362d7032b3d51fd765a403d7452552471c4e61913c1f1bd00f2d3de1b22 200
+[debug] [2026-05-10T04:40:02.370Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac/files/342d4362d7032b3d51fd765a403d7452552471c4e61913c1f1bd00f2d3de1b22 [stream]
+[debug] [2026-05-10T04:40:02.371Z] [hosting][upload queue][FINAL] {"max":1389,"min":1386,"avg":1388,"active":0,"complete":3,"success":3,"errored":0,"retried":0,"total":3,"elapsed":1391}
+[info] i  hosting: upload complete 
+[info] +  hosting[pepiniperilmondo]: file upload complete 
+[debug] [2026-05-10T04:40:02.371Z] [hosting] deploy completed after 2014ms
+[debug] [2026-05-10T04:40:02.371Z] [
+  {
+    "config": {
+      "site": "pepiniperilmondo",
+      "public": "dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    "version": "projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac"
+  }
+]
+[info] i  hosting[pepiniperilmondo]: finalizing version... 
+[debug] [2026-05-10T04:40:02.373Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:02.373Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:02.374Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac updateMask=status%2Cconfig
+[debug] [2026-05-10T04:40:02.374Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac {"status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}]}}
+[debug] [2026-05-10T04:40:03.020Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac 200
+[debug] [2026-05-10T04:40:03.020Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac {"name":"projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac","status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-05-10T04:39:59.695580Z","createUser":{"email":"raicesm@gmail.com"},"finalizeTime":"2026-05-10T04:40:02.825854Z","finalizeUser":{"email":"raicesm@gmail.com"}}
+[debug] [2026-05-10T04:40:03.020Z] [hosting] finalized version for pepiniperilmondo:[object Object]
+[info] +  hosting[pepiniperilmondo]: version finalized 
+[info] i  hosting[pepiniperilmondo]: releasing new version... 
+[debug] [2026-05-10T04:40:03.021Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:03.021Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:40:03.021Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/channels/live/releases versionName=projects%2F582205452363%2Fsites%2Fpepiniperilmondo%2Fversions%2F6bacf4ef3b9823ac
+[debug] [2026-05-10T04:40:03.021Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/channels/live/releases {}
+[debug] [2026-05-10T04:40:03.813Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/channels/live/releases 200
+[debug] [2026-05-10T04:40:03.814Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/channels/live/releases {"name":"projects/582205452363/sites/pepiniperilmondo/channels/live/releases/1778388002981000","version":{"name":"projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac","status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-05-10T04:39:59.695580Z","createUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"},"finalizeTime":"2026-05-10T04:40:02.825854Z","finalizeUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"}},"type":"DEPLOY","releaseTime":"2026-05-10T04:40:02.981Z","releaseUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"}}
+[debug] [2026-05-10T04:40:03.814Z] [hosting] release: {"name":"projects/582205452363/sites/pepiniperilmondo/channels/live/releases/1778388002981000","version":{"name":"projects/582205452363/sites/pepiniperilmondo/versions/6bacf4ef3b9823ac","status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-05-10T04:39:59.695580Z","createUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"},"finalizeTime":"2026-05-10T04:40:02.825854Z","finalizeUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"}},"type":"DEPLOY","releaseTime":"2026-05-10T04:40:02.981Z","releaseUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"}}
+[info] +  hosting[pepiniperilmondo]: release complete 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/wanderlust-gallery/overview
+[info] Hosting URL: https://pepiniperilmondo.web.app
+[debug] [2026-05-10T04:42:39.897Z] ----------------------------------------------------------------------
+[debug] [2026-05-10T04:42:39.899Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting --project wanderlust-gallery
+[debug] [2026-05-10T04:42:39.899Z] CLI Version:   15.17.0
+[debug] [2026-05-10T04:42:39.899Z] Platform:      win32
+[debug] [2026-05-10T04:42:39.899Z] Node Version:  v24.15.0
+[debug] [2026-05-10T04:42:39.899Z] Time:          Sun May 10 2026 12:42:39 GMT+0800 (Singapore Standard Time)
+[debug] [2026-05-10T04:42:39.899Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-10T04:42:39.900Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-05-10T04:42:40.889Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-10T04:42:40.889Z] > authorizing via signed-in user (raicesm@gmail.com)
+[debug] [2026-05-10T04:42:40.889Z] [iam] checking project wanderlust-gallery for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-05-10T04:42:40.890Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:40.890Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:40.890Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions [none]
+[debug] [2026-05-10T04:42:40.890Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-10T04:42:40.890Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-05-10T04:42:41.432Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-05-10T04:42:41.432Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2026-05-10T04:42:42.117Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions 200
+[debug] [2026-05-10T04:42:42.117Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-05-10T04:42:42.118Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:42.118Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:42.118Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery [none]
+[debug] [2026-05-10T04:42:42.730Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery 200
+[debug] [2026-05-10T04:42:42.730Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery {"projectId":"wanderlust-gallery","projectNumber":"582205452363","displayName":"pepiniperilmondo","name":"projects/wanderlust-gallery","resources":{"hostingSite":"wanderlust-gallery"},"state":"ACTIVE","etag":"1_41143ef4-bde8-491d-99d0-7892b91bb067"}
+[info] 
+[info] === Deploying to 'wanderlust-gallery'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2026-05-10T04:42:42.732Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:42.732Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:42.732Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/wanderlust-gallery/sites/pepiniperilmondo [none]
+[debug] [2026-05-10T04:42:43.488Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/wanderlust-gallery/sites/pepiniperilmondo 200
+[debug] [2026-05-10T04:42:43.488Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/wanderlust-gallery/sites/pepiniperilmondo {"name":"projects/wanderlust-gallery/sites/pepiniperilmondo","defaultUrl":"https://pepiniperilmondo.web.app","type":"USER_SITE"}
+[debug] [2026-05-10T04:42:43.490Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:43.490Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:43.490Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions [none]
+[debug] [2026-05-10T04:42:43.490Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-05-10T04:42:44.879Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions 200
+[debug] [2026-05-10T04:42:44.880Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions {"name":"projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[info] i  hosting[pepiniperilmondo]: beginning deploy... 
+[info] i  hosting[pepiniperilmondo]: found 9 files in dist 
+[debug] [2026-05-10T04:42:44.888Z] [hosting] uploading with 200 concurrency
+[debug] [2026-05-10T04:42:44.903Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:44.904Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:44.904Z] [hosting] hash cache [ZGlzdA] stored for 9 files
+[debug] [2026-05-10T04:42:44.904Z] [hosting][hash queue][FINAL] {"max":13,"min":2,"avg":6.111111111111111,"active":0,"complete":9,"success":9,"errored":0,"retried":0,"total":9,"elapsed":16}
+[debug] [2026-05-10T04:42:44.905Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e:populateFiles [none]
+[debug] [2026-05-10T04:42:44.905Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e:populateFiles {"files":{"/logo.png":"5ec533293529afbc31bd65a5c21f1c08bb135e59cde245f77b545e8500faf1ec","/logo-dark.png":"990060b39a6f8eadc4e5422248ef11cbc194628ed72ad6191b803b96caf1f9a1","/index.html":"3fa3c75f53c147ffbbe4121c2f30cd896606ba6d08c2bff82a21fbeaff19071f","/google988ad03ba246081.html":"b67854c38b9d160ca9616ecab0e09c07e794770ef506f100fe764900e7b30a76","/assets/maps-_aQoCW1K.js":"7e0c1365ab5f84f9681247db872647b806591d59fe10c10dc31f22d1d7ae43a4","/assets/vendor-1ZKsmUH6.js":"734a4076a9230265771f29f3b1c2830e0a9c4114b731e00ed63472c75cabc613","/assets/index-CPYjxnLL.css":"342d4362d7032b3d51fd765a403d7452552471c4e61913c1f1bd00f2d3de1b22","/assets/index-CSh_nt4v.js":"ae3590673e2fd8261da89bb78241c21cea84cb627b00af25c7559733d787ae66","/assets/firebase-CA-asvLd.js":"1d4b59e8919f3938505737f55c1556a7790576e852659caffbd72fb31679fa99"}}
+[debug] [2026-05-10T04:42:45.774Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e:populateFiles 200
+[debug] [2026-05-10T04:42:45.774Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e:populateFiles {"uploadRequiredHashes":["b67854c38b9d160ca9616ecab0e09c07e794770ef506f100fe764900e7b30a76"],"uploadUrl":"https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/40d6f749e73fe87e/files"}
+[debug] [2026-05-10T04:42:45.775Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:45.775Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:45.775Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/40d6f749e73fe87e/files/b67854c38b9d160ca9616ecab0e09c07e794770ef506f100fe764900e7b30a76 [none]
+[debug] [2026-05-10T04:42:45.775Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/40d6f749e73fe87e/files/b67854c38b9d160ca9616ecab0e09c07e794770ef506f100fe764900e7b30a76 [stream]
+[debug] [2026-05-10T04:42:45.775Z] [hosting][populate queue][FINAL] {"max":872,"min":872,"avg":872,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":872}
+[debug] [2026-05-10T04:42:45.776Z] [hosting] uploads queued: 1
+[info] i  hosting: uploading new files [0/1] (0%) 
+[debug] [2026-05-10T04:42:47.231Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/40d6f749e73fe87e/files/b67854c38b9d160ca9616ecab0e09c07e794770ef506f100fe764900e7b30a76 200
+[debug] [2026-05-10T04:42:47.231Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/pepiniperilmondo/versions/40d6f749e73fe87e/files/b67854c38b9d160ca9616ecab0e09c07e794770ef506f100fe764900e7b30a76 [stream]
+[debug] [2026-05-10T04:42:47.231Z] [hosting][upload queue][FINAL] {"max":1457,"min":1457,"avg":1457,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":1457}
+[info] i  hosting: upload complete 
+[info] +  hosting[pepiniperilmondo]: file upload complete 
+[debug] [2026-05-10T04:42:47.232Z] [hosting] deploy completed after 2350ms
+[debug] [2026-05-10T04:42:47.232Z] [
+  {
+    "config": {
+      "site": "pepiniperilmondo",
+      "public": "dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    "version": "projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e"
+  }
+]
+[info] i  hosting[pepiniperilmondo]: finalizing version... 
+[debug] [2026-05-10T04:42:47.233Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:47.233Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:47.234Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions/40d6f749e73fe87e updateMask=status%2Cconfig
+[debug] [2026-05-10T04:42:47.234Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions/40d6f749e73fe87e {"status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}]}}
+[debug] [2026-05-10T04:42:48.241Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions/40d6f749e73fe87e 200
+[debug] [2026-05-10T04:42:48.242Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/versions/40d6f749e73fe87e {"name":"projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e","status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-05-10T04:42:44.155541Z","createUser":{"email":"raicesm@gmail.com"},"finalizeTime":"2026-05-10T04:42:48.055643Z","finalizeUser":{"email":"raicesm@gmail.com"}}
+[debug] [2026-05-10T04:42:48.242Z] [hosting] finalized version for pepiniperilmondo:[object Object]
+[info] +  hosting[pepiniperilmondo]: version finalized 
+[info] i  hosting[pepiniperilmondo]: releasing new version... 
+[debug] [2026-05-10T04:42:48.242Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:48.242Z] Checked if tokens are valid: true, expires at: 1778391595846
+[debug] [2026-05-10T04:42:48.242Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/channels/live/releases versionName=projects%2F582205452363%2Fsites%2Fpepiniperilmondo%2Fversions%2F40d6f749e73fe87e
+[debug] [2026-05-10T04:42:48.242Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/channels/live/releases {}
+[debug] [2026-05-10T04:42:49.079Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/channels/live/releases 200
+[debug] [2026-05-10T04:42:49.079Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/pepiniperilmondo/channels/live/releases {"name":"projects/582205452363/sites/pepiniperilmondo/channels/live/releases/1778388168148000","version":{"name":"projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e","status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-05-10T04:42:44.155541Z","createUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"},"finalizeTime":"2026-05-10T04:42:48.055643Z","finalizeUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"}},"type":"DEPLOY","releaseTime":"2026-05-10T04:42:48.148Z","releaseUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"}}
+[debug] [2026-05-10T04:42:49.079Z] [hosting] release: {"name":"projects/582205452363/sites/pepiniperilmondo/channels/live/releases/1778388168148000","version":{"name":"projects/582205452363/sites/pepiniperilmondo/versions/40d6f749e73fe87e","status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-05-10T04:42:44.155541Z","createUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"},"finalizeTime":"2026-05-10T04:42:48.055643Z","finalizeUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"}},"type":"DEPLOY","releaseTime":"2026-05-10T04:42:48.148Z","releaseUser":{"email":"raicesm@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocKMBrQmXzskYXXAYUdSpf621l39WKhe6-3PM3Fm_RbxqcjfbWyY"}}
+[info] +  hosting[pepiniperilmondo]: release complete 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/wanderlust-gallery/overview
+[info] Hosting URL: https://pepiniperilmondo.web.app

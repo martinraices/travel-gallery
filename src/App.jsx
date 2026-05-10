@@ -4565,6 +4565,11 @@ export default function App() {
           <p className="login-sub" style={{ fontSize: 18, fontWeight: 600, color: 'var(--danger)', marginBottom: 8 }}>{T.accessDenied}</p>
           <p className="login-sub">{T.appIsPrivate}</p>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{T.contactAdmin}</p>
+          <div className="login-legal-links" aria-label="Legal links">
+            <a href="/privacy">Privacy Policy</a>
+            <span aria-hidden="true">.</span>
+            <a href="/terms">Terms of Service</a>
+          </div>
           <button className="btn btn-sm" onClick={() => setAccessDenied(false)} style={{ marginTop: 20 }}>{T.backToLogin}</button>
         </div>
       </div>
@@ -4594,6 +4599,11 @@ export default function App() {
           </button>
           {loginError && <p className="login-error">{loginError}</p>}
           {loginInfo && <p className="field-success" style={{ textAlign: 'center', marginTop: 12 }}>{loginInfo}</p>}
+          <div className="login-legal-links" aria-label="Legal links">
+            <a href="/privacy">Privacy Policy</a>
+            <span aria-hidden="true">.</span>
+            <a href="/terms">Terms of Service</a>
+          </div>
         </div>
         {pendingAccessUser && (
           <div className="modal-overlay fade-scale" onClick={cancelAccessRequest}>
