@@ -14,13 +14,13 @@ import { httpsCallable } from 'firebase/functions';
 import {
   ref, uploadBytes, getDownloadURL, deleteObject, listAll,
 } from 'firebase/storage';
-import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
+import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
 import { ThemeToggle } from './components/ThemeToggle';
 import { TravelLoader } from './components/TravelLoader';
 import { getTranslations } from './i18n';
 import {
   ADMIN_EMAILS, ALLOWED_EMAILS, CONTINENT_ORDER, COUNTRY_CONTINENT, COUNTRY_ISO, COUNTRY_NAMES,
-  GEO_URL, ISO_COUNTRY, SPANISH_COUNTRIES, WORLD_COUNTRIES,
+  GEO_URL, ISO_COUNTRY, MAP_TERRITORY_MARKERS, SPANISH_COUNTRIES, WORLD_COUNTRIES,
 } from './data/countries';
 import { parseFbAlbum } from './utils/facebookAlbums';
 import { compressImage, uploadPhotoVariants } from './utils/imageUtils';
@@ -96,6 +96,109 @@ function CrossfadeImage({ src, alt = '', className = '', currentClassName = '', 
         />
       )}
     </>
+  );
+}
+
+function PhotoSliderOverlay({
+  item,
+  items = [],
+  index = 0,
+  onClose,
+  onNavigate,
+  title = '',
+  subtitle = '',
+  closeLabel = 'Close',
+  previousLabel = 'Previous photo',
+  nextLabel = 'Next photo',
+  className = '',
+  stageClassName = '',
+  imageClassName = 'lightbox-img',
+  incomingClassName = 'lightbox-img-incoming',
+  isPlaying = false,
+  onTogglePlay,
+  children,
+  footer,
+}) {
+  const total = items.length || (item ? 1 : 0);
+  const current = item || items[index];
+  if (!current) return null;
+
+  const hasPrevious = total > 1 && index > 0;
+  const hasNext = total > 1 && index < total - 1;
+  const visibleDots = total <= 18
+    ? items.map((_, dotIndex) => ({ key: dotIndex, index: dotIndex }))
+    : Array.from({ length: 18 }, (_, dotIndex) => {
+      const mappedIndex = Math.round(dotIndex * (total - 1) / 17);
+      return { key: `${dotIndex}-${mappedIndex}`, index: mappedIndex };
+    });
+
+  return (
+    <div className={`lightbox trip-photo-slider fade-scale ${className}`.trim()} role="dialog" aria-modal="true" onClick={onClose}>
+      <div className={`lightbox-img-wrap trip-photo-slider-stage ${stageClassName}`.trim()} onClick={e => e.stopPropagation()}>
+        {(current.type === 'video' || current.youtubeId) ? (
+          <iframe
+            className="lightbox-video"
+            src={current.embedUrl || `https://www.youtube.com/embed/${current.youtubeId}`}
+            title={current.name || title || 'Video'}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        ) : (
+          <CrossfadeImage
+            src={current.url || current.thumbUrl}
+            alt={current.name || title || ''}
+            className={imageClassName}
+            incomingClassName={incomingClassName}
+            loading="eager"
+          />
+        )}
+        {(title || subtitle) && (
+          <div className="trip-photo-slider-caption">
+            {title && <strong>{title}</strong>}
+            {subtitle && <span>{subtitle}</span>}
+          </div>
+        )}
+        {onTogglePlay && (
+          <button
+            type="button"
+            className={`trip-photo-slider-play${isPlaying ? ' is-playing' : ''}`}
+            onClick={e => { e.stopPropagation(); onTogglePlay(); }}
+            aria-label={isPlaying ? 'Pause presentation' : 'Play presentation'}
+          >
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z" /></svg>
+            )}
+          </button>
+        )}
+      </div>
+      <button className="lb-close trip-photo-slider-close" aria-label={closeLabel} onClick={e => { e.stopPropagation(); onClose(); }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+      </button>
+      {hasPrevious && (
+        <button className="lb-arrow lb-arrow-left trip-photo-slider-arrow" aria-label={previousLabel} onClick={e => { e.stopPropagation(); onNavigate(-1); }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+      )}
+      {hasNext && (
+        <button className="lb-arrow lb-arrow-right trip-photo-slider-arrow" aria-label={nextLabel} onClick={e => { e.stopPropagation(); onNavigate(1); }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+        </button>
+      )}
+      {total > 1 && (
+        <div className="trip-photo-slider-progress" onClick={e => e.stopPropagation()}>
+          <span className="lb-counter trip-photo-slider-counter">{index + 1} / {total}</span>
+          <div className="trip-photo-slider-dots" aria-hidden="true">
+            {visibleDots.map(dot => (
+              <span key={dot.key} className={dot.index === index ? 'active' : ''} />
+            ))}
+          </div>
+        </div>
+      )}
+      {children}
+      {footer && <div className="trip-photo-slider-footer" onClick={e => e.stopPropagation()}>{footer}</div>}
+    </div>
   );
 }
 
@@ -254,8 +357,11 @@ export default function App() {
   const [profileForm, setProfileForm] = useState(emptyProfileForm);
   const [savingProfile, setSavingProfile] = useState(false);
   const [youtubeConnecting, setYoutubeConnecting] = useState(false);
+  const [youtubeHelpOpen, setYoutubeHelpOpen] = useState(false);
   const [youtubeAccessToken, setYoutubeAccessToken] = useState(() => sessionStorage.getItem('youtubeAccessToken') || '');
   const [youtubeConnectedEmail, setYoutubeConnectedEmail] = useState(() => sessionStorage.getItem('youtubeConnectedEmail') || '');
+  const [youtubeTokenExpiresAt, setYoutubeTokenExpiresAt] = useState(() => Number(sessionStorage.getItem('youtubeTokenExpiresAt') || 0));
+  const [youtubeTokenNow, setYoutubeTokenNow] = useState(() => Date.now());
   const [view, setView] = useState('grid');
   const [tripsView, setTripsView] = useState('grid');
   const [photoRenderLimit, setPhotoRenderLimit] = useState(PHOTO_GRID_BATCH_SIZE);
@@ -489,6 +595,11 @@ export default function App() {
     setFbModal(false);
   }, []);
 
+  const returnFromAdminToolToProfile = useCallback((closeAdminTool) => {
+    closeAdminTool();
+    setProfileModal(true);
+  }, []);
+
   const dismissDashboardNotification = useCallback((id) => {
     setDismissedNotifications(prev => {
       const next = new Set(prev);
@@ -572,6 +683,22 @@ export default function App() {
       .catch(() => {});
   }, [user, isReadOnly]);
 
+  useEffect(() => {
+    if (!youtubeAccessToken) return undefined;
+    const timer = window.setInterval(() => setYoutubeTokenNow(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, [youtubeAccessToken]);
+
+  const youtubeTokenStatus = useMemo(() => {
+    if (youtubeAccessToken && youtubeTokenExpiresAt > 0) {
+      if (youtubeTokenExpiresAt <= youtubeTokenNow) return T.youtubeTokenExpired;
+      return T.youtubeTokenExpiresAt(new Date(youtubeTokenExpiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+    if (youtubeAccessToken) return T.youtubeTokenExpiryUnknown;
+    if (youtubeConnectedEmail) return T.youtubeTokenSessionMissing;
+    return '';
+  }, [T, youtubeAccessToken, youtubeConnectedEmail, youtubeTokenExpiresAt, youtubeTokenNow]);
+
   // ─── Dark mode effect ───
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
@@ -651,8 +778,10 @@ export default function App() {
     setGuestMode(false);
     sessionStorage.removeItem('youtubeAccessToken');
     sessionStorage.removeItem('youtubeConnectedEmail');
+    sessionStorage.removeItem('youtubeTokenExpiresAt');
     setYoutubeAccessToken('');
     setYoutubeConnectedEmail('');
+    setYoutubeTokenExpiresAt(0);
     signOut(auth).catch(() => {});
   }, []);
 
@@ -690,10 +819,13 @@ export default function App() {
       const token = credential?.accessToken || '';
       if (!token) throw new Error('Missing YouTube access token');
       const email = result.user?.email || user.email || '';
+      const tokenExpiresAt = Date.now() + (55 * 60 * 1000);
       setYoutubeAccessToken(token);
       setYoutubeConnectedEmail(email);
+      setYoutubeTokenExpiresAt(tokenExpiresAt);
       sessionStorage.setItem('youtubeAccessToken', token);
       sessionStorage.setItem('youtubeConnectedEmail', email);
+      sessionStorage.setItem('youtubeTokenExpiresAt', String(tokenExpiresAt));
       await setDoc(doc(db, 'users', user.uid, 'profile', 'settings'), {
         youtubeConnectedEmail: email,
         youtubeConnectedAt: serverTimestamp(),
@@ -713,6 +845,7 @@ export default function App() {
       setCustomPanelMiro('');
       setProfileForm(emptyProfileForm);
       setYoutubeConnectedEmail('');
+      setYoutubeTokenExpiresAt(0);
       return;
     }
     if (isReadOnly) {
@@ -720,6 +853,7 @@ export default function App() {
       setCustomPanelMiro('');
       setProfileForm(emptyProfileForm);
       setYoutubeConnectedEmail('');
+      setYoutubeTokenExpiresAt(0);
       return;
     }
     getDoc(doc(db, 'users', user.uid, 'profile', 'settings'))
@@ -995,6 +1129,18 @@ export default function App() {
         if (e.key === 'ArrowRight' && publicLbIdx < publicShareData.photos.length - 1) { const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(publicShareData.photos[n]); }
         return;
       }
+      if (personPresentation?.photos?.length) {
+        if (e.key === 'Escape') closePersonPresentation();
+        if (e.key === 'ArrowLeft') navigatePersonPresentation(-1);
+        if (e.key === 'ArrowRight') navigatePersonPresentation(1);
+        return;
+      }
+      if (personSlideshow?.photos?.length) {
+        if (e.key === 'Escape') setPersonSlideshow(null);
+        if (e.key === 'ArrowLeft') navigatePersonSlideshow(-1);
+        if (e.key === 'ArrowRight') navigatePersonSlideshow(1);
+        return;
+      }
       if (e.key === 'Escape') {
         if (shareSuccess) { setShareSuccess(null); }
         else if (confirmUserAction) { setConfirmUserAction(null); }
@@ -1003,9 +1149,9 @@ export default function App() {
         else if (personMatchesModal) { setPersonMatchesModal(null); }
         else if (confirmDeletePerson) { setConfirmDeletePerson(null); }
         else if (peopleModal) { closePeopleTools(); }
-        else if (notificationsModal) { setNotificationsModal(false); }
-        else if (usersModal) { setUsersModal(false); }
-        else if (pendingRequestsModal) { setPendingRequestsModal(false); }
+        else if (notificationsModal) { returnFromAdminToolToProfile(() => setNotificationsModal(false)); }
+        else if (usersModal) { returnFromAdminToolToProfile(() => setUsersModal(false)); }
+        else if (pendingRequestsModal) { returnFromAdminToolToProfile(() => setPendingRequestsModal(false)); }
         else if (manageAccessesModal) { setManageAccessesModal(false); }
         else if (profileModal) { setProfileModal(false); }
         else if (thumbMigration) { closeThumbMigration(); }
@@ -1018,7 +1164,12 @@ export default function App() {
         else if (signOutConfirm) { setSignOutConfirm(null); }
         else if (confirmDelete) { setConfirmDelete(null); }
         else if (cityModal) { setCityModal(false); }
-        else if (fbModal) { if (fbStep === 'import') cancelFacebookImport(); else closeFacebookModal(); }
+        else if (fbModal) {
+          returnFromAdminToolToProfile(() => {
+            if (fbStep === 'import') cancelFacebookImport();
+            closeFacebookModal();
+          });
+        }
         else if (restorePreviousUiSnapshot()) {}
         else if (activeCity) { setActiveCity(null); }
         else if (activeTrip) { setActiveTrip(null); setStatPanel(null); }
@@ -1282,23 +1433,26 @@ export default function App() {
         selfDeclaredMadeForKids: false,
       },
     };
-    const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${youtubeAccessToken}`,
-        'Content-Type': 'application/json; charset=UTF-8',
-        'X-Upload-Content-Type': file.type || 'application/octet-stream',
-        'X-Upload-Content-Length': String(file.size),
-      },
-      body: JSON.stringify(metadata),
-    });
-    if (init.status === 401 || init.status === 403) {
-      sessionStorage.removeItem('youtubeAccessToken');
-      setYoutubeAccessToken('');
-      throw new Error('YOUTUBE_RECONNECT');
+    let uploadUrl = '';
+    try {
+      const initUpload = httpsCallable(firebaseFunctions, 'initYouTubeUpload');
+      const result = await initUpload({
+        accessToken: youtubeAccessToken,
+        metadata,
+        contentType: file.type || 'application/octet-stream',
+        contentLength: file.size,
+      });
+      uploadUrl = result.data?.uploadUrl || '';
+    } catch (err) {
+      if (err.code === 'functions/permission-denied' || err.code === 'functions/unauthenticated') {
+        sessionStorage.removeItem('youtubeAccessToken');
+        sessionStorage.removeItem('youtubeTokenExpiresAt');
+        setYoutubeAccessToken('');
+        setYoutubeTokenExpiresAt(0);
+        throw new Error('YOUTUBE_RECONNECT');
+      }
+      throw err;
     }
-    if (!init.ok) throw new Error(`YouTube upload init failed (${init.status})`);
-    const uploadUrl = init.headers.get('Location');
     if (!uploadUrl) throw new Error('YouTube upload URL missing');
 
     const uploaded = await fetch(uploadUrl, {
@@ -1308,7 +1462,9 @@ export default function App() {
     });
     if (uploaded.status === 401 || uploaded.status === 403) {
       sessionStorage.removeItem('youtubeAccessToken');
+      sessionStorage.removeItem('youtubeTokenExpiresAt');
       setYoutubeAccessToken('');
+      setYoutubeTokenExpiresAt(0);
       throw new Error('YOUTUBE_RECONNECT');
     }
     if (!uploaded.ok) throw new Error(`YouTube upload failed (${uploaded.status})`);
@@ -3747,6 +3903,21 @@ export default function App() {
   const tripByIso = {};
   trips.forEach(t => { const iso = COUNTRY_ISO[t.country]; if (iso && !tripByIso[iso]) tripByIso[iso] = t; });
   const hasMapData = trips.some(t => COUNTRY_ISO[t.country]);
+  const mapTerritoryMarkers = MAP_TERRITORY_MARKERS
+    .map(marker => ({
+      ...marker,
+      isVisited: visitedIsos.has(marker.iso),
+      isWished: !visitedIsos.has(marker.iso) && wishlist.has(marker.iso),
+      trip: tripByIso[marker.iso],
+    }))
+    .filter(marker => marker.isVisited || marker.isWished);
+  const getGeoIso = (geo) => {
+    const id = Number(geo.id);
+    if (Number.isFinite(id)) return id;
+    const isoN3 = Number(geo.properties?.ISO_N3 || geo.properties?.iso_n3);
+    return Number.isFinite(isoN3) ? isoN3 : null;
+  };
+  const getGeoName = (geo) => geo.properties?.name || geo.properties?.NAME || geo.properties?.NAME_LONG || geo.properties?.ADMIN || '';
 
   // ─── Stat panel helpers ───
   const toggleContinent = (continent) => setExpandedContinents(prev => {
@@ -3998,21 +4169,21 @@ export default function App() {
           </div>
         </div>
         {publicLightbox && (
-          <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setPublicLightbox(null)}>
-            <div className="lightbox-img-wrap" onClick={e => e.stopPropagation()}>
-              <CrossfadeImage
-                src={publicLightbox.url}
-                alt={publicLightbox.name}
-                className="lightbox-img"
-                incomingClassName="lightbox-img-incoming"
-                loading="eager"
-              />
-            </div>
-            <button className="lb-close" aria-label={T.close} onClick={() => setPublicLightbox(null)}>✕</button>
-            {publicLbIdx > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx - 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>&lt;</button>}
-            {publicLbIdx < pubPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); const n = publicLbIdx + 1; setPublicLbIdx(n); setPublicLightbox(pubPhotos[n]); }}>&gt;</button>}
-            <div className="lb-counter">{publicLbIdx + 1} / {pubPhotos.length}</div>
-          </div>
+          <PhotoSliderOverlay
+            item={publicLightbox}
+            items={pubPhotos}
+            index={publicLbIdx}
+            onClose={() => setPublicLightbox(null)}
+            onNavigate={dir => {
+              const n = publicLbIdx + dir;
+              if (n < 0 || n >= pubPhotos.length) return;
+              setPublicLbIdx(n);
+              setPublicLightbox(pubPhotos[n]);
+            }}
+            closeLabel={T.close}
+            previousLabel={isSpanish ? 'Foto anterior' : 'Previous photo'}
+            nextLabel={isSpanish ? 'Foto siguiente' : 'Next photo'}
+          />
         )}
       </div>
     );
@@ -4116,58 +4287,6 @@ export default function App() {
         </div>
         <div className="header-actions">
           {isGuest && <span className="guest-pill">{T.guestModeLabel}</span>}
-          {isAdminUser && (
-            <div style={{ position: 'relative' }}>
-              <button className="btn-icon" onClick={() => setAdminDropdown(d => !d)} title={T.adminTools} aria-label={T.adminTools}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.5.65 1 1.56 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z" />
-                </svg>
-              </button>
-              {adminDropdown && (
-                <>
-                  <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setAdminDropdown(false)} />
-                  <div className="admin-dropdown">
-                    <button className="admin-dropdown-item" onClick={() => { setAdminDropdown(false); setFbStep('folder'); setFbError(''); setFbHelpOpen(true); setFbModal(true); }}>
-                      {T.importFbMenu}
-                    </button>
-                    <button className="admin-dropdown-item" onClick={() => {
-                      setAdminDropdown(false);
-                      loadPendingRequests();
-                      setPendingRequestsModal(true);
-                    }}>
-                      {T.pendingRequestsMenu}
-                    </button>
-                    <button className="admin-dropdown-item" onClick={() => {
-                      setAdminDropdown(false);
-                      loadAppUsers();
-                      setUsersModal(true);
-                    }}>
-                      {T.usersMenu}
-                    </button>
-                    <button className="admin-dropdown-item" onClick={() => {
-                      setAdminDropdown(false);
-                      setNotificationsModal(true);
-                    }}>
-                      {T.notificationsMenu}
-                    </button>
-                    <button className="admin-dropdown-item" onClick={() => {
-                      setAdminDropdown(false);
-                      window.open('https://console.firebase.google.com/project/wanderlust-gallery/usage', 'firebase-bills-usage', 'noopener,noreferrer,width=1200,height=800');
-                    }}>
-                      {T.firebaseBillsUsageMenu}
-                    </button>
-                    <button className="admin-dropdown-item" onClick={() => {
-                      setAdminDropdown(false);
-                      window.open('https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1', 'aws-console', 'noopener,noreferrer');
-                    }}>
-                      {T.awsConsoleMenu}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
           {canUseFaceRecognition && (
             <button className="btn-icon" onClick={() => openPeopleTools()} title={T.peopleMenu} aria-label={T.peopleMenu}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -4187,13 +4306,15 @@ export default function App() {
               </svg>
             </button>
           )}
-          <button className="btn-icon" onClick={handleSignOut} title={T.signOut}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-          </button>
+          {isReadOnly && (
+            <button className="btn-icon" onClick={handleSignOut} title={T.signOut} aria-label={T.signOut}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
+          )}
         </div>
         <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }}
           onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
@@ -4520,6 +4641,7 @@ export default function App() {
                   <div className="map-zoom-btns">
                     <button className="btn-map-zoom" onClick={() => setMapZoom(z => Math.min(z * 1.6, 8))} title="Zoom in">+</button>
                     <button className="btn-map-zoom" onClick={() => setMapZoom(z => Math.max(z / 1.6, 1))} title="Zoom out">−</button>
+                    <button className="btn-map-reset" onClick={() => { setMapZoom(1); setMapCenter([0, 10]); }} title="Reset map">Reset</button>
                   </div>
                 </div>
                 <ComposableMap
@@ -4530,7 +4652,8 @@ export default function App() {
                   <ZoomableGroup zoom={mapZoom} center={mapCenter} onMoveEnd={({ coordinates, zoom }) => { setMapCenter(coordinates); setMapZoom(zoom); }}>
                     <Geographies geography={GEO_URL}>
                       {({ geographies }) => geographies.map(geo => {
-                        const iso = Number(geo.id);
+                        const iso = getGeoIso(geo);
+                        const name = getGeoName(geo);
                         const isVisited = visitedIsos.has(iso);
                         const isWished = !isVisited && wishlist.has(iso);
                         const trip = tripByIso[iso];
@@ -4539,14 +4662,14 @@ export default function App() {
                             key={geo.rsmKey}
                             geography={geo}
                             onMouseEnter={() => setMapTooltip(
-                              isVisited ? `${geo.properties.name} — ${trip.name}` :
-                              isWished  ? `${geo.properties.name} — ${T.wishlistTooltip}` :
-                              geo.properties.name
+                              isVisited ? `${name} — ${trip.name}` :
+                              isWished  ? `${name} — ${T.wishlistTooltip}` :
+                              name
                             )}
                             onMouseLeave={() => setMapTooltip('')}
                             onClick={() => {
                               if (isVisited && trip) { setActiveTrip(trip.id); setTripsView('grid'); }
-                              else if (!isReadOnly) toggleWishlist(iso);
+                              else if (!isReadOnly && iso) toggleWishlist(iso);
                             }}
                             style={{
                               default: { fill: isVisited ? 'var(--accent)' : isWished ? '#e05252' : 'var(--map-land)', stroke: 'var(--map-border)', strokeWidth: 0.4, outline: 'none' },
@@ -4557,6 +4680,24 @@ export default function App() {
                         );
                       })}
                     </Geographies>
+                    {mapTerritoryMarkers.map(marker => (
+                      <Marker key={marker.name} coordinates={marker.coordinates}>
+                        <circle
+                          r={marker.isVisited ? 4.6 : 3.8}
+                          className={`map-territory-dot${marker.isVisited ? ' visited' : ''}${marker.isWished ? ' wished' : ''}`}
+                          onMouseEnter={() => setMapTooltip(
+                            marker.isVisited ? `${marker.name} — ${marker.trip.name}` :
+                            marker.isWished ? `${marker.name} — ${T.wishlistTooltip}` :
+                            marker.name
+                          )}
+                          onMouseLeave={() => setMapTooltip('')}
+                          onClick={() => {
+                            if (marker.isVisited && marker.trip) { setActiveTrip(marker.trip.id); setTripsView('grid'); }
+                            else if (!isReadOnly) toggleWishlist(marker.iso);
+                          }}
+                        />
+                      </Marker>
+                    ))}
                   </ZoomableGroup>
                 </ComposableMap>
                 <div className="map-tooltip-bar">{mapTooltip || ' '}</div>
@@ -4644,7 +4785,7 @@ export default function App() {
                             title={isSpanish ? 'Foto anterior' : 'Previous photo'}
                             aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
                           >
-                            &lt;
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
                           </button>
                           <button
                             className="trip-slider-btn trip-slider-next"
@@ -4652,7 +4793,7 @@ export default function App() {
                             title={isSpanish ? 'Foto siguiente' : 'Next photo'}
                             aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
                           >
-                            &gt;
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
                           </button>
                           <div className="trip-slider-indicator">
                             {previewLoading
@@ -4798,7 +4939,7 @@ export default function App() {
                               title={isSpanish ? 'Foto anterior' : 'Previous photo'}
                               aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
                             >
-                              &lt;
+                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
                             </button>
                             <button
                               className="trip-slider-btn trip-slider-next"
@@ -4806,7 +4947,7 @@ export default function App() {
                               title={isSpanish ? 'Foto siguiente' : 'Next photo'}
                               aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
                             >
-                              &gt;
+                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
                             </button>
                             <div className="trip-slider-indicator">{`${cityPreviewIndex + 1}/${cityPhotos.length}`}</div>
                           </>
@@ -4849,7 +4990,7 @@ export default function App() {
                               title={isSpanish ? 'Foto anterior' : 'Previous photo'}
                               aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}
                             >
-                              &lt;
+                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
                             </button>
                             <button
                               className="trip-slider-btn trip-slider-next"
@@ -4857,7 +4998,7 @@ export default function App() {
                               title={isSpanish ? 'Foto siguiente' : 'Next photo'}
                               aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}
                             >
-                              &gt;
+                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
                             </button>
                             <div className="trip-slider-indicator">{`${cityPreviewIndex + 1}/${cityUncategorized.length}`}</div>
                           </>
@@ -4978,30 +5119,16 @@ export default function App() {
 
       {/* ═══ LIGHTBOX ═══ */}
       {lightbox && (
-        <div className="lightbox fade-scale" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
-          <div className="lightbox-img-wrap" onClick={e => e.stopPropagation()}>
-            {(lightbox.type === 'video' || lightbox.youtubeId) ? (
-              <iframe
-                className="lightbox-video"
-                src={lightbox.embedUrl || `https://www.youtube.com/embed/${lightbox.youtubeId}`}
-                title={lightbox.name || 'Video'}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            ) : (
-              <CrossfadeImage
-                src={lightbox.url}
-                alt={lightbox.name}
-                className="lightbox-img"
-                incomingClassName="lightbox-img-incoming"
-                loading="eager"
-              />
-            )}
-          </div>
-          <button className="lb-close" aria-label={T.close} onClick={() => setLightbox(null)}>✕</button>
-          {lbIndex > 0 && <button className="lb-arrow lb-arrow-left" aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'} onClick={e => { e.stopPropagation(); navLightbox(-1); }}>&lt;</button>}
-          {lbIndex < displayPhotos.length - 1 && <button className="lb-arrow lb-arrow-right" aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'} onClick={e => { e.stopPropagation(); navLightbox(1); }}>&gt;</button>}
-          <div className="lb-counter">{lbIndex + 1} / {displayPhotos.length}</div>
+        <PhotoSliderOverlay
+          item={lightbox}
+          items={displayPhotos}
+          index={lbIndex}
+          onClose={() => setLightbox(null)}
+          onNavigate={navLightbox}
+          closeLabel={T.close}
+          previousLabel={isSpanish ? 'Foto anterior' : 'Previous photo'}
+          nextLabel={isSpanish ? 'Foto siguiente' : 'Next photo'}
+        >
           {!isReadOnly && (
             <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
               <textarea
@@ -5038,7 +5165,7 @@ export default function App() {
                 title={T.createPersonFromPhoto}
                 disabled={savingPerson}
               >
-                +
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>
               </button>
               <button
                 className="lb-face-index-btn"
@@ -5046,7 +5173,9 @@ export default function App() {
                 title={T.indexFacesInPhoto}
                 disabled={faceAction === `index:${lightbox.id}`}
               >
-                {faceAction === `index:${lightbox.id}` ? <span className="spinner" style={{ width: 16, height: 16 }} /> : '◎'}
+                {faceAction === `index:${lightbox.id}` ? <span className="spinner" style={{ width: 16, height: 16 }} /> : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path d="M9 9h.01M15 9h.01" /></svg>
+                )}
               </button>
             </>
           )}
@@ -5057,7 +5186,7 @@ export default function App() {
               </svg>
             </button>
           )}
-        </div>
+        </PhotoSliderOverlay>
       )}
 
       {/* ═══ CONTEXT MENU ═══ */}
@@ -5120,15 +5249,71 @@ export default function App() {
               </div>
             </div>
             <div className="youtube-profile-box">
-              <div>
-                <strong>{T.youtubeAccount}</strong>
+              <div className="youtube-profile-main">
+                <div className="youtube-profile-header">
+                  <strong>{T.youtubeAccount}</strong>
+                  <button
+                    type="button"
+                    className={`help-toggle youtube-help-toggle${youtubeHelpOpen ? ' active' : ''}`}
+                    onClick={() => setYoutubeHelpOpen(open => !open)}
+                    title={T.helpLabel}
+                    aria-label={T.helpLabel}
+                    aria-expanded={youtubeHelpOpen}
+                  >
+                    ?
+                  </button>
+                </div>
                 <p>{youtubeConnectedEmail ? T.youtubeConnectedAs(youtubeConnectedEmail) : T.youtubeNotConnected}</p>
-                <span>{T.youtubePrivateUploadNote}</span>
+                {youtubeTokenStatus && <span>{youtubeTokenStatus}</span>}
+                {youtubeHelpOpen && (
+                  <div className="youtube-help-copy">
+                    <span>{T.youtubePrivateUploadNote}</span>
+                    <span>{T.youtubeVerificationNote}</span>
+                  </div>
+                )}
               </div>
               <button className="btn" onClick={connectYouTube} disabled={youtubeConnecting}>
                 {youtubeConnecting ? T.connecting : T.connectYouTube}
               </button>
             </div>
+            {isAdminUser && (
+              <div className="profile-tools-box">
+                <div className="profile-tools-heading">
+                  <span className="profile-tools-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.5.65 1 1.56 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z" /></svg>
+                  </span>
+                  <strong>{T.adminTools}</strong>
+                </div>
+                <div className="profile-tools-grid">
+                  <button className="profile-tool-btn" onClick={() => { setProfileModal(false); setFbStep('folder'); setFbError(''); setFbHelpOpen(true); setFbModal(true); }}>
+                    {T.importFbMenu}
+                  </button>
+                  <button className="profile-tool-btn" onClick={() => { setProfileModal(false); loadPendingRequests(); setPendingRequestsModal(true); }}>
+                    {T.pendingRequestsMenu}
+                  </button>
+                  <button className="profile-tool-btn" onClick={() => { setProfileModal(false); loadAppUsers(); setUsersModal(true); }}>
+                    {T.usersMenu}
+                  </button>
+                  <button className="profile-tool-btn" onClick={() => { setProfileModal(false); setNotificationsModal(true); }}>
+                    {T.notificationsMenu}
+                  </button>
+                  <button className="profile-tool-btn" onClick={() => window.open('https://console.firebase.google.com/project/wanderlust-gallery/usage', 'firebase-bills-usage', 'noopener,noreferrer,width=1200,height=800')}>
+                    {T.firebaseBillsUsageMenu}
+                  </button>
+                  <button className="profile-tool-btn" onClick={() => window.open('https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1', 'aws-console', 'noopener,noreferrer,width=1200,height=800')}>
+                    {T.awsConsoleMenu}
+                  </button>
+                </div>
+              </div>
+            )}
+            <button className="profile-signout-btn" onClick={() => { setProfileModal(false); handleSignOut(); }}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              <span>{T.signOut}</span>
+            </button>
             <div className="modal-actions">
               <button className="btn btn-sm" onClick={() => setProfileModal(false)}>{T.cancel}</button>
               <button className="btn btn-accent" onClick={saveUserProfile} disabled={savingProfile}>
@@ -5968,7 +6153,51 @@ export default function App() {
         </div>
       )}
 
-      {canUseFaceRecognition && personPresentation && (
+      {canUseFaceRecognition && personPresentation && !personPresentation.loading && personPresentation.photos.length > 0 && (
+        <PhotoSliderOverlay
+          item={personPresentation.photos[personPresentation.index] || personPresentation.photos[0]}
+          items={personPresentation.photos}
+          index={personPresentation.index}
+          onClose={closePersonPresentation}
+          onNavigate={navigatePersonPresentation}
+          closeLabel={T.close}
+          previousLabel={isSpanish ? 'Foto anterior' : 'Previous photo'}
+          nextLabel={isSpanish ? 'Foto siguiente' : 'Next photo'}
+          title={(personPresentation.photos[personPresentation.index] || personPresentation.photos[0])?.tripName || personPresentation.person.name}
+          subtitle={[(personPresentation.photos[personPresentation.index] || personPresentation.photos[0])?.tripDate, (personPresentation.photos[personPresentation.index] || personPresentation.photos[0])?.city].filter(Boolean).join(' · ') || T.personMatchCount(personPresentation.photos.length)}
+          className="presentation-overlay"
+          imageClassName="presentation-img"
+          incomingClassName="presentation-img-incoming"
+          isPlaying={personPresentation.playing}
+          onTogglePlay={() => setPersonPresentation(prev => prev ? { ...prev, playing: !prev.playing } : prev)}
+          footer={(
+            <>
+              <span>
+                {exportingPresentation && presentationExportProgress
+                  ? T.presentationExportProgress(presentationExportProgress.done, presentationExportProgress.total)
+                  : T.presentationTitle(personPresentation.person.name)}
+              </span>
+              <div className="presentation-share-buttons" aria-label={T.shareOnSocial}>
+                <span>{T.shareOnSocial}</span>
+                <button type="button" className="social-share-btn whatsapp" onClick={() => sharePresentationToPlatform('whatsapp')} title="WhatsApp" aria-label="WhatsApp">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.76.46 3.47 1.34 4.98L2 22l5.25-1.38a9.86 9.86 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.51 2 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-3.11.82.83-3.03-.2-.31a8.18 8.18 0 1 1 6.97 3.84Zm4.49-6.13c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.56.12-.16.25-.64.8-.78.96-.14.16-.29.18-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.16.04-.31-.02-.43-.06-.12-.56-1.35-.76-1.85-.2-.48-.41-.42-.56-.43h-.48c-.16 0-.43.06-.66.31-.23.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.64 4.19 3.7.59.25 1.04.4 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.46-.6 1.66-1.17.21-.57.21-1.06.14-1.17-.06-.1-.23-.16-.47-.29Z"/></svg>
+                </button>
+                <button type="button" className="social-share-btn facebook" onClick={() => sharePresentationToPlatform('facebook')} title="Facebook" aria-label="Facebook">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.2 8.4V6.7c0-.82.55-1.01.94-1.01h2.39V2.05L14.24 2C10.59 2 9.76 4.74 9.76 6.49V8.4H7v3.75h2.76V22h4.44v-9.85h3.01l.45-3.75H14.2Z"/></svg>
+                </button>
+                <button type="button" className="social-share-btn x" onClick={() => sharePresentationToPlatform('x')} title="X" aria-label="X">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.68 10.62 20.24 3h-1.55l-5.7 6.62L8.44 3H3.2l6.88 10.01L3.2 21h1.55l6.02-6.99L15.56 21h5.24l-7.12-10.38Zm-2.13 2.47-.7-1L5.31 4.17H7.7l4.48 6.41.7 1 5.81 8.31H16.3l-4.75-6.8Z"/></svg>
+                </button>
+                <button type="button" className="social-share-btn telegram" onClick={() => sharePresentationToPlatform('telegram')} title="Telegram" aria-label="Telegram">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.54 3.6 18.2 19.36c-.25 1.12-.91 1.4-1.84.87l-5.08-3.75-2.45 2.36c-.27.27-.5.5-1.02.5l.36-5.17 9.4-8.49c.41-.36-.09-.56-.63-.2L5.32 12.8.31 11.23c-1.09-.34-1.11-1.09.23-1.61L20.13 2.08c.91-.34 1.7.2 1.41 1.52Z"/></svg>
+                </button>
+              </div>
+            </>
+          )}
+        />
+      )}
+
+      {canUseFaceRecognition && personPresentation && (personPresentation.loading || personPresentation.photos.length === 0) && (
         <div className="modal-overlay fade-scale presentation-overlay" onClick={closePersonPresentation}>
           <div {...modalProps} className="modal presentation-modal" onClick={e => e.stopPropagation()}>
             <div className="presentation-header">
@@ -6091,41 +6320,20 @@ export default function App() {
       )}
 
       {canUseFaceRecognition && personSlideshow && (
-        <div className="modal-overlay fade-scale" onClick={() => setPersonSlideshow(null)}>
-          <div {...modalProps} className="modal person-slideshow-modal" onClick={e => e.stopPropagation()}>
-            <p className="modal-title">{personSlideshow.title}</p>
-            {(() => {
-                  const photo = personSlideshow.photos[personSlideshow.index];
-                  return (
-                    <>
-                      <div className="person-slide-frame">
-                        <CrossfadeImage
-                          src={photo.url || photo.thumbUrl}
-                          alt={photo.name || ''}
-                          className="person-slide-img"
-                          incomingClassName="person-slide-img-incoming"
-                          loading="eager"
-                        />
-                    {personSlideshow.index > 0 && (
-                      <button className="person-slide-arrow person-slide-prev" onClick={() => navigatePersonSlideshow(-1)} aria-label={isSpanish ? 'Foto anterior' : 'Previous photo'}>&lt;</button>
-                    )}
-                    {personSlideshow.index < personSlideshow.photos.length - 1 && (
-                      <button className="person-slide-arrow person-slide-next" onClick={() => navigatePersonSlideshow(1)} aria-label={isSpanish ? 'Foto siguiente' : 'Next photo'}>&gt;</button>
-                    )}
-                  </div>
-                  <div className="person-slide-meta">
-                    <span>{photo.tripName}</span>
-                    <span>{personSlideshow.index + 1} / {personSlideshow.photos.length}</span>
-                  </div>
-                </>
-              );
-            })()}
-            <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={() => setPersonSlideshow(null)}>{T.close}</button>
-            </div>
-          </div>
-        </div>
+        <PhotoSliderOverlay
+          item={personSlideshow.photos[personSlideshow.index]}
+          items={personSlideshow.photos}
+          index={personSlideshow.index}
+          onClose={() => setPersonSlideshow(null)}
+          onNavigate={navigatePersonSlideshow}
+          closeLabel={T.close}
+          previousLabel={isSpanish ? 'Foto anterior' : 'Previous photo'}
+          nextLabel={isSpanish ? 'Foto siguiente' : 'Next photo'}
+          title={personSlideshow.title}
+          subtitle={personSlideshow.photos[personSlideshow.index]?.tripName || ''}
+        />
       )}
+
 
       {isAdminUser && notificationsModal && (
         <div className="modal-overlay fade-scale" onClick={() => setNotificationsModal(false)}>

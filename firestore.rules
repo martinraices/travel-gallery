@@ -15,6 +15,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isTripOwner(trip) {
+      return request.auth != null &&
+        (trip.ownerId == request.auth.uid || !('ownerId' in trip));
+    }
+
     function hasTripAccess(trip) {
       return trip.visibility == 'shared' || (
         request.auth != null && (
@@ -34,6 +39,11 @@ service cloud.firestore {
         request.resource.data.visibility in ['shared', 'private'];
     }
 
+    function validTripUpdate() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'ownerEmail']) &&
+        request.resource.data.visibility in ['shared', 'private'];
+    }
+
     function validShareLink() {
       return request.resource.data.keys().hasOnly([
         'tripId', 'ownerId', 'tripName', 'tripDate', 'photos', 'expiresAt', 'createdAt'
@@ -45,15 +55,16 @@ service cloud.firestore {
     // Trips: public can read shared trips; owners, admins and email-granted users can read private trips.
     match /trips/{tripId} {
       allow read: if hasTripAccess(resource.data);
-      allow create: if isAdmin() && validTripCreate();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isSignedIn() && validTripCreate();
+      allow update: if isAdmin() || (isTripOwner(resource.data) && validTripUpdate());
+      allow delete: if isAdmin() || isTripOwner(resource.data);
     }
 
     // Photos follow their parent trip visibility/access rules.
     match /trips/{tripId}/photos/{photoId} {
       allow read: if hasTripAccess(get(/databases/$(database)/documents/trips/$(tripId)).data);
-      allow write: if isAdmin();
+      allow write: if isAdmin() ||
+        isTripOwner(get(/databases/$(database)/documents/trips/$(tripId)).data);
     }
 
     match /trips/{tripId}/photos/{photoId}/faces/{faceId} {

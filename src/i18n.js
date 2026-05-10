@@ -26,7 +26,14 @@ export function getTranslations(isSpanish) {
     connecting: isSpanish ? 'Conectando...' : 'Connecting...',
     youtubeNotConnected: isSpanish ? 'No conectada' : 'Not connected',
     youtubeConnectedAs: (email) => isSpanish ? `Conectada como ${email}` : `Connected as ${email}`,
+    youtubeTokenExpiresAt: (time) => isSpanish ? `Token activo hasta aprox. ${time}.` : `Token active until approx. ${time}.`,
+    youtubeTokenExpired: isSpanish ? 'El token parece vencido. Conecta YouTube nuevamente.' : 'The token appears expired. Connect YouTube again.',
+    youtubeTokenExpiryUnknown: isSpanish ? 'Token activo en esta pestana; expiracion no disponible.' : 'Token active in this tab; expiry unavailable.',
+    youtubeTokenSessionMissing: isSpanish ? 'Conexion guardada, pero no hay token activo en esta sesion.' : 'Saved connection, but no active token in this session.',
     youtubePrivateUploadNote: isSpanish ? 'Los videos se subiran a YouTube como privados.' : 'Videos will be uploaded to YouTube as private.',
+    youtubeVerificationNote: isSpanish
+      ? 'Google puede mostrar "app no verificada" hasta que el proyecto OAuth sea verificado. Si confias en esta app privada, usa Advanced y continua.'
+      : 'Google may show "app not verified" until the OAuth project is verified. If you trust this private app, use Advanced and continue.',
     youtubeConnectedNotice: isSpanish ? 'YouTube conectado.' : 'YouTube connected.',
     youtubeConnectFailed: isSpanish ? 'No se pudo conectar YouTube.' : 'Could not connect YouTube.',
     profileSaved: isSpanish ? 'Perfil guardado.' : 'Profile saved.',

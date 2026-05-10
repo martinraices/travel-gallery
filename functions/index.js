@@ -87,6 +87,37 @@ function canAccessTrip(request, trip) {
     || (!!email && allowedEmails.includes(email));
 }
 
+exports.initYouTubeUpload = onCall(
+  { timeoutSeconds: 60, memory: '256MiB' },
+  async (request) => {
+    assertSignedIn(request);
+    const { accessToken, metadata, contentType, contentLength } = request.data || {};
+    if (!accessToken) throw new HttpsError('unauthenticated', 'Connect YouTube before uploading videos.');
+    if (!metadata?.snippet?.title) throw new HttpsError('invalid-argument', 'Video metadata is required.');
+
+    const response = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': contentType || 'application/octet-stream',
+        'X-Upload-Content-Length': String(contentLength || 0),
+      },
+      body: JSON.stringify(metadata),
+    });
+
+    const uploadUrl = response.headers.get('Location');
+    if (!response.ok || !uploadUrl) {
+      let details = '';
+      try { details = await response.text(); } catch (_) {}
+      const code = response.status === 401 || response.status === 403 ? 'permission-denied' : 'internal';
+      throw new HttpsError(code, `YouTube upload init failed (${response.status}).`, { status: response.status, details });
+    }
+
+    return { uploadUrl };
+  }
+);
+
 async function imageBytesFromUrl(url) {
   if (!url) throw new HttpsError('failed-precondition', 'Photo has no image URL.');
   const response = await fetch(url);

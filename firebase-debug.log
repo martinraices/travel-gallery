@@ -1,12 +1,266 @@
-[debug] [2026-05-06T10:42:15.511Z] ----------------------------------------------------------------------
-[debug] [2026-05-06T10:42:15.514Z] Command:       C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules
-[debug] [2026-05-06T10:42:15.514Z] CLI Version:   15.15.0
-[debug] [2026-05-06T10:42:15.514Z] Platform:      win32
-[debug] [2026-05-06T10:42:15.515Z] Node Version:  v23.3.0
-[debug] [2026-05-06T10:42:15.515Z] Time:          Wed May 06 2026 18:42:15 GMT+0800 (Singapore Standard Time)
-[debug] [2026-05-06T10:42:15.515Z] ----------------------------------------------------------------------
+[debug] [2026-05-09T04:41:07.177Z] ----------------------------------------------------------------------
+[debug] [2026-05-09T04:41:07.182Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:initYouTubeUpload --project wanderlust-gallery
+[debug] [2026-05-09T04:41:07.183Z] CLI Version:   15.17.0
+[debug] [2026-05-09T04:41:07.183Z] Platform:      win32
+[debug] [2026-05-09T04:41:07.183Z] Node Version:  v24.15.0
+[debug] [2026-05-09T04:41:07.183Z] Time:          Sat May 09 2026 12:41:07 GMT+0800 (Singapore Standard Time)
+[debug] [2026-05-09T04:41:07.183Z] ----------------------------------------------------------------------
 [debug] 
-[debug] [2026-05-06T10:42:15.517Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-05-09T04:41:08.346Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-09T04:41:08.346Z] > authorizing via signed-in user (raicesm@gmail.com)
+[debug] [2026-05-09T04:41:08.346Z] [iam] checking project wanderlust-gallery for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-05-09T04:41:08.347Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:08.347Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:08.348Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions [none]
+[debug] [2026-05-09T04:41:08.348Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-09T04:41:08.348Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-09T04:41:09.419Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions 200
+[debug] [2026-05-09T04:41:09.419Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-09T04:41:09.419Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:09.420Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:09.420Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/wanderlust-gallery/serviceAccounts/wanderlust-gallery@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-05-09T04:41:09.420Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/wanderlust-gallery/serviceAccounts/wanderlust-gallery@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-09T04:41:10.759Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/wanderlust-gallery/serviceAccounts/wanderlust-gallery@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-05-09T04:41:10.759Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/wanderlust-gallery/serviceAccounts/wanderlust-gallery@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'wanderlust-gallery'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-05-09T04:41:10.761Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:10.761Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:10.761Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudresourcemanager.googleapis.com [none]
+[debug] [2026-05-09T04:41:10.761Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudresourcemanager.googleapis.com  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-09T04:41:12.296Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudresourcemanager.googleapis.com 200
+[debug] [2026-05-09T04:41:12.296Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudresourcemanager.googleapis.com [omitted]
+[debug] [2026-05-09T04:41:12.299Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:12.299Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:12.299Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery [none]
+[debug] [2026-05-09T04:41:12.570Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery 200
+[debug] [2026-05-09T04:41:12.570Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery {"projectNumber":"582205452363","projectId":"wanderlust-gallery","lifecycleState":"ACTIVE","name":"pepiniperilmondo","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-04-29T09:00:21.377Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[debug] [2026-05-09T04:41:12.572Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:12.572Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:12.572Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:12.572Z] Checked if tokens are valid: true, expires at: 1778305253553
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[debug] [2026-05-09T04:41:12.572Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:12.572Z] Checked if tokens are valid: true, expires at: 1778305253553
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-05-09T04:41:12.573Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:12.573Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:12.573Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudfunctions.googleapis.com [none]
+[debug] [2026-05-09T04:41:12.573Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudfunctions.googleapis.com  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-09T04:41:12.573Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/runtimeconfig.googleapis.com [none]
+[debug] [2026-05-09T04:41:12.573Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/runtimeconfig.googleapis.com  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-09T04:41:12.574Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudbuild.googleapis.com [none]
+[debug] [2026-05-09T04:41:12.574Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudbuild.googleapis.com  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-09T04:41:12.575Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/artifactregistry.googleapis.com [none]
+[debug] [2026-05-09T04:41:12.575Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/artifactregistry.googleapis.com  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-09T04:41:13.862Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudbuild.googleapis.com 200
+[debug] [2026-05-09T04:41:13.862Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudbuild.googleapis.com [omitted]
+[info] +  functions: required API cloudbuild.googleapis.com is enabled 
+[debug] [2026-05-09T04:41:13.890Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudfunctions.googleapis.com 200
+[debug] [2026-05-09T04:41:13.890Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/cloudfunctions.googleapis.com [omitted]
+[info] +  functions: required API cloudfunctions.googleapis.com is enabled 
+[debug] [2026-05-09T04:41:13.893Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/runtimeconfig.googleapis.com 200
+[debug] [2026-05-09T04:41:13.894Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/runtimeconfig.googleapis.com [omitted]
+[debug] [2026-05-09T04:41:13.913Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/artifactregistry.googleapis.com 200
+[debug] [2026-05-09T04:41:13.913Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/artifactregistry.googleapis.com [omitted]
+[info] +  artifactregistry: required API artifactregistry.googleapis.com is enabled 
+[debug] [2026-05-09T04:41:13.915Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:13.915Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:13.915Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery/adminSdkConfig [none]
+[debug] [2026-05-09T04:41:15.033Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery/adminSdkConfig 200
+[debug] [2026-05-09T04:41:15.033Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery/adminSdkConfig {"projectId":"wanderlust-gallery","storageBucket":"wanderlust-gallery.firebasestorage.app"}
+[debug] [2026-05-09T04:41:15.034Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:15.034Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:41:15.034Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/wanderlust-gallery/configs [none]
+[debug] [2026-05-09T04:41:16.485Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/wanderlust-gallery/configs 200
+[debug] [2026-05-09T04:41:16.485Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/wanderlust-gallery/configs {}
+[debug] [2026-05-09T04:41:16.486Z] Validating nodejs source
+[warn] !  functions: Runtime Node.js 20 was deprecated on 2026-04-30 and will be decommissioned on 2026-10-30, after which you will not be able to deploy without upgrading. Consider upgrading now to avoid disruption. See https://cloud.google.com/functions/docs/runtime-support for full details on the lifecycle policy 
+[warn] !  functions: Couldn't find firebase-functions package in your source code. Have you run 'npm install'? 
+[debug] [2026-05-09T04:41:16.487Z] getFunctionsSDKVersion encountered error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js {"code":"MODULE_NOT_FOUND","requireStack":["C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\versioning.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\functions\\prepare.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\emulator\\functionsEmulatorShared.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\frameworks\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\prepare.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\commands\\deploy.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\commands\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\bin\\cli.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\bin\\firebase.js"]}
+[debug] [2026-05-09T04:41:16.487Z] checkFunctionsSDKVersion encountered error: Invalid Version:  {}
+[debug] [2026-05-09T04:41:16.488Z] > [functions] package.json contents: {
+  "name": "travel-gallery-functions",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.726.0",
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.1"
+  }
+}
+[debug] [2026-05-09T04:41:16.488Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-05-09T04:41:16.488Z] Could not parse firebase-functions version '' into semver.
+[debug] [2026-05-09T04:41:16.489Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-05-09T04:41:16.565Z] Error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1476:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1049:27)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1094:12)
+    at require.resolve (node:internal/modules/helpers:171:31)
+    at Delegate.findFunctionsBinary (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:101:33)
+    at Delegate.spawnFunctionsProcess (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:131:30)
+    at Delegate.serveAdmin (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:152:35)
+    at Delegate.discoverBuild (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:192:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async loadCodebases (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\prepare.js:496:33)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-05-09T04:42:30.465Z] ----------------------------------------------------------------------
+[debug] [2026-05-09T04:42:30.467Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:initYouTubeUpload --project wanderlust-gallery
+[debug] [2026-05-09T04:42:30.468Z] CLI Version:   15.17.0
+[debug] [2026-05-09T04:42:30.468Z] Platform:      win32
+[debug] [2026-05-09T04:42:30.468Z] Node Version:  v24.15.0
+[debug] [2026-05-09T04:42:30.468Z] Time:          Sat May 09 2026 12:42:30 GMT+0800 (Singapore Standard Time)
+[debug] [2026-05-09T04:42:30.468Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-09T04:42:31.518Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-09T04:42:31.518Z] > authorizing via signed-in user (raicesm@gmail.com)
+[debug] [2026-05-09T04:42:31.518Z] [iam] checking project wanderlust-gallery for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-05-09T04:42:31.519Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:31.519Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:31.519Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions [none]
+[debug] [2026-05-09T04:42:31.520Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-09T04:42:31.520Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-09T04:42:32.577Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions 200
+[debug] [2026-05-09T04:42:32.577Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-05-09T04:42:32.578Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:32.578Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:32.578Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/wanderlust-gallery/serviceAccounts/wanderlust-gallery@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-05-09T04:42:32.578Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/wanderlust-gallery/serviceAccounts/wanderlust-gallery@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-05-09T04:42:33.906Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/wanderlust-gallery/serviceAccounts/wanderlust-gallery@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-05-09T04:42:33.906Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/wanderlust-gallery/serviceAccounts/wanderlust-gallery@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'wanderlust-gallery'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-05-09T04:42:33.908Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:33.909Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:33.909Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery [none]
+[debug] [2026-05-09T04:42:34.220Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery 200
+[debug] [2026-05-09T04:42:34.221Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery {"projectNumber":"582205452363","projectId":"wanderlust-gallery","lifecycleState":"ACTIVE","name":"pepiniperilmondo","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-04-29T09:00:21.377Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-05-09T04:42:34.223Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:34.223Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:34.223Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery/adminSdkConfig [none]
+[debug] [2026-05-09T04:42:34.992Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery/adminSdkConfig 200
+[debug] [2026-05-09T04:42:34.992Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/wanderlust-gallery/adminSdkConfig {"projectId":"wanderlust-gallery","storageBucket":"wanderlust-gallery.firebasestorage.app"}
+[debug] [2026-05-09T04:42:34.992Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:34.992Z] Checked if tokens are valid: true, expires at: 1778305253553
+[debug] [2026-05-09T04:42:34.992Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/wanderlust-gallery/configs [none]
+[debug] [2026-05-09T04:42:36.109Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/wanderlust-gallery/configs 200
+[debug] [2026-05-09T04:42:36.109Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/wanderlust-gallery/configs {}
+[debug] [2026-05-09T04:42:36.110Z] Validating nodejs source
+[warn] !  functions: Runtime Node.js 20 was deprecated on 2026-04-30 and will be decommissioned on 2026-10-30, after which you will not be able to deploy without upgrading. Consider upgrading now to avoid disruption. See https://cloud.google.com/functions/docs/runtime-support for full details on the lifecycle policy 
+[warn] !  functions: Couldn't find firebase-functions package in your source code. Have you run 'npm install'? 
+[debug] [2026-05-09T04:42:36.111Z] getFunctionsSDKVersion encountered error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js {"code":"MODULE_NOT_FOUND","requireStack":["C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\versioning.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\node\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\functions\\runtimes\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\functions\\prepare.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\emulator\\functionsEmulatorShared.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\frameworks\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\prepare.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\hosting\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\deploy\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\commands\\deploy.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\commands\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\index.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\bin\\cli.js","C:\\Users\\marti\\AppData\\Local\\npm-cache\\_npx\\7750544ccf494d8b\\node_modules\\firebase-tools\\lib\\bin\\firebase.js"]}
+[debug] [2026-05-09T04:42:36.112Z] checkFunctionsSDKVersion encountered error: Invalid Version:  {}
+[debug] [2026-05-09T04:42:36.112Z] > [functions] package.json contents: {
+  "name": "travel-gallery-functions",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.726.0",
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.1"
+  }
+}
+[debug] [2026-05-09T04:42:36.112Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-05-09T04:42:36.113Z] Could not parse firebase-functions version '' into semver.
+[debug] [2026-05-09T04:42:36.113Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-05-09T04:42:36.202Z] Error: Cannot find module 'firebase-functions'
+Require stack:
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\prepare.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\emulator\functionsEmulatorShared.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\frameworks\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\hosting\prepare.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\hosting\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\commands\deploy.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\index.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1476:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1049:27)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1094:12)
+    at require.resolve (node:internal/modules/helpers:171:31)
+    at Delegate.findFunctionsBinary (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:101:33)
+    at Delegate.spawnFunctionsProcess (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:131:30)
+    at Delegate.serveAdmin (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:152:35)
+    at Delegate.discoverBuild (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:192:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async loadCodebases (C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\deploy\functions\prepare.js:496:33)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-05-10T02:47:06.889Z] ----------------------------------------------------------------------
+[debug] [2026-05-10T02:47:06.891Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules,storage
+[debug] [2026-05-10T02:47:06.891Z] CLI Version:   15.17.0
+[debug] [2026-05-10T02:47:06.891Z] Platform:      win32
+[debug] [2026-05-10T02:47:06.891Z] Node Version:  v24.15.0
+[debug] [2026-05-10T02:47:06.891Z] Time:          Sun May 10 2026 10:47:06 GMT+0800 (Singapore Standard Time)
+[debug] [2026-05-10T02:47:06.891Z] ----------------------------------------------------------------------
+[debug] 
 [error] 
 [error] Error: No currently active project.
 To run this command, you need to specify a project. You have two options:
@@ -16,25 +270,132 @@ To list all the Firebase projects to which you have access, run firebase project
 To learn about active projects for the CLI, visit https://firebase.google.com/docs/cli#project_aliases
 
 
-[debug] [2026-05-06T10:45:57.116Z] ----------------------------------------------------------------------
-[debug] [2026-05-06T10:45:57.120Z] Command:       C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules --project wanderlust-gallery
-[debug] [2026-05-06T10:45:57.121Z] CLI Version:   15.15.0
-[debug] [2026-05-06T10:45:57.121Z] Platform:      win32
-[debug] [2026-05-06T10:45:57.122Z] Node Version:  v23.3.0
-[debug] [2026-05-06T10:45:57.122Z] Time:          Wed May 06 2026 18:45:57 GMT+0800 (Singapore Standard Time)
-[debug] [2026-05-06T10:45:57.122Z] ----------------------------------------------------------------------
+[debug] [2026-05-10T02:47:18.988Z] ----------------------------------------------------------------------
+[debug] [2026-05-10T02:47:18.989Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\marti\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules,storage --project wanderlust-gallery
+[debug] [2026-05-10T02:47:18.989Z] CLI Version:   15.17.0
+[debug] [2026-05-10T02:47:18.990Z] Platform:      win32
+[debug] [2026-05-10T02:47:18.990Z] Node Version:  v24.15.0
+[debug] [2026-05-10T02:47:18.990Z] Time:          Sun May 10 2026 10:47:18 GMT+0800 (Singapore Standard Time)
+[debug] [2026-05-10T02:47:18.990Z] ----------------------------------------------------------------------
 [debug] 
-[debug] [2026-05-06T10:45:57.125Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
-[debug] [2026-05-06T10:45:58.914Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2026-05-06T10:45:58.928Z] Error: Could not load the default credentials. Browse to https://cloud.google.com/docs/authentication/getting-started for more information.
-    at GoogleAuth.getApplicationDefaultAsync (C:\Users\ui134736\AppData\Roaming\nvm\v23.3.0\node_modules\firebase-tools\node_modules\google-auth-library\build\src\auth\googleauth.js:287:15)
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    at async GoogleAuth._GoogleAuth_determineClient (C:\Users\ui134736\AppData\Roaming\nvm\v23.3.0\node_modules\firebase-tools\node_modules\google-auth-library\build\src\auth\googleauth.js:834:32)
-    at async GoogleAuth.getClient (C:\Users\ui134736\AppData\Roaming\nvm\v23.3.0\node_modules\firebase-tools\node_modules\google-auth-library\build\src\auth\googleauth.js:698:20)
-    at async GoogleAuth.getAccessToken (C:\Users\ui134736\AppData\Roaming\nvm\v23.3.0\node_modules\firebase-tools\node_modules\google-auth-library\build\src\auth\googleauth.js:722:24)
-    at async autoAuth (C:\Users\ui134736\AppData\Roaming\nvm\v23.3.0\node_modules\firebase-tools\lib\requireAuth.js:28:19)
-    at async requireAuth (C:\Users\ui134736\AppData\Roaming\nvm\v23.3.0\node_modules\firebase-tools\lib\requireAuth.js:90:20)
-    at async requirePermissions (C:\Users\ui134736\AppData\Roaming\nvm\v23.3.0\node_modules\firebase-tools\lib\requirePermissions.js:17:5)
-    at async C:\Users\ui134736\AppData\Roaming\nvm\v23.3.0\node_modules\firebase-tools\lib\command.js:271:17
-[error] 
-[error] Error: Failed to authenticate, have you run firebase login?
+[debug] [2026-05-10T02:47:19.929Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-10T02:47:19.930Z] > authorizing via signed-in user (raicesm@gmail.com)
+[debug] [2026-05-10T02:47:19.930Z] [iam] checking project wanderlust-gallery for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]
+[debug] [2026-05-10T02:47:19.931Z] Checked if tokens are valid: false, expires at: 1778305253553
+[debug] [2026-05-10T02:47:19.931Z] Checked if tokens are valid: false, expires at: 1778305253553
+[debug] [2026-05-10T02:47:19.931Z] > refreshing access token with scopes: []
+[debug] [2026-05-10T02:47:19.932Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-10T02:47:19.932Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-10T02:47:19.998Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-05-10T02:47:19.998Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-10T02:47:20.005Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions [none]
+[debug] [2026-05-10T02:47:20.005Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-10T02:47:20.005Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]}
+[debug] [2026-05-10T02:47:21.024Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions 200
+[debug] [2026-05-10T02:47:21.025Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/wanderlust-gallery:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]}
+[info] 
+[info] === Deploying to 'wanderlust-gallery'...
+[info] 
+[info] i  deploying storage, firestore 
+[info] i  storage: ensuring required API firebasestorage.googleapis.com is enabled... 
+[debug] [2026-05-10T02:47:21.028Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:21.028Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:21.028Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/firebasestorage.googleapis.com [none]
+[debug] [2026-05-10T02:47:21.028Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/firebasestorage.googleapis.com  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-10T02:47:22.367Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/firebasestorage.googleapis.com 200
+[debug] [2026-05-10T02:47:22.368Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/firebasestorage.googleapis.com [omitted]
+[info] +  storage: required API firebasestorage.googleapis.com is enabled 
+[debug] [2026-05-10T02:47:22.373Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:22.373Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:22.373Z] >>> [apiv2][query] GET https://firebasestorage.googleapis.com/v1alpha/projects/wanderlust-gallery/defaultBucket [none]
+[debug] [2026-05-10T02:47:23.041Z] <<< [apiv2][status] GET https://firebasestorage.googleapis.com/v1alpha/projects/wanderlust-gallery/defaultBucket 200
+[debug] [2026-05-10T02:47:23.041Z] <<< [apiv2][body] GET https://firebasestorage.googleapis.com/v1alpha/projects/wanderlust-gallery/defaultBucket {"name":"projects/wanderlust-gallery/defaultBucket","location":"US-EAST1","bucket":{"name":"projects/wanderlust-gallery/buckets/wanderlust-gallery.firebasestorage.app"},"storageClass":"REGIONAL"}
+[info] i  firebase.storage: checking storage.rules for compilation errors... 
+[debug] [2026-05-10T02:47:23.042Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:23.042Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:23.042Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery:test [none]
+[debug] [2026-05-10T02:47:23.042Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery:test [omitted]
+[debug] [2026-05-10T02:47:24.332Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery:test 200
+[debug] [2026-05-10T02:47:24.332Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery:test {}
+[info] +  firebase.storage: rules file storage.rules compiled successfully 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-05-10T02:47:24.333Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:24.333Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:24.333Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/firestore.googleapis.com [none]
+[debug] [2026-05-10T02:47:24.333Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/firestore.googleapis.com  x-goog-user-project=wanderlust-gallery
+[debug] [2026-05-10T02:47:24.741Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/firestore.googleapis.com 200
+[debug] [2026-05-10T02:47:24.741Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/wanderlust-gallery/services/firestore.googleapis.com [omitted]
+[info] +  firestore: required API firestore.googleapis.com is enabled 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-05-10T02:47:24.744Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:24.745Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:24.745Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/wanderlust-gallery/databases/(default) [none]
+[debug] [2026-05-10T02:47:24.859Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/wanderlust-gallery/databases/(default) 200
+[debug] [2026-05-10T02:47:24.860Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/wanderlust-gallery/databases/(default) {"name":"projects/wanderlust-gallery/databases/(default)","uid":"6f1f618f-6014-4ab8-9554-a59458eb5920","createTime":"2026-04-29T09:09:52.592589Z","updateTime":"2026-04-29T09:09:52.592589Z","locationId":"asia-southeast1","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-05-10T01:47:24.803476Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"zas","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"ILnM/LLarZQDMKf6h/DgkpQD"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-05-10T02:47:24.862Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:24.862Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:24.862Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery:test [none]
+[debug] [2026-05-10T02:47:24.862Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery:test [omitted]
+[debug] [2026-05-10T02:47:26.185Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery:test 200
+[debug] [2026-05-10T02:47:26.185Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2026-05-10T02:47:26.186Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:26.186Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:26.186Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases pageSize=10&pageToken=
+[debug] [2026-05-10T02:47:27.524Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases 200
+[debug] [2026-05-10T02:47:27.524Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases {"releases":[{"name":"projects/wanderlust-gallery/releases/cloud.firestore","rulesetName":"projects/wanderlust-gallery/rulesets/291ff27a-c58a-475c-a953-28d6b4ba731e","createTime":"2026-04-29T09:09:58.532130Z","updateTime":"2026-05-08T09:30:24.018525Z"},{"name":"projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app","rulesetName":"projects/wanderlust-gallery/rulesets/f3117d4d-ff09-40c6-afa5-860196f87d2a","createTime":"2026-04-29T09:27:20.906681Z","updateTime":"2026-05-07T02:30:30.105533Z"}]}
+[debug] [2026-05-10T02:47:27.532Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:27.532Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:27.532Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets/f3117d4d-ff09-40c6-afa5-860196f87d2a [none]
+[debug] [2026-05-10T02:47:28.819Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets/f3117d4d-ff09-40c6-afa5-860196f87d2a 200
+[debug] [2026-05-10T02:47:28.820Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets/f3117d4d-ff09-40c6-afa5-860196f87d2a [omitted]
+[info] i  storage: uploading rules storage.rules... 
+[debug] [2026-05-10T02:47:28.820Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:28.820Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:28.821Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets [none]
+[debug] [2026-05-10T02:47:28.821Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets [omitted]
+[debug] [2026-05-10T02:47:30.373Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets 200
+[debug] [2026-05-10T02:47:30.373Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets {"name":"projects/wanderlust-gallery/rulesets/31c796bc-1d61-408a-821b-c03804e653c5","source":{"files":[{"content":"rules_version = '2';\r\n\r\nservice firebase.storage {\r\n  match /b/{bucket}/o {\r\n    function isAdmin() {\r\n      return request.auth != null &&\r\n        request.auth.token.email in ['raicesm@gmail.com', 'elena.beccaro@gmail.com'];\r\n    }\r\n\r\n    function isOwner(userId) {\r\n      return request.auth != null && request.auth.uid == userId;\r\n    }\r\n\r\n    match /users/{userId}/{allPaths=**} {\n      allow read: if isAdmin() || isOwner(userId);\n      allow write: if isOwner(userId);\n    }\n  }\n}\n","name":"storage.rules"}]},"createTime":"2026-05-10T02:47:30.151551Z","metadata":{"services":["firebase.storage"]}}
+[debug] [2026-05-10T02:47:30.373Z] [rules] created ruleset projects/wanderlust-gallery/rulesets/31c796bc-1d61-408a-821b-c03804e653c5
+[debug] [2026-05-10T02:47:30.374Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:30.374Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:30.374Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases pageSize=10&pageToken=
+[debug] [2026-05-10T02:47:31.606Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases 200
+[debug] [2026-05-10T02:47:31.607Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases {"releases":[{"name":"projects/wanderlust-gallery/releases/cloud.firestore","rulesetName":"projects/wanderlust-gallery/rulesets/291ff27a-c58a-475c-a953-28d6b4ba731e","createTime":"2026-04-29T09:09:58.532130Z","updateTime":"2026-05-08T09:30:24.018525Z"},{"name":"projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app","rulesetName":"projects/wanderlust-gallery/rulesets/f3117d4d-ff09-40c6-afa5-860196f87d2a","createTime":"2026-04-29T09:27:20.906681Z","updateTime":"2026-05-07T02:30:30.105533Z"}]}
+[debug] [2026-05-10T02:47:31.607Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:31.607Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:31.607Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets/291ff27a-c58a-475c-a953-28d6b4ba731e [none]
+[debug] [2026-05-10T02:47:32.012Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets/291ff27a-c58a-475c-a953-28d6b4ba731e 200
+[debug] [2026-05-10T02:47:32.012Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets/291ff27a-c58a-475c-a953-28d6b4ba731e [omitted]
+[info] i  firestore: uploading rules firestore.rules... 
+[debug] [2026-05-10T02:47:32.013Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:32.013Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:32.013Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets [none]
+[debug] [2026-05-10T02:47:32.013Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets [omitted]
+[debug] [2026-05-10T02:47:32.421Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets 200
+[debug] [2026-05-10T02:47:32.421Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/rulesets {"name":"projects/wanderlust-gallery/rulesets/a9cbbc7b-9d0c-4a30-80a8-37af27018d0c","source":{"files":[{"content":"rules_version = '2';\r\n\r\nservice cloud.firestore {\r\n  match /databases/{database}/documents {\r\n    function isAdmin() {\r\n      return request.auth != null &&\r\n        request.auth.token.email == 'raicesm@gmail.com';\r\n    }\r\n\r\n    function signedInEmail() {\r\n      return request.auth != null ? request.auth.token.email : null;\r\n    }\r\n\r\n    function isSignedIn() {\n      return request.auth != null;\n    }\n\n    function isTripOwner(trip) {\n      return request.auth != null &&\n        (trip.ownerId == request.auth.uid || !('ownerId' in trip));\n    }\n\n    function hasTripAccess(trip) {\r\n      return trip.visibility == 'shared' || (\r\n        request.auth != null && (\r\n          trip.ownerId == request.auth.uid ||\r\n          !('ownerId' in trip) ||\r\n          isAdmin() ||\r\n          (signedInEmail() != null &&\r\n           'allowedEmails' in trip &&\r\n           signedInEmail() in trip.allowedEmails)\r\n        )\r\n      );\r\n    }\r\n\r\n    function validTripCreate() {\n      return request.resource.data.ownerId == request.auth.uid &&\n        request.resource.data.ownerEmail == signedInEmail() &&\n        request.resource.data.visibility in ['shared', 'private'];\n    }\n\n    function validTripUpdate() {\n      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'ownerEmail']) &&\n        request.resource.data.visibility in ['shared', 'private'];\n    }\n\r\n    function validShareLink() {\r\n      return request.resource.data.keys().hasOnly([\r\n        'tripId', 'ownerId', 'tripName', 'tripDate', 'photos', 'expiresAt', 'createdAt'\r\n      ]) &&\r\n      request.resource.data.tripName is string &&\r\n      request.resource.data.photos is list;\r\n    }\r\n\r\n    // Trips: public can read shared trips; owners, admins and email-granted users can read private trips.\r\n    match /trips/{tripId} {\n      allow read: if hasTripAccess(resource.data);\n      allow create: if isSignedIn() && validTripCreate();\n      allow update: if isAdmin() || (isTripOwner(resource.data) && validTripUpdate());\n      allow delete: if isAdmin() || isTripOwner(resource.data);\n    }\n\n    // Photos follow their parent trip visibility/access rules.\n    match /trips/{tripId}/photos/{photoId} {\n      allow read: if hasTripAccess(get(/databases/$(database)/documents/trips/$(tripId)).data);\n      allow write: if isAdmin() ||\n        isTripOwner(get(/databases/$(database)/documents/trips/$(tripId)).data);\n    }\n\r\n    match /trips/{tripId}/photos/{photoId}/faces/{faceId} {\r\n      allow read: if isSignedIn();\r\n      allow write: if false;\r\n    }\r\n\r\n    match /people/{personId} {\r\n      allow read: if isSignedIn();\r\n      allow write: if isAdmin();\r\n    }\r\n\r\n    match /people/{personId}/matches/{matchId} {\r\n      allow read: if isSignedIn();\r\n      allow write: if isAdmin();\r\n    }\r\n\r\n    match /faceIndex/{faceId} {\r\n      allow read: if isSignedIn();\r\n      allow write: if isAdmin();\r\n    }\r\n\r\n    // Per-user data (wishlist, etc.) is private.\r\n    match /users/{userId}/{document=**} {\r\n      allow read: if request.auth != null && request.auth.uid == userId;\r\n      allow write: if request.auth != null && request.auth.uid == userId;\r\n    }\r\n\r\n    // Public profiles: authenticated users can read email/displayName for creator attribution.\r\n    match /profiles/{userId} {\r\n      allow read: if request.auth != null;\r\n      allow write: if isAdmin();\r\n    }\r\n\r\n    // Shared links are intentionally public by token; only admins can create/update/delete them.\r\n    match /sharedLinks/{token} {\r\n      allow read: if true;\r\n      allow create: if isAdmin() && validShareLink();\r\n      allow update: if isAdmin() && validShareLink();\r\n      allow delete: if isAdmin();\r\n    }\r\n\r\n    // Album shares are admin-only.\r\n    match /albumShares/{shareId} {\r\n      allow read, write: if isAdmin();\r\n    }\r\n\r\n    // Access requests: any signed-in Gmail user may create/read their own request; admins review all.\r\n    match /accessRequests/{email} {\r\n      allow create, update: if request.auth != null &&\r\n        email == signedInEmail() &&\r\n        request.resource.data.email == signedInEmail() &&\r\n        request.resource.data.status == 'pending';\r\n      allow read: if isAdmin() || (request.auth != null && email == signedInEmail());\r\n      allow delete: if isAdmin();\r\n      allow update: if isAdmin();\r\n    }\r\n\r\n    // Global settings (panel label etc.): authenticated users can read; only admins can write.\r\n    match /globalSettings/{docId} {\r\n      allow read: if request.auth != null;\r\n      allow write: if isAdmin();\r\n    }\r\n  }\r\n}\r\n","name":"firestore.rules"}]},"createTime":"2026-05-10T02:47:32.156303Z","metadata":{"services":["cloud.firestore"]}}
+[debug] [2026-05-10T02:47:32.421Z] [rules] created ruleset projects/wanderlust-gallery/rulesets/a9cbbc7b-9d0c-4a30-80a8-37af27018d0c
+[debug] [2026-05-10T02:47:32.422Z] [rules] releasing firebase.storage/wanderlust-gallery.firebasestorage.app with ruleset projects/wanderlust-gallery/rulesets/31c796bc-1d61-408a-821b-c03804e653c5
+[debug] [2026-05-10T02:47:32.422Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:32.422Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:32.423Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app [none]
+[debug] [2026-05-10T02:47:32.423Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app {"release":{"name":"projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app","rulesetName":"projects/wanderlust-gallery/rulesets/31c796bc-1d61-408a-821b-c03804e653c5"}}
+[debug] [2026-05-10T02:47:33.750Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app 200
+[debug] [2026-05-10T02:47:33.750Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app {"name":"projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app","rulesetName":"projects/wanderlust-gallery/rulesets/31c796bc-1d61-408a-821b-c03804e653c5","createTime":"2026-04-29T09:27:20.906681Z","updateTime":"2026-05-10T02:47:33.552110Z"}
+[debug] [2026-05-10T02:47:33.750Z] [rules] updated release projects/wanderlust-gallery/releases/firebase.storage/wanderlust-gallery.firebasestorage.app
+[info] +  storage: released rules storage.rules to firebase.storage 
+[debug] [2026-05-10T02:47:33.751Z] [rules] releasing cloud.firestore with ruleset projects/wanderlust-gallery/rulesets/a9cbbc7b-9d0c-4a30-80a8-37af27018d0c
+[debug] [2026-05-10T02:47:33.751Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:33.751Z] Checked if tokens are valid: true, expires at: 1778384838998
+[debug] [2026-05-10T02:47:33.751Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases/cloud.firestore [none]
+[debug] [2026-05-10T02:47:33.751Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases/cloud.firestore {"release":{"name":"projects/wanderlust-gallery/releases/cloud.firestore","rulesetName":"projects/wanderlust-gallery/rulesets/a9cbbc7b-9d0c-4a30-80a8-37af27018d0c"}}
+[debug] [2026-05-10T02:47:34.367Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases/cloud.firestore 200
+[debug] [2026-05-10T02:47:34.368Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/wanderlust-gallery/releases/cloud.firestore {"name":"projects/wanderlust-gallery/releases/cloud.firestore","rulesetName":"projects/wanderlust-gallery/rulesets/a9cbbc7b-9d0c-4a30-80a8-37af27018d0c","createTime":"2026-04-29T09:09:58.532130Z","updateTime":"2026-05-10T02:47:34.109255Z"}
+[debug] [2026-05-10T02:47:34.368Z] [rules] updated release projects/wanderlust-gallery/releases/cloud.firestore
+[info] +  firestore: released rules firestore.rules to cloud.firestore 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/wanderlust-gallery/overview

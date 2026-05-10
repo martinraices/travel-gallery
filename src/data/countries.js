@@ -11,7 +11,7 @@ export const COUNTRY_ISO = {
   'Cuba': 192, 'Cyprus': 196, 'Czech Republic': 203, 'Denmark': 208, 'Djibouti': 262,
   'Dominica': 212, 'Dominican Republic': 214, 'DR Congo': 180, 'Ecuador': 218,
   'Egypt': 818, 'El Salvador': 222, 'Equatorial Guinea': 226, 'Eritrea': 232,
-  'Estonia': 233, 'Eswatini': 748, 'Ethiopia': 231, 'Fiji': 242, 'Finland': 246,
+  'Estonia': 233, 'Eswatini': 748, 'Ethiopia': 231, 'Faroe Islands': 234, 'Fiji': 242, 'Finland': 246,
   'France': 250, 'Gabon': 266, 'Gambia': 270, 'Georgia': 268, 'Germany': 276,
   'Ghana': 288, 'Greece': 300, 'Grenada': 308, 'Guatemala': 320, 'Guinea': 324,
   'Guinea-Bissau': 624, 'Guyana': 328, 'Haiti': 332, 'Honduras': 340,
@@ -37,7 +37,7 @@ export const COUNTRY_ISO = {
   'Serbia': 688, 'Seychelles': 690, 'Sierra Leone': 694, 'Singapore': 702,
   'Slovakia': 703, 'Slovenia': 705, 'Solomon Islands': 90, 'Somalia': 706,
   'South Africa': 710, 'South Korea': 410, 'South Sudan': 728, 'Spain': 724,
-  'Sri Lanka': 144, 'Sudan': 729, 'Suriname': 740, 'Sweden': 752,
+  'Sri Lanka': 144, 'Sudan': 729, 'Suriname': 740, 'Svalbard': 744, 'Sweden': 752,
   'Switzerland': 756, 'Syria': 760, 'Taiwan': 158, 'Tajikistan': 762,
   'Tanzania': 834, 'Thailand': 764, 'Timor-Leste': 626, 'Togo': 768,
   'Tonga': 776, 'Trinidad and Tobago': 780, 'Tunisia': 788, 'Turkey': 792,
@@ -49,7 +49,12 @@ export const COUNTRY_ISO = {
 };
 
 export const COUNTRY_NAMES = Object.keys(COUNTRY_ISO);
-export const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+export const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json';
+
+export const MAP_TERRITORY_MARKERS = [
+  { name: 'Svalbard', iso: 744, coordinates: [16, 78.5] },
+  { name: 'Faroe Islands', iso: 234, coordinates: [-6.9, 62] },
+];
 
 // ─── All world countries (for datalist autocomplete) ───
 export const WORLD_COUNTRIES = [
@@ -60,7 +65,7 @@ export const WORLD_COUNTRIES = [
   'Canada','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo',
   'Costa Rica','Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica',
   'Dominican Republic','DR Congo','Ecuador','Egypt','El Salvador','Equatorial Guinea',
-  'Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia',
+  'Eritrea','Estonia','Eswatini','Ethiopia','Faroe Islands','Fiji','Finland','France','Gabon','Gambia',
   'Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau',
   'Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq',
   'Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati',
@@ -74,7 +79,7 @@ export const WORLD_COUNTRIES = [
   'Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa',
   'San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles',
   'Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia',
-  'South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname',
+  'South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname','Svalbard',
   'Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste',
   'Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu',
   'Uganda','Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay',
@@ -102,14 +107,14 @@ export const COUNTRY_CONTINENT = {
   'Albania': 'Europe', 'Andorra': 'Europe', 'Austria': 'Europe', 'Belarus': 'Europe',
   'Belgium': 'Europe', 'Bosnia and Herzegovina': 'Europe', 'Bulgaria': 'Europe',
   'Croatia': 'Europe', 'Cyprus': 'Europe', 'Czech Republic': 'Europe', 'Denmark': 'Europe',
-  'Estonia': 'Europe', 'Finland': 'Europe', 'France': 'Europe', 'Georgia': 'Europe',
+  'Estonia': 'Europe', 'Faroe Islands': 'Europe', 'Finland': 'Europe', 'France': 'Europe', 'Georgia': 'Europe',
   'Germany': 'Europe', 'Greece': 'Europe', 'Hungary': 'Europe', 'Iceland': 'Europe',
   'Ireland': 'Europe', 'Italy': 'Europe', 'Latvia': 'Europe', 'Liechtenstein': 'Europe',
   'Lithuania': 'Europe', 'Luxembourg': 'Europe', 'Malta': 'Europe', 'Moldova': 'Europe',
   'Monaco': 'Europe', 'Montenegro': 'Europe', 'Netherlands': 'Europe',
   'North Macedonia': 'Europe', 'Norway': 'Europe', 'Poland': 'Europe', 'Portugal': 'Europe',
   'Romania': 'Europe', 'Russia': 'Europe', 'San Marino': 'Europe', 'Scotland': 'Europe',
-  'Serbia': 'Europe', 'Slovakia': 'Europe', 'Slovenia': 'Europe', 'Spain': 'Europe',
+  'Serbia': 'Europe', 'Slovakia': 'Europe', 'Slovenia': 'Europe', 'Spain': 'Europe', 'Svalbard': 'Europe',
   'Sweden': 'Europe', 'Switzerland': 'Europe', 'Ukraine': 'Europe', 'United Kingdom': 'Europe',
   'Vatican City': 'Europe',
   'Afghanistan': 'Asia', 'Armenia': 'Asia', 'Azerbaijan': 'Asia', 'Bahrain': 'Asia',

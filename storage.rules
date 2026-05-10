@@ -13,7 +13,7 @@ service firebase.storage {
 
     match /users/{userId}/{allPaths=**} {
       allow read: if isAdmin() || isOwner(userId);
-      allow write: if isAdmin() && isOwner(userId);
+      allow write: if isOwner(userId);
     }
   }
 }
