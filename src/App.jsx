@@ -47,6 +47,30 @@ function isVideoMedia(item) {
   return item?.type === 'video' || !!item?.youtubeId || item?.videoProvider === 'youtube';
 }
 
+function VisibilityIcon({ isPrivate = false }) {
+  return isPrivate ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="5" y="10" width="14" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      <path d="M12 14v2" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.3 2.4 3.5 5.4 3.5 9s-1.2 6.6-3.5 9c-2.3-2.4-3.5-5.4-3.5-9S9.7 5.4 12 3Z" />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 20h4.5L19 9.5 14.5 5 4 15.5V20Z" />
+      <path d="m13.5 6 4.5 4.5" />
+    </svg>
+  );
+}
+
 function mediaCounts(items = []) {
   return items.reduce((counts, item) => {
     if (isVideoMedia(item)) counts.videos += 1;
@@ -4794,35 +4818,47 @@ export default function App() {
                     <strong>{mobileStatsCollapsed ? '+' : '−'}</strong>
                   </button>
                   <div className="stats-mobile-body">
-                    <div className="stats-bar">
+                    <div
+                      className="stats-bar"
+                      style={{
+                        '--stat-count': 2 + (!isReadOnly ? 3 : 0) + (countriesVisited > 0 ? 1 : 0) + (wishlist.size > 0 ? 1 : 0),
+                      }}
+                    >
                   <div className={`stat-card stat-card-btn${statPanel === 'trips' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'trips' ? null : 'trips')}>
+                    <div className="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V6.8L9.5 4l5 2.5L20 4v12.2L14.5 19l-5-2.5L4 19Z" /><path d="M9.5 4v12.5M14.5 6.5V19" /></svg></div>
                     <div className="stat-value">{trips.length}</div><div className="stat-label">{T.tripsLabel}</div>
                   </div>
                   <div className="stat-card">
+                    <div className="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.6" /><path d="m6 17 4.2-4 2.8 2.7 3.2-4.2L21 17" /></svg></div>
                     <div className="stat-value">{totalPhotos}</div><div className="stat-label">{T.photosLabel}</div>
                   </div>
                   {!isReadOnly && (
                     <div className="stat-card">
+                      <div className="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3Z" /></svg></div>
                       <div className="stat-value">{ownVideos}</div><div className="stat-label">{T.videosLabel}</div>
                     </div>
                   )}
                   {!isReadOnly && (
                     <div className="stat-card stat-card-shares">
+                      <div className="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /></svg></div>
                       <div className="stat-value">{sharedByMePhotos}</div><div className="stat-label">{T.sharedByMePhotosLabel}</div>
                     </div>
                   )}
                   {!isReadOnly && (
                     <div className="stat-card stat-card-shares">
+                      <div className="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M12 4v12" /><path d="m7 11 5 5 5-5" /></svg></div>
                       <div className="stat-value">{sharedWithMePhotos}</div><div className="stat-label">{T.sharedWithMePhotosLabel}</div>
                     </div>
                   )}
                   {countriesVisited > 0 && (
                     <div className={`stat-card stat-card-btn${statPanel === 'countries' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'countries' ? null : 'countries')}>
+                      <div className="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.3 2.4 3.5 5.4 3.5 9s-1.2 6.6-3.5 9c-2.3-2.4-3.5-5.4-3.5-9S9.7 5.4 12 3Z" /></svg></div>
                       <div className="stat-value">{countriesVisited}</div><div className="stat-label">{T.countriesLabel}</div>
                     </div>
                   )}
                   {wishlist.size > 0 && (
                     <div className={`stat-card stat-card-btn${statPanel === 'wishlist' ? ' stat-active' : ''}`} onClick={() => setStatPanel(p => p === 'wishlist' ? null : 'wishlist')}>
+                      <div className="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9-9.2C1.4 8.1 3.6 5 7 5c2 0 3.3 1.1 5 3 1.7-1.9 3-3 5-3 3.4 0 5.6 3.1 4 6.8C19 16.5 12 21 12 21Z" /></svg></div>
                       <div className="stat-value">{wishlist.size}</div><div className="stat-label">{T.wishlistLabel}</div>
                     </div>
                   )}
@@ -5201,9 +5237,10 @@ export default function App() {
                         <div className="trip-name">{trip.name}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           <span className="trip-vis-icon" title={tripIsShared(trip) ? T.sharedTitle : T.privateTitle}>
+                            <VisibilityIcon isPrivate={!tripIsShared(trip)} />
                             {tripIsShared(trip) ? '🌍' : '🔒'}
                           </span>
-                          {isOwner && <button className="trip-edit-btn" title={T.editTripBtn} onClick={e => { e.stopPropagation(); openEditTrip(trip); }}>✎</button>}
+                          {isOwner && <button className="trip-edit-btn" title={T.editTripBtn} aria-label={T.editTripBtn} onClick={e => { e.stopPropagation(); openEditTrip(trip); }}><EditIcon /></button>}
                         </div>
                       </div>
                       <div className="trip-meta">
@@ -5344,11 +5381,12 @@ export default function App() {
                           <div className="trip-name">{city}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                             <span className="trip-vis-icon" title={cityVis === 'private' ? T.privateTitle : T.sharedTitle}>
+                              <VisibilityIcon isPrivate={cityVis === 'private'} />
                               {cityVis === 'private' ? '🔒' : '🌍'}
                             </span>
                             {isOwner && (
-                              <button className="trip-edit-btn" title={T.editSubAlbumBtn}
-                                onClick={e => { e.stopPropagation(); openEditCity(city); }}>✎</button>
+                              <button className="trip-edit-btn" title={T.editSubAlbumBtn} aria-label={T.editSubAlbumBtn}
+                                onClick={e => { e.stopPropagation(); openEditCity(city); }}><EditIcon /></button>
                             )}
                           </div>
                         </div>
@@ -6411,19 +6449,25 @@ export default function App() {
                     </div>
                     <div className="person-actions">
                       <button
-                        className="btn btn-sm"
+                        className="btn btn-sm person-action-btn"
                         onClick={e => { e.stopPropagation(); openPersonPresentation(person); }}
                         disabled={refreshAllPeople?.status === 'running' || faceAction === `presentation:${person.id}` || faceAction === `delete:${person.id}` || (person.matchCount || 0) === 0}
+                        title={T.createPresentation}
+                        aria-label={T.createPresentation}
                       >
-                        {faceAction === `presentation:${person.id}` ? T.loadingPresentation : T.createPresentation}
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M8 21h8M12 19v2" /><path d="m8 14 3-3 2 2 3-4 3 5" /></svg>
+                        <span className="person-action-label">{faceAction === `presentation:${person.id}` ? T.loadingPresentation : T.createPresentation}</span>
                       </button>
                       {isAdminUser && (
                         <button
-                          className="btn btn-sm btn-danger"
+                          className="btn btn-sm btn-danger person-action-btn"
                           onClick={e => { e.stopPropagation(); setConfirmDeletePerson(person); }}
                           disabled={refreshAllPeople?.status === 'running' || faceAction === `delete:${person.id}`}
+                          title={T.deleteBtn}
+                          aria-label={T.deleteBtn}
                         >
-                          {faceAction === `delete:${person.id}` ? T.saving : T.deleteBtn}
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 15H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                          <span className="person-action-label">{faceAction === `delete:${person.id}` ? T.saving : T.deleteBtn}</span>
                         </button>
                       )}
                     </div>
