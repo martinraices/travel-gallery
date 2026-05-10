@@ -4566,9 +4566,9 @@ export default function App() {
           <p className="login-sub">{T.appIsPrivate}</p>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{T.contactAdmin}</p>
           <div className="login-legal-links" aria-label="Legal links">
-            <a href="/privacy">Privacy Policy</a>
+            <a href="https://pepiniperilmondo.web.app/privacy">Privacy Policy</a>
             <span aria-hidden="true">.</span>
-            <a href="/terms">Terms of Service</a>
+            <a href="https://pepiniperilmondo.web.app/terms">Terms of Service</a>
           </div>
           <button className="btn btn-sm" onClick={() => setAccessDenied(false)} style={{ marginTop: 20 }}>{T.backToLogin}</button>
         </div>
@@ -4600,9 +4600,9 @@ export default function App() {
           {loginError && <p className="login-error">{loginError}</p>}
           {loginInfo && <p className="field-success" style={{ textAlign: 'center', marginTop: 12 }}>{loginInfo}</p>}
           <div className="login-legal-links" aria-label="Legal links">
-            <a href="/privacy">Privacy Policy</a>
+            <a href="https://pepiniperilmondo.web.app/privacy">Privacy Policy</a>
             <span aria-hidden="true">.</span>
-            <a href="/terms">Terms of Service</a>
+            <a href="https://pepiniperilmondo.web.app/terms">Terms of Service</a>
           </div>
         </div>
         {pendingAccessUser && (
