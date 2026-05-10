@@ -161,6 +161,9 @@ export function getTranslations(isSpanish) {
       : 'This video is in the album and was also uploaded to YouTube as private. Choose where you want to delete it.',
     deleteOnlyFromApp: isSpanish ? 'Solo de la app' : 'Only from app',
     deleteFromAppAndYouTube: isSpanish ? 'De la app y YouTube' : 'From app and YouTube',
+    lightboxSizeLevel1: isSpanish ? 'Tamano normal' : 'Normal size',
+    lightboxSizeLevel2: isSpanish ? '30% mas grande' : '30% larger',
+    lightboxSizeLevel3: isSpanish ? 'Pantalla completa' : 'Full screen',
     deleteFromYouTubeNeedsReconnect: isSpanish
       ? 'Para borrar de YouTube, conecta YouTube nuevamente y acepta el permiso de administracion de videos.'
       : 'To delete from YouTube, connect YouTube again and accept the video management permission.',

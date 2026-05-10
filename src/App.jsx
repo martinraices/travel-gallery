@@ -194,6 +194,9 @@ function PhotoSliderOverlay({
   incomingClassName = 'lightbox-img-incoming',
   isPlaying = false,
   onTogglePlay,
+  sizeLevel = 1,
+  onSizeLevelChange,
+  sizeLabels = ['Size 1', 'Size 2', 'Full screen'],
   children,
   footer,
 }) {
@@ -211,7 +214,7 @@ function PhotoSliderOverlay({
     });
 
   return (
-    <div className={`lightbox trip-photo-slider fade-scale ${className}`.trim()} role="dialog" aria-modal="true" onClick={onClose}>
+    <div className={`lightbox trip-photo-slider trip-photo-size-${sizeLevel} fade-scale ${className}`.trim()} role="dialog" aria-modal="true" onClick={onClose}>
       <div className={`lightbox-img-wrap trip-photo-slider-stage ${stageClassName}`.trim()} onClick={e => e.stopPropagation()}>
         {(current.type === 'video' || current.youtubeId) ? (
           <iframe
@@ -254,6 +257,30 @@ function PhotoSliderOverlay({
       <button className="lb-close trip-photo-slider-close" aria-label={closeLabel} onClick={e => { e.stopPropagation(); onClose(); }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
       </button>
+      {onSizeLevelChange && (
+        <>
+          <button
+            type="button"
+            className="lb-zoom-btn lb-zoom-out"
+            onClick={e => { e.stopPropagation(); onSizeLevelChange(Math.max(1, sizeLevel - 1)); }}
+            title={sizeLabels[0]}
+            aria-label={sizeLabels[0]}
+            disabled={sizeLevel <= 1}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M8 11h6M16.5 16.5 21 21" /></svg>
+          </button>
+          <button
+            type="button"
+            className="lb-zoom-btn lb-zoom-in"
+            onClick={e => { e.stopPropagation(); onSizeLevelChange(Math.min(3, sizeLevel + 1)); }}
+            title={sizeLabels[2]}
+            aria-label={sizeLabels[2]}
+            disabled={sizeLevel >= 3}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M11 8v6M8 11h6M16.5 16.5 21 21" /></svg>
+          </button>
+        </>
+      )}
       {hasPrevious && (
         <button className="lb-arrow lb-arrow-left trip-photo-slider-arrow" aria-label={previousLabel} onClick={e => { e.stopPropagation(); onNavigate(-1); }}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
@@ -562,6 +589,11 @@ export default function App() {
       .catch(() => {});
   }, []);
   const T = useMemo(() => getTranslations(isSpanish), [isSpanish]);
+  const lightboxSizeLabels = useMemo(() => [
+    T.lightboxSizeLevel1,
+    T.lightboxSizeLevel2,
+    T.lightboxSizeLevel3,
+  ], [T]);
 
   // ─── Auth ───
   const [user, setUser] = useState(null);
@@ -612,6 +644,10 @@ export default function App() {
   const [youtubeTokenExpiresAt, setYoutubeTokenExpiresAt] = useState(() => Number(sessionStorage.getItem('youtubeTokenExpiresAt') || 0));
   const [youtubeTokenNow, setYoutubeTokenNow] = useState(() => Date.now());
   const [view, setView] = useState('grid');
+  const [lightboxSizeLevel, setLightboxSizeLevel] = useState(() => {
+    const saved = Number(localStorage.getItem('lightboxSizeLevel') || 1);
+    return [1, 2, 3].includes(saved) ? saved : 1;
+  });
   const [tripsView, setTripsView] = useState('grid');
   const [photoRenderLimit, setPhotoRenderLimit] = useState(PHOTO_GRID_BATCH_SIZE);
   const [publicPhotoRenderLimit, setPublicPhotoRenderLimit] = useState(PHOTO_GRID_BATCH_SIZE);
@@ -639,6 +675,12 @@ export default function App() {
   const lastScrollYRef = useRef(0);
   const scrollFadeTimerRef = useRef(null);
   const loadingTripCoversRef = useRef(new Set());
+
+  const updateLightboxSizeLevel = useCallback((level) => {
+    if (![1, 2, 3].includes(level)) return;
+    setLightboxSizeLevel(level);
+    localStorage.setItem('lightboxSizeLevel', String(level));
+  }, []);
 
   // ─── Dark mode ───
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
@@ -4569,6 +4611,9 @@ export default function App() {
             closeLabel={T.close}
             previousLabel={isSpanish ? 'Foto anterior' : 'Previous photo'}
             nextLabel={isSpanish ? 'Foto siguiente' : 'Next photo'}
+            sizeLevel={lightboxSizeLevel}
+            onSizeLevelChange={updateLightboxSizeLevel}
+            sizeLabels={lightboxSizeLabels}
           />
         )}
       </div>
@@ -5553,6 +5598,9 @@ export default function App() {
           closeLabel={T.close}
           previousLabel={isSpanish ? 'Foto anterior' : 'Previous photo'}
           nextLabel={isSpanish ? 'Foto siguiente' : 'Next photo'}
+          sizeLevel={lightboxSizeLevel}
+          onSizeLevelChange={updateLightboxSizeLevel}
+          sizeLabels={lightboxSizeLabels}
         >
           {!isReadOnly && (
             <div className="lb-desc-wrap" onClick={e => e.stopPropagation()}>
@@ -6612,6 +6660,9 @@ export default function App() {
           closeLabel={T.close}
           previousLabel={isSpanish ? 'Foto anterior' : 'Previous photo'}
           nextLabel={isSpanish ? 'Foto siguiente' : 'Next photo'}
+          sizeLevel={lightboxSizeLevel}
+          onSizeLevelChange={updateLightboxSizeLevel}
+          sizeLabels={lightboxSizeLabels}
           title={(personPresentation.photos[personPresentation.index] || personPresentation.photos[0])?.tripName || personPresentation.person.name}
           subtitle={[(personPresentation.photos[personPresentation.index] || personPresentation.photos[0])?.tripDate, (personPresentation.photos[personPresentation.index] || personPresentation.photos[0])?.city].filter(Boolean).join(' · ') || T.personMatchCount(personPresentation.photos.length)}
           className="presentation-overlay"
@@ -6778,6 +6829,9 @@ export default function App() {
           closeLabel={T.close}
           previousLabel={isSpanish ? 'Foto anterior' : 'Previous photo'}
           nextLabel={isSpanish ? 'Foto siguiente' : 'Next photo'}
+          sizeLevel={lightboxSizeLevel}
+          onSizeLevelChange={updateLightboxSizeLevel}
+          sizeLabels={lightboxSizeLabels}
           title={personSlideshow.title}
           subtitle={personSlideshow.photos[personSlideshow.index]?.tripName || ''}
         />
